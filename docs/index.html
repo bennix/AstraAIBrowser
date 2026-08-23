@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#080b15">
-  <meta name="description" content="Astra is a native AI browser for Apple Silicon Macs, combining a Chromium engine with a focused AI workspace.">
+  <meta name="description" content="Astra is a private native AI browser for Apple Silicon Macs, combining Chromium compatibility, integrated extensions, and visual AI assistance.">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Astra AI Browser for macOS">
-  <meta property="og:description" content="A native Mac browser with an AI co-pilot built in. Download the Apple-notarized build 22 DMG.">
+  <meta property="og:description" content="A private native Mac browser with integrated extensions and an AI co-pilot. Download the Apple-notarized build 24 DMG.">
   <meta property="og:url" content="https://bennix.github.io/AstraAIBrowser/">
   <meta property="og:image" content="https://raw.githubusercontent.com/bennix/AstraAIBrowser/main/Resources/Assets.xcassets/AstraIcon.appiconset/512%402x.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -16,6 +16,7 @@
   <meta name="twitter:image" content="https://raw.githubusercontent.com/bennix/AstraAIBrowser/main/Resources/Assets.xcassets/AstraIcon.appiconset/512%402x.png">
   <link rel="canonical" href="https://bennix.github.io/AstraAIBrowser/">
   <link rel="preconnect" href="https://raw.githubusercontent.com">
+  <script src="i18n/landing.zh-CN.js" defer></script>
   <title>Astra AI Browser — Native AI browsing for macOS</title>
   <style>
     :root {
@@ -118,6 +119,7 @@
     }
 
     .hero-copy { max-width: 570px; margin: 28px 0 0; color: var(--muted); font-size: 20px; line-height: 1.58; }
+    .hero-copy.zh-copy { margin-top: 10px; color: #c4c9d7; font-size: 17px; }
     .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
 
     .button {
@@ -191,6 +193,8 @@
     .feature-number { color: #777e90; font-size: 12px; font-weight: 720; letter-spacing: 0.09em; }
     .feature h3 { margin: 44px 0 10px; font-size: 23px; letter-spacing: -0.035em; }
     .feature p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.62; }
+    .feature .zh-title { margin-top: -3px; color: #d8d4ff; font-size: 17px; font-weight: 650; letter-spacing: 0; }
+    .feature .zh-copy { margin-top: 8px; color: #c0c5d3; font-size: 14px; }
 
     .download-card {
       display: grid;
@@ -206,6 +210,7 @@
 
     .download-card h2 { margin: 0 0 12px; font-size: clamp(34px, 4vw, 50px); letter-spacing: -0.05em; }
     .download-card p { max-width: 650px; margin: 0; color: var(--muted); font-size: 17px; line-height: 1.6; }
+    .download-card .zh-copy { margin-top: 9px; color: #c4c9d7; font-size: 15px; }
     .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 42px; }
     .step { padding: 22px 0; border-top: 1px solid var(--line); }
     .step strong { display: block; margin-bottom: 8px; font-size: 14px; }
@@ -257,11 +262,12 @@
   <main id="top">
     <section class="shell hero" aria-labelledby="hero-title">
       <div>
-        <div class="eyebrow">Build 21 is available</div>
+        <div class="eyebrow">Build 24 is available</div>
         <h1 id="hero-title">Browse with <span class="gradient-text">an AI co-pilot.</span></h1>
-        <p class="hero-copy">Astra brings a native Mac interface, a capable Chromium engine, and an AI workspace into one focused browser.</p>
+        <p class="hero-copy">Astra keeps Chromium browsing, extensions, privacy controls, and visual AI assistance inside one focused native Mac app.</p>
+        <p class="hero-copy zh-copy" lang="zh-CN" data-zh-key="hero.summary"></p>
         <div class="actions">
-          <a class="button primary" href="https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.22/Astra-Browser-build22.dmg">Download for Mac <span aria-hidden="true">↓</span></a>
+          <a class="button primary" href="https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.24/Astra-Browser-build24.dmg">Download Build 24 <span aria-hidden="true">↓</span></a>
           <a class="button" href="https://github.com/bennix/AstraAIBrowser">View source</a>
         </div>
         <div class="trust" aria-label="Release details">
@@ -294,15 +300,18 @@
     <section class="section" id="features">
       <div class="shell">
         <div class="section-heading">
-          <div class="kicker">Built for the Mac</div>
-          <h2>Fast browsing, thoughtful assistance.</h2>
-          <p>Astra keeps the familiar browser workflow while placing useful AI and power-user controls close at hand.</p>
+          <div class="kicker">Build 24 highlights</div>
+          <h2>One browser. One private workspace.</h2>
+          <p>Astra combines everyday Chromium compatibility with extensions, visual AI context, and privacy controls that stay inside the app.</p>
+          <p class="zh-copy" lang="zh-CN" data-zh-key="features.summary"></p>
         </div>
         <div class="feature-grid">
-          <article class="feature"><div class="feature-number">01</div><h3>Native macOS experience</h3><p>An AppKit-based interface with spaces, profiles, tab management, downloads, and keyboard-first navigation.</p></article>
-          <article class="feature"><div class="feature-number">02</div><h3>AI in your browsing flow</h3><p>Work with an integrated assistant without leaving the context of the pages and tasks already in front of you.</p></article>
-          <article class="feature"><div class="feature-number">03</div><h3>Chromium compatibility</h3><p>A modern embedded Chromium engine provides the compatibility expected from an everyday desktop browser.</p></article>
-          <article class="feature"><div class="feature-number">04</div><h3>Less waiting on YouTube</h3><p>When YouTube marks playback as an ad, Astra temporarily uses 8× speed and restores your content speed afterward.</p></article>
+          <article class="feature"><div class="feature-number">01</div><h3>Extensions stay inside Astra</h3><h3 class="zh-title" lang="zh-CN" data-zh-key="features.extensions.title"></h3><p>Install extensions, see their icons, open their controls, and complete extension onboarding without launching a separate Chromium window.</p><p class="zh-copy" lang="zh-CN" data-zh-key="features.extensions.body"></p></article>
+          <article class="feature"><div class="feature-number">02</div><h3>WebRTC privacy by default</h3><h3 class="zh-title" lang="zh-CN" data-zh-key="features.privacy.title"></h3><p>Direct non-proxied WebRTC traffic is blocked. Camera and microphone requests require an explicit one-time decision.</p><p class="zh-copy" lang="zh-CN" data-zh-key="features.privacy.body"></p></article>
+          <article class="feature"><div class="feature-number">03</div><h3>Visual AI context</h3><h3 class="zh-title" lang="zh-CN" data-zh-key="features.visualContext.title"></h3><p>Each question can include the visible browser viewport, plus up to five removable pasted or uploaded images.</p><p class="zh-copy" lang="zh-CN" data-zh-key="features.visualContext.body"></p></article>
+          <article class="feature"><div class="feature-number">04</div><h3>Rich technical answers</h3><h3 class="zh-title" lang="zh-CN" data-zh-key="features.richAnswers.title"></h3><p>AI replies render Markdown, code, tables, mathematical LaTeX, and chemistry notation cleanly inside the assistant panel.</p><p class="zh-copy" lang="zh-CN" data-zh-key="features.richAnswers.body"></p></article>
+          <article class="feature"><div class="feature-number">05</div><h3>AI that can work with the page</h3><h3 class="zh-title" lang="zh-CN" data-zh-key="features.pageControl.title"></h3><p>The assistant can inspect the active tab and perform confirmed browser actions while the Chromium experience remains embedded in Astra.</p><p class="zh-copy" lang="zh-CN" data-zh-key="features.pageControl.body"></p></article>
+          <article class="feature"><div class="feature-number">06</div><h3>Less waiting on YouTube</h3><h3 class="zh-title" lang="zh-CN" data-zh-key="features.youtube.title"></h3><p>When YouTube marks playback as an ad, Astra temporarily uses 8× speed and restores your content speed afterward.</p><p class="zh-copy" lang="zh-CN" data-zh-key="features.youtube.body"></p></article>
         </div>
       </div>
     </section>
@@ -310,11 +319,11 @@
     <section class="section" id="download">
       <div class="shell">
         <div class="download-card">
-          <div><h2>Meet Astra build 22.</h2><p>Copied images now paste into ZenMux as removable attachments, and every question includes a native Chromium capture of the visible browser viewport for reliable visual context. The DMG is signed with an Apple Developer ID and accepted by Apple's notarization service.</p></div>
-          <a class="button primary" href="https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.22/Astra-Browser-build22.dmg">Download DMG <span aria-hidden="true">↓</span></a>
+          <div><h2>Meet Astra build 24.</h2><p>Extensions and their onboarding pages now remain inside Astra, privacy-sensitive WebRTC routes stay blocked, and the visual AI workspace remains available beside the page. The DMG is signed with an Apple Developer ID and accepted by Apple's notarization service.</p><p class="zh-copy" lang="zh-CN" data-zh-key="download.summary"></p></div>
+          <a class="button primary" href="https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.24/Astra-Browser-build24.dmg">Download DMG <span aria-hidden="true">↓</span></a>
         </div>
         <div class="steps" aria-label="Installation steps">
-          <div class="step"><strong>1. Download</strong><span>Get the notarized build 22 DMG from GitHub Releases.</span></div>
+          <div class="step"><strong>1. Download</strong><span>Get the notarized build 24 DMG from GitHub Releases.</span></div>
           <div class="step"><strong>2. Install</strong><span>Open the DMG and drag Astra Browser into Applications.</span></div>
           <div class="step"><strong>3. Browse</strong><span>Launch Astra from Applications and make it your own.</span></div>
         </div>
@@ -324,7 +333,7 @@
 
   <footer class="shell">
     <span>Astra AI Browser · Independent open-source distribution</span>
-    <span><a href="https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.22">Release notes</a> · <a href="https://github.com/bennix/AstraAIBrowser/blob/main/LICENSE">Apache 2.0</a></span>
+    <span><a href="https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.24">Release notes</a> · <a href="https://github.com/bennix/AstraAIBrowser/blob/main/LICENSE">Apache 2.0</a></span>
   </footer>
 </body>
 </html>
