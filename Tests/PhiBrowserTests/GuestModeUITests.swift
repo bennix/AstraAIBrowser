@@ -272,6 +272,101 @@ final class GuestModeUITests: XCTestCase {
         )
     }
 
+    func testZenMuxMarkdownParserBuildsGitHubFlavoredTableBlocks() {
+        XCTAssertEqual(
+            ZenMuxMarkdownParser.blocks(from: """
+            | Fund | Expense ratio | Return |
+            | :--- | ---: | :---: |
+            | **VOO** | 0.03% | +21.9% |
+            | SPY | 0.09% | +21.7% |
+            """),
+            [
+                .table(.init(
+                    headers: ["Fund", "Expense ratio", "Return"],
+                    rows: [
+                        ["**VOO**", "0.03%", "+21.9%"],
+                        ["SPY", "0.09%", "+21.7%"],
+                    ]
+                )),
+            ]
+        )
+    }
+
+    func testZenMuxMarkdownParserPreservesEscapedPipesInsideTables() {
+        XCTAssertEqual(
+            ZenMuxMarkdownParser.blocks(from: """
+            Symbol | Meaning
+            --- | ---
+            `A\\|B` | Alternatives
+            """),
+            [
+                .table(.init(
+                    headers: ["Symbol", "Meaning"],
+                    rows: [["`A|B`", "Alternatives"]]
+                )),
+            ]
+        )
+    }
+
+    func testZenMuxMarkdownNormalizerSupportsFencedLatex() {
+        XCTAssertEqual(
+            ZenMuxMarkdownNormalizer.normalize("""
+            ```latex
+            \\sin x = x - \\frac{x^3}{3!} + \\frac{x^5}{5!} - \\cdots
+            ```
+            """),
+            """
+            $$
+            \\sin x = x - \\frac{x^3}{3!} + \\frac{x^5}{5!} - \\cdots
+            $$
+            """
+        )
+    }
+
+    func testZenMuxLatexNormalizerRepairsCommonModelOutput() {
+        XCTAssertEqual(
+            ZenMuxLatexNormalizer.normalize("""
+            \\begin{equation*}
+            \\operatorname{argmax}_{x} \\dfrac{x}{2} \\tag{1}
+            \\end{equation*}
+            """),
+            "\\mathrm{argmax}_{x} \\frac{x}{2}"
+        )
+        XCTAssertEqual(
+            ZenMuxLatexNormalizer.normalize("""
+            \\begin{align*}
+            y &= x^2 \\\\
+            z &= x^3
+            \\end{align*}
+            """),
+            """
+            \\begin{aligned}
+            y &= x^2 \\\\
+            z &= x^3
+            \\end{aligned}
+            """
+        )
+    }
+
+    @MainActor
+    func testZenMuxMathRendererHandlesTaylorAndLimitFormulas() {
+        for formula in [
+            #"\sin x = x - \frac{x^3}{3!} + \frac{x^5}{5!} - \cdots"#,
+            #"\lim_{x \to 0} \frac{\sin x}{x} = 1"#,
+            #"\begin{equation*}\operatorname{argmax}_{x} \dfrac{x}{2}\end{equation*}"#,
+        ] {
+            XCTAssertNotNil(
+                ZenMuxMathRenderer.render(
+                    latex: formula,
+                    fontSize: 15,
+                    textColor: .labelColor,
+                    labelMode: .display
+                ),
+                formula
+            )
+        }
+    }
+
     @MainActor
     func testEventBlockingBackgroundCanPassClicksToUnderlyingWebContent() {
         let view = EventBlockBgView(frame: NSRect(x: 0, y: 0, width: 300, height: 200))

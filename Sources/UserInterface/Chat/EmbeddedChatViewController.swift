@@ -17,6 +17,11 @@ struct ZenMuxPageContext: Equatable {
 }
 
 struct ZenMuxImageAttachment: Identifiable, Equatable, Sendable {
+    enum Origin: Equatable, Sendable {
+        case user
+        case visiblePage
+    }
+
     static let maximumCount = 5
     static let maximumSourceBytes = 50_000_000
     static let maximumEncodedBytes = 3_000_000
@@ -26,17 +31,20 @@ struct ZenMuxImageAttachment: Identifiable, Equatable, Sendable {
     let filename: String
     let mimeType: String
     let data: Data
+    let origin: Origin
 
     init(
         id: UUID = UUID(),
         filename: String,
         mimeType: String,
-        data: Data
+        data: Data,
+        origin: Origin = .user
     ) {
         self.id = id
         self.filename = filename
         self.mimeType = mimeType
         self.data = data
+        self.origin = origin
     }
 
     var dataURL: String {
@@ -95,6 +103,28 @@ struct ZenMuxImageAttachment: Identifiable, Equatable, Sendable {
             }
         }
         throw ZenMuxImageAttachmentError.fileTooLarge
+    }
+
+    static func prepare(
+        dataURL: String,
+        filename: String,
+        origin: Origin = .user
+    ) throws -> Self {
+        guard dataURL.lowercased().hasPrefix("data:image/"),
+              let separator = dataURL.firstIndex(of: ","),
+              dataURL[..<separator].lowercased().hasSuffix(";base64"),
+              let data = Data(base64Encoded: String(dataURL[dataURL.index(after: separator)...]))
+        else {
+            throw ZenMuxImageAttachmentError.invalidImage
+        }
+        let prepared = try prepare(data: data, filename: filename)
+        return .init(
+            id: prepared.id,
+            filename: prepared.filename,
+            mimeType: prepared.mimeType,
+            data: prepared.data,
+            origin: origin
+        )
     }
 }
 
@@ -158,6 +188,21 @@ enum ZenMuxImagePasteboardReader {
 }
 
 enum ZenMuxChatVisionContext {
+    static let visiblePageCaptureAction = BrowserAutomationAction(
+        kind: .inspectVisualPage,
+        index: nil,
+        ref: nil,
+        selector: nil,
+        matchIndex: nil,
+        text: nil,
+        key: nil,
+        url: nil,
+        pixels: nil,
+        milliseconds: nil,
+        x: nil,
+        y: nil
+    )
+
     static func requestMessage(
         text: String,
         manualImageDataURLs: [String],
@@ -178,6 +223,7 @@ enum ZenMuxImageAttachmentError: LocalizedError, Sendable {
     case invalidImage
     case fileTooLarge
     case maximumCountReached
+    case visiblePageCaptureUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -198,6 +244,12 @@ enum ZenMuxImageAttachmentError: LocalizedError, Sendable {
                 "chat.zenMux.attachments.maximumCountError",
                 value: "You can attach up to 5 images.",
                 comment: "ZenMux chat attachments - Error shown when more than five images are selected"
+            )
+        case .visiblePageCaptureUnavailable:
+            return NSLocalizedString(
+                "chat.zenMux.attachments.visiblePageCaptureError",
+                value: "The visible page could not be captured.",
+                comment: "ZenMux chat attachments - Error shown when the current browser viewport cannot be captured as an image attachment"
             )
         }
     }
@@ -355,7 +407,8 @@ final class ZenMuxChatSession: ObservableObject {
             let inputLanguage = PhiPreferences.AISettings.loadZenMuxInputLanguage()
             let responseLanguage = PhiPreferences.AISettings.loadZenMuxResponseLanguage()
             let currentPageImageDataURL: String?
-            if model.supportsImageInput {
+            if model.supportsImageInput,
+               !outgoingAttachments.contains(where: { $0.origin == .visiblePage }) {
                 activityDescription = NSLocalizedString(
                     "chat.zenMux.capturingPageStatus",
                     value: "Capturing the visible page…",
@@ -652,20 +705,7 @@ final class ZenMuxChatSession: ObservableObject {
         browserAutomation: ((BrowserAutomationAction) async -> BrowserAutomationResult)?
     ) async -> String? {
         guard let browserAutomation else { return nil }
-        let result = await browserAutomation(BrowserAutomationAction(
-            kind: .inspectVisualPage,
-            index: nil,
-            ref: nil,
-            selector: nil,
-            matchIndex: nil,
-            text: nil,
-            key: nil,
-            url: nil,
-            pixels: nil,
-            milliseconds: nil,
-            x: nil,
-            y: nil
-        ))
+        let result = await browserAutomation(ZenMuxChatVisionContext.visiblePageCaptureAction)
         guard result.succeeded else { return nil }
         return result.imageDataURL
     }
@@ -1013,6 +1053,7 @@ struct ZenMuxChatView: View {
     @State private var composerHeight: CGFloat = 72
     @State private var composerFocusRequest = UUID()
     @State private var isComposerExpanded = false
+    @State private var isCapturingVisiblePage = false
 
     var body: some View {
         Group {
@@ -1177,7 +1218,7 @@ struct ZenMuxChatView: View {
             HStack(alignment: .bottom, spacing: 8) {
                 Button(action: chooseImages) {
                     Group {
-                        if session.isLoadingImageAttachments {
+                        if session.isLoadingImageAttachments && !isCapturingVisiblePage {
                             ProgressView().controlSize(.small)
                         } else {
                             Image(systemName: "paperclip")
@@ -1193,6 +1234,25 @@ struct ZenMuxChatView: View {
                         || session.imageAttachments.count >= ZenMuxImageAttachment.maximumCount
                 )
                 .help(addImagesTooltip)
+
+                Button(action: captureVisiblePage) {
+                    Group {
+                        if isCapturingVisiblePage {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: "camera.viewfinder")
+                                .font(.system(size: 15, weight: .medium))
+                        }
+                    }
+                    .frame(width: 24, height: 28)
+                }
+                .buttonStyle(.borderless)
+                .disabled(
+                    session.isSending
+                        || session.isLoadingImageAttachments
+                        || session.imageAttachments.count >= ZenMuxImageAttachment.maximumCount
+                )
+                .help(captureVisiblePageTooltip)
 
                 ZStack(alignment: .topLeading) {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -1286,6 +1346,14 @@ struct ZenMuxChatView: View {
             "chat.zenMux.attachments.addImagesTooltip",
             value: "Attach images",
             comment: "ZenMux chat attachments - Tooltip for opening the image picker"
+        )
+    }
+
+    private var captureVisiblePageTooltip: String {
+        NSLocalizedString(
+            "chat.zenMux.attachments.captureVisiblePageTooltip",
+            value: "Capture the visible page as an image attachment",
+            comment: "ZenMux chat attachments - Tooltip for adding a screenshot of the current browser viewport"
         )
     }
 
@@ -1420,6 +1488,39 @@ struct ZenMuxChatView: View {
 
     private func addPastedImages(_ sources: [ZenMuxImageAttachmentSource]) {
         addImageSources(sources)
+    }
+
+    private func captureVisiblePage() {
+        guard !session.isSending,
+              !session.isLoadingImageAttachments,
+              session.imageAttachments.count < ZenMuxImageAttachment.maximumCount else { return }
+        isCapturingVisiblePage = true
+        session.beginLoadingImageAttachments()
+        Task { @MainActor in
+            defer {
+                session.finishLoadingImageAttachments()
+                isCapturingVisiblePage = false
+            }
+            let result = await browserAutomation(ZenMuxChatVisionContext.visiblePageCaptureAction)
+            guard result.succeeded, let imageDataURL = result.imageDataURL else {
+                session.reportImageAttachmentError(
+                    ZenMuxImageAttachmentError.visiblePageCaptureUnavailable
+                )
+                return
+            }
+            do {
+                let attachment = try await Task.detached(priority: .userInitiated) {
+                    try ZenMuxImageAttachment.prepare(
+                        dataURL: imageDataURL,
+                        filename: "visible-page.png",
+                        origin: .visiblePage
+                    )
+                }.value
+                session.addImageAttachments([attachment])
+            } catch {
+                session.reportImageAttachmentError(error)
+            }
+        }
     }
 
     private func addImageSources(_ sources: [ZenMuxImageAttachmentSource]) {
@@ -1736,6 +1837,7 @@ enum ZenMuxMarkdownNormalizer {
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
         result = normalizeQuotedEmphasis(in: result)
+        result = normalizeMathFences(in: result)
         result = normalizeDisplayMath(in: result)
         result = normalizeInlineMath(in: result)
         result = normalizeChemistry(in: result)
@@ -1755,6 +1857,24 @@ enum ZenMuxMarkdownNormalizer {
                 options: .regularExpression
             )
         }
+    }
+
+    private static func normalizeMathFences(in source: String) -> String {
+        guard let expression = try? NSRegularExpression(
+            pattern: #"(?ms)^```(?:latex|tex|math)[^\n]*\n(.*?)\n```[ \t]*$"#,
+            options: [.caseInsensitive]
+        ) else { return source }
+        var result = source
+        let matches = expression.matches(
+            in: source,
+            range: NSRange(source.startIndex..., in: source)
+        )
+        for match in matches.reversed() {
+            guard let matchRange = Range(match.range, in: result),
+                  let formulaRange = Range(match.range(at: 1), in: result) else { continue }
+            result.replaceSubrange(matchRange, with: "$$\n\(result[formulaRange])\n$$")
+        }
+        return result
     }
 
     private static func normalizeDisplayMath(in source: String) -> String {
@@ -1814,10 +1934,80 @@ enum ZenMuxMarkdownNormalizer {
     }
 }
 
+enum ZenMuxLatexNormalizer {
+    static func normalize(_ source: String) -> String {
+        var result = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        result = stripOuterDelimiters(from: result)
+        let replacements = [
+            (#"\\begin\{equation\*?\}"#, ""),
+            (#"\\end\{equation\*?\}"#, ""),
+            (#"\\begin\{displaymath\}"#, ""),
+            (#"\\end\{displaymath\}"#, ""),
+            (#"\\begin\{align\*?\}"#, #"\\begin{aligned}"#),
+            (#"\\end\{align\*?\}"#, #"\\end{aligned}"#),
+            (#"\\begin\{gather\*?\}"#, #"\\begin{gather}"#),
+            (#"\\end\{gather\*?\}"#, #"\\end{gather}"#),
+            (#"\\(?:dfrac|tfrac)"#, #"\\frac"#),
+            (#"\\operatorname\*?\{([^{}]*)\}"#, #"\\mathrm{$1}"#),
+            (#"\\(?:tag|label)\{[^{}]*\}"#, ""),
+            (#"\\(?:notag|nonumber)\b"#, ""),
+        ]
+        for replacement in replacements {
+            result = result.replacingOccurrences(
+                of: replacement.0,
+                with: replacement.1,
+                options: .regularExpression
+            )
+        }
+        return result
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+    }
+
+    private static func stripOuterDelimiters(from source: String) -> String {
+        let delimiterPairs = [("$$", "$$"), ("\\[", "\\]"), ("\\(", "\\)")]
+        for pair in delimiterPairs where source.hasPrefix(pair.0) && source.hasSuffix(pair.1) {
+            let start = source.index(source.startIndex, offsetBy: pair.0.count)
+            let end = source.index(source.endIndex, offsetBy: -pair.1.count)
+            return String(source[start..<end]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return source
+    }
+}
+
+enum ZenMuxMathRenderer {
+    static func render(
+        latex: String,
+        fontSize: CGFloat,
+        textColor: NSColor,
+        labelMode: MTMathUILabelMode
+    ) -> (image: NSImage, layout: MathImage.LayoutInfo)? {
+        let normalized = ZenMuxLatexNormalizer.normalize(latex)
+        guard !normalized.isEmpty else { return nil }
+        var renderer = MathImage(
+            latex: normalized,
+            fontSize: fontSize,
+            textColor: textColor,
+            labelMode: labelMode,
+            textAlignment: .left
+        )
+        let (_, image, layout) = renderer.asImage()
+        guard let image, let layout else { return nil }
+        return (image, layout)
+    }
+}
+
 enum ZenMuxMarkdownBlock: Equatable {
     struct OrderedItem: Equatable {
         let marker: Int
         let content: String
+    }
+
+    struct Table: Equatable {
+        let headers: [String]
+        let rows: [[String]]
     }
 
     case paragraph(String)
@@ -1827,6 +2017,7 @@ enum ZenMuxMarkdownBlock: Equatable {
     case quote(String)
     case code(String)
     case math(String)
+    case table(Table)
 }
 
 enum ZenMuxMarkdownParser {
@@ -1840,6 +2031,8 @@ enum ZenMuxMarkdownParser {
         var mathLines: [String] = []
         var isInsideCodeBlock = false
         var isInsideMathBlock = false
+        var tableHeaders: [String]?
+        var tableRows: [[String]] = []
 
         func flushParagraph() {
             guard !paragraphLines.isEmpty else { return }
@@ -1865,6 +2058,18 @@ enum ZenMuxMarkdownParser {
 
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            if let headers = tableHeaders {
+                if !trimmed.isEmpty,
+                   let cells = tableCells(from: line),
+                   !isDelimiterRow(cells) {
+                    tableRows.append(normalizedTableRow(cells, columnCount: headers.count))
+                    continue
+                }
+                blocks.append(.table(.init(headers: headers, rows: tableRows)))
+                tableHeaders = nil
+                tableRows.removeAll()
+            }
 
             if isInsideCodeBlock {
                 if trimmed.hasPrefix("```") {
@@ -1905,6 +2110,18 @@ enum ZenMuxMarkdownParser {
                     if !content.isEmpty { mathLines.append(content) }
                     isInsideMathBlock = true
                 }
+                continue
+            }
+
+            if let headerLine = paragraphLines.last,
+               let headers = tableCells(from: headerLine),
+               let delimiters = tableCells(from: line),
+               headers.count >= 2,
+               delimiters.count == headers.count,
+               isDelimiterRow(delimiters) {
+                paragraphLines.removeLast()
+                flushPendingText()
+                tableHeaders = headers
                 continue
             }
 
@@ -1953,8 +2170,58 @@ enum ZenMuxMarkdownParser {
 
         if isInsideCodeBlock { blocks.append(.code(codeLines.joined(separator: "\n"))) }
         if isInsideMathBlock { blocks.append(.math(mathLines.joined(separator: "\n"))) }
+        if let tableHeaders {
+            blocks.append(.table(.init(headers: tableHeaders, rows: tableRows)))
+        }
         flushPendingText()
         return blocks
+    }
+
+    private static func tableCells(from line: String) -> [String]? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        var cells = [""]
+        var escaped = false
+        var foundSeparator = false
+        for character in trimmed {
+            if escaped {
+                if character == "|" {
+                    cells[cells.count - 1].append(character)
+                } else {
+                    cells[cells.count - 1].append("\\")
+                    cells[cells.count - 1].append(character)
+                }
+                escaped = false
+            } else if character == "\\" {
+                escaped = true
+            } else if character == "|" {
+                foundSeparator = true
+                cells.append("")
+            } else {
+                cells[cells.count - 1].append(character)
+            }
+        }
+        if escaped { cells[cells.count - 1].append("\\") }
+        guard foundSeparator else { return nil }
+        if trimmed.hasPrefix("|"), cells.first?.isEmpty == true { cells.removeFirst() }
+        if trimmed.hasSuffix("|"), cells.last?.isEmpty == true { cells.removeLast() }
+        return cells.map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    private static func isDelimiterRow(_ cells: [String]) -> Bool {
+        !cells.isEmpty && cells.allSatisfy { cell in
+            var marker = cell
+            if marker.hasPrefix(":") { marker.removeFirst() }
+            if marker.hasSuffix(":") { marker.removeLast() }
+            return marker.count >= 3 && marker.allSatisfy { $0 == "-" }
+        }
+    }
+
+    private static func normalizedTableRow(_ cells: [String], columnCount: Int) -> [String] {
+        if cells.count >= columnCount {
+            return Array(cells.prefix(columnCount))
+        }
+        return cells + Array(repeating: "", count: columnCount - cells.count)
     }
 
     private static func heading(from line: String) -> (level: Int, content: String)? {
@@ -2056,6 +2323,43 @@ private struct ZenMuxMarkdownView: View {
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         case .math(let latex):
             ZenMuxMathView(latex: latex)
+        case .table(let table):
+            ScrollView(.horizontal, showsIndicators: true) {
+                Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
+                    tableRow(table.headers, isHeader: true)
+                    ForEach(Array(table.rows.enumerated()), id: \.offset) { _, row in
+                        tableRow(row, isHeader: false)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private func tableRow(_ cells: [String], isHeader: Bool) -> some View {
+        GridRow {
+            ForEach(Array(cells.enumerated()), id: \.offset) { _, cell in
+                richText(
+                    cell,
+                    font: .systemFont(
+                        ofSize: 11,
+                        weight: isHeader ? .semibold : .regular
+                    )
+                )
+                .frame(width: 150, alignment: .leading)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 6)
+                .background(
+                    isHeader
+                        ? Color.primary.opacity(0.09)
+                        : Color.primary.opacity(0.025)
+                )
+                .overlay {
+                    Rectangle()
+                        .stroke(Color.secondary.opacity(0.22), lineWidth: 0.5)
+                }
+            }
         }
     }
 
@@ -2180,25 +2484,22 @@ private struct ZenMuxRichTextView: NSViewRepresentable {
     }
 
     private func appendMath(_ latex: String, to output: NSMutableAttributedString) {
-        var renderer = MathImage(
+        guard let rendered = ZenMuxMathRenderer.render(
             latex: latex,
             fontSize: font.pointSize + 1,
             textColor: color,
-            labelMode: .text,
-            textAlignment: .left
-        )
-        let (_, image, layout) = renderer.asImage()
-        guard let image, let layout else {
-            appendMarkdown("\\(\(latex)\\)", to: output)
+            labelMode: .text
+        ) else {
+            appendMarkdown(ZenMuxLatexNormalizer.normalize(latex), to: output)
             return
         }
         let attachment = NSTextAttachment()
-        attachment.image = image
+        attachment.image = rendered.image
         attachment.bounds = NSRect(
             x: 0,
-            y: -layout.descent,
-            width: image.size.width,
-            height: image.size.height
+            y: -rendered.layout.descent,
+            width: rendered.image.size.width,
+            height: rendered.image.size.height
         )
         output.append(NSAttributedString(attachment: attachment))
     }
@@ -2212,7 +2513,7 @@ private struct ZenMuxMathView: View {
             if let image = renderedImage {
                 Image(nsImage: image)
             } else {
-                Text(verbatim: "$$\(latex)$$")
+                Text(verbatim: ZenMuxLatexNormalizer.normalize(latex))
                     .font(.system(size: 12, design: .monospaced))
             }
         }
@@ -2220,14 +2521,12 @@ private struct ZenMuxMathView: View {
     }
 
     private var renderedImage: NSImage? {
-        var renderer = MathImage(
+        ZenMuxMathRenderer.render(
             latex: latex,
             fontSize: 15,
             textColor: .labelColor,
-            labelMode: .display,
-            textAlignment: .left
-        )
-        return renderer.asImage().1
+            labelMode: .display
+        )?.image
     }
 }
 

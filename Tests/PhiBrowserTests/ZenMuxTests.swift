@@ -440,6 +440,35 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertFalse(session.imageAttachments.contains { $0.id == removedID })
     }
 
+    func testVisiblePageDataURLUsesImageAttachmentPipeline() throws {
+        let pngData = try XCTUnwrap(Data(base64Encoded:
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9YP8b1sAAAAASUVORK5CYII="
+        ))
+        let attachment = try ZenMuxImageAttachment.prepare(
+            dataURL: "data:image/png;base64,\(pngData.base64EncodedString())",
+            filename: "visible-page.png",
+            origin: .visiblePage
+        )
+        let session = ZenMuxChatSession()
+
+        session.addImageAttachments([attachment])
+
+        XCTAssertEqual(session.imageAttachments.count, 1)
+        XCTAssertEqual(session.imageAttachments[0].filename, "visible-page.png")
+        XCTAssertEqual(session.imageAttachments[0].origin, .visiblePage)
+        XCTAssertTrue(session.imageAttachments[0].dataURL.hasPrefix("data:image/"))
+        session.removeImageAttachment(id: attachment.id)
+        XCTAssertTrue(session.imageAttachments.isEmpty)
+        XCTAssertEqual(ZenMuxChatVisionContext.visiblePageCaptureAction.kind, .inspectVisualPage)
+    }
+
+    func testVisiblePageDataURLRejectsNonImagePayloads() {
+        XCTAssertThrowsError(try ZenMuxImageAttachment.prepare(
+            dataURL: "data:text/plain;base64,SGVsbG8=",
+            filename: "visible-page.png"
+        ))
+    }
+
     func testImagePasteboardReaderRecognizesImageDataWithoutChangingTextPaste() throws {
         let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
         pasteboard.clearContents()

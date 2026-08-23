@@ -19,7 +19,10 @@ The JSON file never contains the API key in plaintext.
 ## Browser context
 
 Regular tabs share their title, URL, and a bounded readable-text extraction
-with ZenMux. For YouTube video URLs, Astra also attempts to load the available creator-provided or auto-generated
+with ZenMux. The composer can capture the visible CEF viewport through the
+existing browser automation boundary and prepare it with the same bounded image
+pipeline used by pasted and selected files. The user sees a removable thumbnail
+before the capture is sent. For YouTube video URLs, Astra also attempts to load the available creator-provided or auto-generated
 captions and includes timestamped caption text in the model context. Caption
 text is marked as untrusted page data so it cannot override system
 instructions. Each conversation caches the result by URL and input-language
@@ -31,6 +34,16 @@ YouTube's undocumented InnerTube interface. Failures are expected when YouTube
 changes that interface, disables captions, rate-limits the client, or requires
 additional verification. Caption failure never blocks ZenMux chat and never
 activates another AI provider.
+
+## Answer rendering
+
+ZenMux answers are normalized before native SwiftUI and SwiftMath rendering.
+The block parser supports GitHub-style Markdown tables with escaped pipe
+characters and presents wide tables in a horizontal scroller. Common model
+formula wrappers, including display fences and equation or alignment
+environments, are converted to the supported SwiftMath form. Unsupported
+formula fragments fall back to readable normalized source instead of exposing
+raw display delimiters.
 
 ## Browser control
 

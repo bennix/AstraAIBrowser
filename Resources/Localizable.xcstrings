@@ -190,6 +190,11 @@
       "extractionState" : "extracted_with_value",
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Attach images" } } }
     },
+    "chat.zenMux.attachments.captureVisiblePageTooltip" : {
+      "comment" : "ZenMux chat attachments - Tooltip for adding a screenshot of the current browser viewport",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Capture the visible page as an image attachment" } } }
+    },
     "chat.zenMux.attachments.defaultPrompt" : {
       "comment" : "ZenMux chat attachments - Prompt used when images are sent without a typed message",
       "extractionState" : "extracted_with_value",
@@ -234,6 +239,11 @@
       "comment" : "ZenMux chat attachments - Error shown when the selected text-only model cannot receive attached images; placeholder is the model name",
       "extractionState" : "extracted_with_value",
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "%@ does not accept image input. Choose Gemini or Grok to send images." } } }
+    },
+    "chat.zenMux.attachments.visiblePageCaptureError" : {
+      "comment" : "ZenMux chat attachments - Error shown when the current browser viewport cannot be captured as an image attachment",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "The visible page could not be captured." } } }
     },
     "chat.zenMux.capturingPageStatus" : {
       "comment" : "ZenMux chat - Status shown while the current visible page area is captured for message context",
