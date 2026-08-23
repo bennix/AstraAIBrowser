@@ -637,6 +637,17 @@ final class ZenMuxTests: XCTestCase {
         ))
     }
 
+    func testVisiblePageCaptureUsesTheCurrentlyRenderedEngine() {
+        XCTAssertEqual(
+            VisiblePageCaptureRoute.active(hasSystemMediaPage: true),
+            .systemMedia
+        )
+        XCTAssertEqual(
+            VisiblePageCaptureRoute.active(hasSystemMediaPage: false),
+            .chromium
+        )
+    }
+
     @MainActor
     func testSystemMediaDataStoreIsStableAndProfileScoped() {
         let first = SystemMediaCompatibilityPolicy.dataStoreIdentifier(forProfileId: "Default")

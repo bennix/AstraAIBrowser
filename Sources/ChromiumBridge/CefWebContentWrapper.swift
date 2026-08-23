@@ -277,6 +277,15 @@ enum SystemMediaCompatibilityPolicy {
     }
 }
 
+enum VisiblePageCaptureRoute: Equatable {
+    case systemMedia
+    case chromium
+
+    static func active(hasSystemMediaPage: Bool) -> Self {
+        hasSystemMediaPage ? .systemMedia : .chromium
+    }
+}
+
 @MainActor
 final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, CefBrowserDelegate, PageContentProviding, BrowserAutomationProviding, WKNavigationDelegate, WKUIDelegate {
     private final class PendingConsoleEvaluation {
@@ -1957,28 +1966,15 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     }
 
     private func captureVisualAutomationPage() async -> BrowserAutomationResult {
+        let route = VisiblePageCaptureRoute.active(
+            hasSystemMediaPage: systemMediaWebView != nil
+        )
         let image: CGImage?
-        if let nativeScreenshot = await browser?.captureVisiblePageScreenshot(),
-           let source = CGImageSourceCreateWithData(nativeScreenshot as CFData, nil) {
-            image = CGImageSourceCreateImageAtIndex(source, 0, nil)
-        } else if let overlay = chromeBrowser?.nsWindow,
-           overlay.isVisible,
-           overlay.windowNumber > 0 {
-            image = CGWindowListCreateImage(
-                .null,
-                .optionIncludingWindow,
-                CGWindowID(overlay.windowNumber),
-                [.boundsIgnoreFraming, .bestResolution]
-            )
-        } else if let webView = systemMediaWebView {
-            let snapshot = await withCheckedContinuation { continuation in
-                webView.takeSnapshot(with: nil) { image, _ in
-                    continuation.resume(returning: image)
-                }
-            }
-            image = snapshot?.cgImage(forProposedRect: nil, context: nil, hints: nil)
-        } else {
-            image = nil
+        switch route {
+        case .systemMedia:
+            image = await captureSystemMediaPagePixels()
+        case .chromium:
+            image = await captureChromiumPagePixels()
         }
 
         guard let image,
@@ -1994,6 +1990,43 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             message: "Captured the visible page at \(image.width) by \(image.height) pixels. Use normalized coordinates from 0 through 1000 with the origin at the top-left.",
             imageDataURL: dataURL
         )
+    }
+
+    private func captureSystemMediaPagePixels() async -> CGImage? {
+        guard let webView = systemMediaWebView else { return nil }
+        if let image = captureOnScreenPixels(of: webView) {
+            return image
+        }
+        let snapshot = await withCheckedContinuation { continuation in
+            webView.takeSnapshot(with: nil) { image, _ in
+                continuation.resume(returning: image)
+            }
+        }
+        return snapshot?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+    }
+
+    private func captureChromiumPagePixels() async -> CGImage? {
+        if let overlay = chromeBrowser?.nsWindow,
+           overlay.isVisible,
+           let contentView = overlay.contentView,
+           let image = captureOnScreenPixels(of: contentView) {
+            return image
+        }
+        guard let nativeScreenshot = await browser?.captureVisiblePageScreenshot(),
+              let source = CGImageSourceCreateWithData(nativeScreenshot as CFData, nil) else {
+            return nil
+        }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
+    }
+
+    private func captureOnScreenPixels(of view: NSView) -> CGImage? {
+        guard let snapshot = WebContentSnapshotter.captureOnScreen(
+            view,
+            resolution: .bestResolution
+        ) else {
+            return nil
+        }
+        return snapshot.cgImage(forProposedRect: nil, context: nil, hints: nil)
     }
 
     private func compressedAutomationScreenshot(_ source: CGImage) -> Data? {
