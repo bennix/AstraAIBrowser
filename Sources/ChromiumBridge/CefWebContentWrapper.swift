@@ -1893,7 +1893,10 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
 
     private func captureVisualAutomationPage() async -> BrowserAutomationResult {
         let image: CGImage?
-        if let overlay = chromeBrowser?.nsWindow,
+        if let nativeScreenshot = await browser?.captureVisiblePageScreenshot(),
+           let source = CGImageSourceCreateWithData(nativeScreenshot as CFData, nil) {
+            image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        } else if let overlay = chromeBrowser?.nsWindow,
            overlay.isVisible,
            overlay.windowNumber > 0 {
             image = CGWindowListCreateImage(

@@ -122,26 +122,37 @@ enum ZenMuxImagePasteboardReader {
     ]
 
     static func sources(from pasteboard: NSPasteboard) -> [ZenMuxImageAttachmentSource] {
-        (pasteboard.pasteboardItems ?? []).enumerated().compactMap { index, item in
-            if let value = item.string(forType: .fileURL),
-               let url = URL(string: value),
-               url.isFileURL,
-               UTType(filenameExtension: url.pathExtension)?.conforms(to: .image) == true {
-                return .file(url)
-            }
-
-            for contentType in preferredImageTypes {
-                let pasteboardType = NSPasteboard.PasteboardType(contentType.identifier)
-                if let data = item.data(forType: pasteboardType), !data.isEmpty {
-                    let fileExtension = contentType.preferredFilenameExtension ?? "image"
-                    return .data(
-                        data,
-                        filename: "pasted-image-\(index + 1).\(fileExtension)"
-                    )
+        let itemSources: [ZenMuxImageAttachmentSource] =
+            (pasteboard.pasteboardItems ?? []).enumerated().compactMap { index, item in
+                if let value = item.string(forType: .fileURL),
+                   let url = URL(string: value),
+                   url.isFileURL,
+                   UTType(filenameExtension: url.pathExtension)?.conforms(to: .image) == true {
+                    return .file(url)
                 }
+
+                for contentType in preferredImageTypes {
+                    let pasteboardType = NSPasteboard.PasteboardType(contentType.identifier)
+                    if let data = item.data(forType: pasteboardType), !data.isEmpty {
+                        let fileExtension = contentType.preferredFilenameExtension ?? "image"
+                        return .data(
+                            data,
+                            filename: "pasted-image-\(index + 1).\(fileExtension)"
+                        )
+                    }
+                }
+                return nil
             }
-            return nil
+        if !itemSources.isEmpty {
+            return itemSources
         }
+
+        guard let image = NSImage(pasteboard: pasteboard),
+              let data = image.tiffRepresentation,
+              !data.isEmpty else {
+            return []
+        }
+        return [.data(data, filename: "pasted-image-1.tiff")]
     }
 }
 
@@ -1564,6 +1575,7 @@ private struct ZenMuxComposerEditor: NSViewRepresentable {
         textView.setAccessibilityLabel(accessibilityLabel)
         scrollView.documentView = textView
         context.coordinator.textView = textView
+        context.coordinator.installPasteMonitorIfNeeded()
         context.coordinator.updateMeasuredHeight()
         return scrollView
     }
@@ -1590,9 +1602,37 @@ private struct ZenMuxComposerEditor: NSViewRepresentable {
         var parent: ZenMuxComposerEditor
         weak var textView: NSTextView?
         var lastFocusRequest: UUID?
+        private var pasteMonitor: Any?
 
         init(parent: ZenMuxComposerEditor) {
             self.parent = parent
+        }
+
+        deinit {
+            if let pasteMonitor {
+                NSEvent.removeMonitor(pasteMonitor)
+            }
+        }
+
+        func installPasteMonitorIfNeeded() {
+            guard pasteMonitor == nil else { return }
+            pasteMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self,
+                      self.isImagePaste(event),
+                      event.window === textView?.window,
+                      textView?.window?.firstResponder === textView else {
+                    return event
+                }
+                let sources = ZenMuxImagePasteboardReader.sources(from: .general)
+                guard !sources.isEmpty else { return event }
+                parent.onPasteImages(sources)
+                return nil
+            }
+        }
+
+        private func isImagePaste(_ event: NSEvent) -> Bool {
+            event.charactersIgnoringModifiers?.lowercased() == "v"
+                && event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command
         }
 
         func textDidChange(_ notification: Notification) {

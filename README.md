@@ -3,9 +3,9 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 21)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.21/Astra-Browser-build21.dmg)
+[Download Astra 1.0 (build 22)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.22/Astra-Browser-build22.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.21)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.22)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
@@ -16,7 +16,7 @@ and accepted by Apple's notarization service.
 - Chromium compatibility through the embedded CEF runtime.
 - Integrated AI workspace for browsing and task assistance.
 - ZenMux page vision and up to five removable image attachments with thumbnail previews.
-- Paste images directly into ZenMux and automatically include the current browser viewport with each question.
+- Paste images directly into ZenMux and automatically include a native Chromium capture of the current browser viewport with each question.
 - YouTube ad playback acceleration: detected ads play at 8× and the previous content speed is restored afterward.
 - YouTube and other WebKit media pages support HTML element fullscreen.
 - Red-button window close preserves tabs and live page state for the next Dock activation.
@@ -34,8 +34,9 @@ Requirements: Apple Silicon Mac running macOS 14 or later.
 ## Build from source
 
 The CEF distribution is intentionally not stored in Git. Prepare the compatible
-CEF runtime under `Vendor/CefSwift`, open `Phi.xcodeproj`, and build the
-`PhiBrowser-release` scheme with Xcode 26 or later.
+CEF runtime under `Vendor/CefSwift`, run
+`scripts/apply_cef_swift_patches.sh Vendor/CefSwift`, open `Phi.xcodeproj`, and
+build the `PhiBrowser-release` scheme with Xcode 26 or later.
 
 Release helpers are available in `scripts/bundle_cef_runtime.sh` and
 `scripts/notarize_dmg.sh`. Apple notarization requires your own Developer ID

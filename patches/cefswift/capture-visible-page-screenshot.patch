@@ -1,0 +1,132 @@
+diff --git a/Sources/CefKit/CefBrowser.swift b/Sources/CefKit/CefBrowser.swift
+--- a/Sources/CefKit/CefBrowser.swift
++++ b/Sources/CefKit/CefBrowser.swift
+@@ -161,1 +161,21 @@
++    /// Captures the currently visible page viewport through the DevTools
++    /// protocol. Unlike a window-server screenshot, this does not require
++    /// Screen Recording permission and includes GPU-composited page content.
++    public func captureVisiblePageScreenshot(
++        timeout: TimeInterval = 5
++    ) async -> Data? {
++        await withCheckedContinuation { continuation in
++            let request = CefDevToolsScreenshotRequest(
++                continuation: continuation,
++                timeout: timeout
++            )
++            guard withHost({ host in
++                request.start(host: host)
++            }) != nil else {
++                continuation.resume(returning: nil)
++                return
++            }
++        }
++    }
++
+     /// Searches the page for `text`.
+@@ -576,1 +596,106 @@
++@MainActor
++private final class CefDevToolsScreenshotRequest {
++    private var continuation: CheckedContinuation<Data?, Never>?
++    private var registration: UnsafeMutablePointer<cef_registration_t>?
++    private var timeoutItem: DispatchWorkItem?
++    private var messageID = 0
++
++    init(
++        continuation: CheckedContinuation<Data?, Never>,
++        timeout: TimeInterval
++    ) {
++        self.continuation = continuation
++        let timeoutItem = DispatchWorkItem { [weak self] in
++            self?.finish(with: nil)
++        }
++        self.timeoutItem = timeoutItem
++        DispatchQueue.main.asyncAfter(
++            deadline: .now() + max(0.5, timeout),
++            execute: timeoutItem
++        )
++    }
++
++    func start(host: UnsafeMutablePointer<cef_browser_host_t>) -> Bool {
++        let observer = cefAllocate(
++            cef_dev_tools_message_observer_t.self,
++            owner: self
++        )
++        observer.pointee.on_dev_tools_method_result = {
++            observerSelf, browser, messageID, success, result, resultSize in
++            defer { cefRelease(browser.map(UnsafeMutableRawPointer.init)) }
++            guard let owner = cefOwner(
++                CefDevToolsScreenshotRequest.self,
++                observerSelf.map(UnsafeMutableRawPointer.init)
++            ) else { return }
++            let payload = result.map { Data(bytes: $0, count: resultSize) }
++            MainActor.assumeIsolated {
++                owner.receive(
++                    messageID: messageID,
++                    succeeded: success != 0,
++                    payload: payload
++                )
++            }
++        }
++        observer.pointee.on_dev_tools_agent_detached = { observerSelf, browser in
++            defer { cefRelease(browser.map(UnsafeMutableRawPointer.init)) }
++            guard let owner = cefOwner(
++                CefDevToolsScreenshotRequest.self,
++                observerSelf.map(UnsafeMutableRawPointer.init)
++            ) else { return }
++            MainActor.assumeIsolated {
++                owner.finish(with: nil)
++            }
++        }
++
++        guard let registration = host.pointee.add_dev_tools_message_observer?(
++            host,
++            observer
++        ) else {
++            cefRelease(UnsafeMutableRawPointer(observer))
++            finish(with: nil)
++            return false
++        }
++        self.registration = registration
++
++        let submittedID = CefStringUtil.withCefString("Page.captureScreenshot") { method in
++            host.pointee.execute_dev_tools_method?(host, 0, method, nil) ?? 0
++        }
++        guard submittedID != 0 else {
++            finish(with: nil)
++            return false
++        }
++        messageID = Int(submittedID)
++        return true
++    }
++
++    private func receive(
++        messageID: Int32,
++        succeeded: Bool,
++        payload: Data?
++    ) {
++        guard Int(messageID) == self.messageID else { return }
++        guard succeeded,
++              let payload,
++              let object = try? JSONSerialization.jsonObject(with: payload) as? [String: Any],
++              let encodedImage = object["data"] as? String,
++              let imageData = Data(base64Encoded: encodedImage) else {
++            finish(with: nil)
++            return
++        }
++        finish(with: imageData)
++    }
++
++    private func finish(with data: Data?) {
++        guard let continuation else { return }
++        self.continuation = nil
++        timeoutItem?.cancel()
++        timeoutItem = nil
++        continuation.resume(returning: data)
++        if let registration {
++            self.registration = nil
++            cefRelease(UnsafeMutableRawPointer(registration))
++        }
++    }
++}
++
+ // MARK: - Editing
