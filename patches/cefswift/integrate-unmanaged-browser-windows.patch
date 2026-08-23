@@ -1,0 +1,87 @@
+diff --git a/Sources/CefKit/CefRuntime.swift b/Sources/CefKit/CefRuntime.swift
+--- a/Sources/CefKit/CefRuntime.swift
++++ b/Sources/CefKit/CefRuntime.swift
+@@ -1,6 +1,17 @@
+ import AppKit
+ import CCef
+ import CCefAppKit
+ import Foundation
+-
++
++/// Details captured from a CEF-owned browser window that was not created by
++/// the embedding application. Chrome runtime features such as extension
++/// onboarding can create these windows without invoking the page popup
++/// handler.
++public struct CefUnmanagedBrowserWindowCapture: Sendable, Equatable {
++    /// Browser identifiers hosted by the unmanaged native window.
++    public let browserIdentifiers: [Int32]
++    /// Main-frame URLs that were available before the browsers were closed.
++    public let urls: [URL]
++}
++
+ // MARK: - Settings mapping (inlined from CefSettingsMapping.swift)
+@@ -397,5 +408,63 @@ public final class CefRuntime {
+     /// All live browsers registered with the runtime. Used by ``CefBridge``
+     /// to broadcast events to every page.
+     var activeBrowsers: [CefBrowser] { Array(browsers.values) }
+-
++
++    /// Closes all unregistered CEF browsers hosted by `window` and returns
++    /// their current URLs. This is intended for app-level window integration:
++    /// Chrome runtime features can create a complete native Chrome window
++    /// without going through a registered ``CefBrowser`` or popup delegate.
++    /// Registered application browsers are never touched.
++    public func closeUnmanagedBrowserWindow(
++        _ window: NSWindow,
++        scanLimit: Int32 = 8_192
++    ) -> CefUnmanagedBrowserWindowCapture? {
++        guard isInitialized else { return nil }
++
++        let managedIdentifiers = Set(browsers.keys)
++        let highestManagedIdentifier = managedIdentifiers.max() ?? 0
++        let upperBound = max(scanLimit, highestManagedIdentifier + 1_024)
++        var matchingIdentifiers: [Int32] = []
++        var urls: [URL] = []
++
++        for identifier in 0...upperBound where !managedIdentifiers.contains(identifier) {
++            guard let rawBrowser = cef_browser_host_get_browser_by_identifier(identifier) else {
++                continue
++            }
++            defer { cefRelease(UnsafeMutableRawPointer(rawBrowser)) }
++
++            guard let host = rawBrowser.pointee.get_host?(rawBrowser) else { continue }
++            defer { cefRelease(UnsafeMutableRawPointer(host)) }
++            guard let handle = host.pointee.get_window_handle?(host) else { continue }
++            let rootView = Unmanaged<NSView>.fromOpaque(handle).takeUnretainedValue()
++            guard rootView.window === window else { continue }
++
++            matchingIdentifiers.append(identifier)
++            if let frame = rawBrowser.pointee.get_main_frame?(rawBrowser) {
++                let rawURL = CefStringUtil.takingUserFree(frame.pointee.get_url?(frame)) ?? ""
++                cefRelease(UnsafeMutableRawPointer(frame))
++                if let url = URL(string: rawURL), !rawURL.isEmpty {
++                    urls.append(url)
++                }
++            }
++        }
++
++        guard !matchingIdentifiers.isEmpty else { return nil }
++
++        for identifier in matchingIdentifiers {
++            guard let rawBrowser = cef_browser_host_get_browser_by_identifier(identifier) else {
++                continue
++            }
++            if let host = rawBrowser.pointee.get_host?(rawBrowser) {
++                host.pointee.close_browser?(host, 1)
++                cefRelease(UnsafeMutableRawPointer(host))
++            }
++            cefRelease(UnsafeMutableRawPointer(rawBrowser))
++        }
++
++        return CefUnmanagedBrowserWindowCapture(
++            browserIdentifiers: matchingIdentifiers,
++            urls: urls
++        )
++    }
++
+     func unregisterBrowser(id: Int32) {

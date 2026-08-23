@@ -631,6 +631,22 @@ final class ZenMuxTests: XCTestCase {
         ))
     }
 
+    func testExtensionOnboardingFromUnmanagedChromiumWindowRoutesIntoAstra() {
+        let route = UnmanagedChromiumWindowPolicy.routeURL(from: [
+            URL(string: "chrome://newtab")!,
+            URL(string: "https://example.com/extension-installed")!,
+        ])
+
+        XCTAssertEqual(route?.absoluteString, "https://example.com/extension-installed")
+    }
+
+    func testEmptyUnmanagedChromiumWindowDoesNotCreateAnotherTab() {
+        XCTAssertNil(UnmanagedChromiumWindowPolicy.routeURL(from: [
+            URL(string: "about:blank")!,
+            URL(string: "chrome://newtab/")!,
+        ]))
+    }
+
     @MainActor
     func testSystemMediaEngineHandlesKnownH264NewsDomains() {
         XCTAssertTrue(SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(

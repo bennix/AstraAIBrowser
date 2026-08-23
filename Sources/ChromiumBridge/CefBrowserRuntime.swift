@@ -456,6 +456,17 @@ struct BrowserAutomationResult: Equatable {
     var imageDataURL: String? = nil
 }
 
+enum UnmanagedChromiumWindowPolicy {
+    static func routeURL(from urls: [URL]) -> URL? {
+        urls.reversed().first { url in
+            let absoluteString = url.absoluteString.lowercased()
+            return absoluteString != "about:blank"
+                && absoluteString != "chrome://newtab"
+                && absoluteString != "chrome://newtab/"
+        }
+    }
+}
+
 /// A normal CEF browser window stays alive when the user presses the title-bar
 /// close button. CEF has no Chromium session bridge to rebuild an in-process
 /// closed window, so ordering it out is what preserves the exact tabs, page
@@ -548,6 +559,7 @@ private final class CefBrowserWindow: NSWindow {
     private var pendingAutomation: [String: PendingAutomation] = [:]
     private var automationTimeouts: [String: DispatchWorkItem] = [:]
     private var credentialHandlers: [String: WeakCredentialHandler] = [:]
+    private var unmanagedBrowserWindowObserver: NSObjectProtocol?
 
     @objc static func bootstrapApplication() -> Bool {
         do {
@@ -591,6 +603,7 @@ private final class CefBrowserWindow: NSWindow {
             shared.registerPageContextBridge()
             shared.registerAutomationBridge()
             shared.registerWebCredentialBridge()
+            shared.startObservingUnmanagedBrowserWindows()
 
             let controller = AppController()
             retainedAppController = controller
@@ -609,6 +622,66 @@ private final class CefBrowserWindow: NSWindow {
             .first(where: { $0.hasPrefix("--astra-initial-url=") })?
             .dropFirst("--astra-initial-url=".count)
         openBrowserWindow(initialURL: initialURL.map(String.init) ?? "chrome://newtab")
+    }
+
+    /// Chrome runtime extension APIs may create a complete native Chromium
+    /// window without invoking the page popup delegate. Detect those windows,
+    /// close their unregistered CEF browsers, and preserve meaningful content
+    /// by reopening it as a normal Astra tab.
+    private func startObservingUnmanagedBrowserWindows() {
+        guard unmanagedBrowserWindowObserver == nil else { return }
+        unmanagedBrowserWindowObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            MainActor.assumeIsolated {
+                guard let self, let window = notification.object as? NSWindow else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self, weak window] in
+                    guard let self, let window else { return }
+                    self.integrateUnmanagedBrowserWindow(window, attemptsRemaining: 3)
+                }
+            }
+        }
+    }
+
+    private func integrateUnmanagedBrowserWindow(
+        _ window: NSWindow,
+        attemptsRemaining: Int
+    ) {
+        guard window.parent == nil,
+              !(window is CefBrowserWindow),
+              MainBrowserWindowControllersManager.shared.findControllerWith(window: window) == nil else {
+            return
+        }
+
+        guard let capture = CefRuntime.shared.closeUnmanagedBrowserWindow(window) else {
+            guard attemptsRemaining > 1, window.isVisible else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self, weak window] in
+                guard let self, let window else { return }
+                self.integrateUnmanagedBrowserWindow(
+                    window,
+                    attemptsRemaining: attemptsRemaining - 1
+                )
+            }
+            return
+        }
+
+        window.orderOut(nil)
+        let routeURL = UnmanagedChromiumWindowPolicy.routeURL(from: capture.urls)
+        AppLogInfo(
+            "[CEF] Integrated unmanaged Chromium window browsers=" +
+            "\(capture.browserIdentifiers) route=\(routeURL?.absoluteString ?? "none")"
+        )
+        guard let routeURL else { return }
+
+        if let controller = MainBrowserWindowControllersManager.shared.activeWindowController {
+            controller.browserState.createTab(routeURL.absoluteString, focusAfterCreate: true)
+            controller.window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        } else {
+            openBrowserWindow(initialURL: routeURL.absoluteString)
+        }
     }
 
     func openBrowserWindow(initialURL: String = "chrome://newtab") {

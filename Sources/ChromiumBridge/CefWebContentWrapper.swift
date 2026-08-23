@@ -372,6 +372,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     private var didSchedulePageContextSmoke = false
     private weak var observedWindow: NSWindow?
     private var windowObservers: [NSObjectProtocol] = []
+    private var nativePopupObservers: [NSObjectProtocol] = []
+    private var nativePopupTimeout: DispatchWorkItem?
     private var pendingConsoleEvaluations: [String: PendingConsoleEvaluation] = [:]
     private var systemMediaPopupHosts: [ObjectIdentifier: SystemMediaPopupHost] = [:]
 
@@ -617,6 +619,63 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         }
     }
 
+    /// Chrome-runtime identity pages require a real popup to preserve
+    /// `window.opener`. CEF creates that popup as a top-level window, so attach
+    /// it to the Astra window as soon as it is shown. This keeps authorization
+    /// functional without exposing a standalone Chromium-shaped window.
+    private func prepareToIntegrateNextNativePopup() {
+        cancelNativePopupIntegration()
+        guard let parentWindow = hostView.window else { return }
+
+        let knownWindows = Set(NSApp.windows.map(ObjectIdentifier.init))
+        let centerName = NSWindow.didBecomeKeyNotification
+        let observer = NotificationCenter.default.addObserver(
+            forName: centerName,
+            object: nil,
+            queue: .main
+        ) { [weak self, weak parentWindow] notification in
+            MainActor.assumeIsolated {
+                guard let self,
+                      let parentWindow,
+                      let popupWindow = notification.object as? NSWindow,
+                      !knownWindows.contains(ObjectIdentifier(popupWindow)),
+                      popupWindow !== parentWindow,
+                      popupWindow.parent == nil,
+                      MainBrowserWindowControllersManager.shared
+                        .findControllerWith(window: popupWindow) == nil else {
+                    return
+                }
+
+                popupWindow.isExcludedFromWindowsMenu = true
+                popupWindow.collectionBehavior.insert(.fullScreenAuxiliary)
+                let parentFrame = parentWindow.frame
+                let popupFrame = popupWindow.frame
+                popupWindow.setFrameOrigin(NSPoint(
+                    x: parentFrame.midX - popupFrame.width / 2,
+                    y: parentFrame.midY - popupFrame.height / 2
+                ))
+                parentWindow.addChildWindow(popupWindow, ordered: .above)
+                popupWindow.makeKeyAndOrderFront(nil)
+                self.cancelNativePopupIntegration()
+                AppLogInfo("[CEF] Attached native authorization popup to the Astra window")
+            }
+        }
+        nativePopupObservers = [observer]
+
+        let timeout = DispatchWorkItem { [weak self] in
+            self?.cancelNativePopupIntegration()
+        }
+        nativePopupTimeout = timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: timeout)
+    }
+
+    private func cancelNativePopupIntegration() {
+        nativePopupTimeout?.cancel()
+        nativePopupTimeout = nil
+        nativePopupObservers.forEach(NotificationCenter.default.removeObserver)
+        nativePopupObservers = []
+    }
+
     private func chromeOverlayFrame() -> CGRect {
         guard let window = hostView.window else {
             return CGRect(x: 200, y: 200, width: max(hostView.bounds.width, 200), height: max(hostView.bounds.height, 150))
@@ -656,6 +715,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     func close() {
         guard !didRequestClose else { return }
         didRequestClose = true
+        cancelNativePopupIntegration()
         CefBrowserRuntime.shared.unregisterCredentialHandler(token: pageContextToken)
         let popupHosts = Array(systemMediaPopupHosts.values)
         systemMediaPopupHosts.removeAll()
@@ -1643,10 +1703,15 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
 
     func browser(_ browser: CefBrowser, decideWindowOpenFor request: CefWindowOpenRequest) -> CefWindowOpenAction {
         let action = BrowserWindowOpenPolicy.action(for: request)
+        AppLogInfo(
+            "[CEF] Window-open request disposition=\(request.disposition) " +
+            "target=\(request.targetURL?.absoluteString ?? "nil") action=\(action)"
+        )
         if action == .allowNativePopup,
            BrowserWindowOpenPolicy.isIdentityProviderURL(request.targetURL),
            let host = request.targetURL?.host {
             AppLogInfo("[CEF] Preserving native identity popup for host=\(host)")
+            prepareToIntegrateNextNativePopup()
         }
         if action == .handled, let url = request.targetURL {
             onOpenURLInNewTab?(url, request.disposition != .newBackgroundTab)
