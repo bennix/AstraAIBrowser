@@ -112,7 +112,7 @@ Other differences worth knowing:
   at creation: re-binding the same name with the other value fails
   `shadow_incognito_mismatch` (pick a new name instead). On an app build
   that predates the feature, `enterContext` throws rather than silently
-  browsing in the regular profile — update Phi Browser.
+  browsing in the regular profile — update Astra Browser.
 - **Always `complete()`.** It closes the window. Leaving it to the keep-alive
   sweep strands an invisible window burning a renderer the user cannot find
   or close. Same ~120s-while-driving / ~30-min-between-rounds clock as an
@@ -198,7 +198,7 @@ Cursor —
 prose, reasoning summaries, and tool calls into the panel automatically (no
 setup — see `references/install.md` ▸ step 4), rendered in your own CLI's
 visual style (Claude Code's `>` prompts and ⏺ bullets, Codex's ▌ quote bars
-and • cells), so it reads like your own transcript. Your phi heredocs are
+and • cells), so it reads like your own transcript. Your Astra Browser heredocs are
 the one exception: the action log already narrates them step by step, so
 the mirror drops those tool calls instead of echoing every script twice. When
 no mirror is running (an unrecognized agent, or a session the discovery

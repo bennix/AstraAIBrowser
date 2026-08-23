@@ -7,7 +7,7 @@
 // handlers:
 //   node scripts/selftest-management.mjs
 //
-// Needs a running Phi Browser with the CDP endpoint enabled (see
+// Needs a running Astra Browser with the CDP endpoint enabled (see
 // references/install.md) and at least one browser window open. Safe on a
 // live browser: every resource it creates carries a 'Phi Mgmt Selftest' /
 // 'phi-mgmt-' marker, leftovers from a crashed run are swept up front, and

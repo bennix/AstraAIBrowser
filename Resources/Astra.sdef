@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE dictionary SYSTEM "file://localhost/System/Library/DTDs/sdef.dtd">
-<dictionary title="Phi Terminology">
-    <suite name="Phi Suite" code="Phis" description="Commands for safe access to live Phi Spaces and tabs.">
+<dictionary title="Astra Browser Terminology">
+    <suite name="Astra Browser Suite" code="Phis" description="Commands for safe access to live Astra Browser Spaces and tabs.">
         <command name="list spaces" code="PhisLSpc" description="Return normal user Spaces as versioned JSON.">
             <cocoa class="PhiListSpacesScriptCommand"/>
             <parameter name="client context" code="ClCt" type="text" optional="yes" description="Optional versioned client attribution context.">
@@ -29,7 +29,7 @@
             </parameter>
             <result type="text" description="A JSON response containing the active Space."/>
         </command>
-        <command name="activate space" code="PhisASpc" description="Activate a Space in the focused Phi window.">
+        <command name="activate space" code="PhisASpc" description="Activate a Space in the focused Astra Browser window.">
             <cocoa class="PhiActivateSpaceScriptCommand"/>
             <parameter name="client context" code="ClCt" type="text" optional="yes" description="Optional versioned client attribution context.">
                 <cocoa key="clientContext"/>
@@ -143,28 +143,28 @@
             </parameter>
             <result type="text" description="A versioned JSON acknowledgement or error."/>
         </command>
-        <command name="create phi window" code="PhisNWin" description="Open a new normal Phi window.">
+        <command name="create astra window" code="PhisNWin" description="Open a new normal Astra Browser window.">
             <cocoa class="PhiNewWindowScriptCommand"/>
             <parameter name="client context" code="ClCt" type="text" optional="yes" description="Optional versioned client attribution context.">
                 <cocoa key="clientContext"/>
             </parameter>
             <result type="text" description="A versioned JSON acknowledgement or error."/>
         </command>
-        <command name="create phi incognito window" code="PhisNInc" description="Open a new standalone incognito Phi window.">
+        <command name="create astra incognito window" code="PhisNInc" description="Open a new standalone incognito Astra Browser window.">
             <cocoa class="PhiNewIncognitoWindowScriptCommand"/>
             <parameter name="client context" code="ClCt" type="text" optional="yes" description="Optional versioned client attribution context.">
                 <cocoa key="clientContext"/>
             </parameter>
             <result type="text" description="A versioned JSON acknowledgement or error."/>
         </command>
-        <command name="get scripting version" code="PhisGVer" description="Return Phi and scripting API versions as versioned JSON.">
+        <command name="get scripting version" code="PhisGVer" description="Return Astra Browser and scripting API versions as versioned JSON.">
             <cocoa class="PhiGetVersionScriptCommand"/>
             <parameter name="client context" code="ClCt" type="text" optional="yes" description="Optional versioned client attribution context.">
                 <cocoa key="clientContext"/>
             </parameter>
-            <result type="text" description="A JSON response containing the Phi and scripting API versions."/>
+            <result type="text" description="A JSON response containing the Astra Browser and scripting API versions."/>
         </command>
-        <command name="get chromium data directory" code="PhisGDat" description="Return the current Phi application's Chromium data directory as versioned JSON.">
+        <command name="get chromium data directory" code="PhisGDat" description="Return the current Astra Browser application's Chromium data directory as versioned JSON.">
             <cocoa class="PhiGetChromiumDataDirectoryScriptCommand"/>
             <parameter name="client context" code="ClCt" type="text" optional="yes" description="Optional versioned client attribution context.">
                 <cocoa key="clientContext"/>

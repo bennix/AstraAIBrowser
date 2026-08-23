@@ -4,7 +4,7 @@
 // Self-test for the phi-browser skill. Run after changing the skill:
 //   node scripts/selftest.mjs
 //
-// Needs a running Phi Browser with the CDP endpoint enabled (see
+// Needs a running Astra Browser with the CDP endpoint enabled (see
 // references/install.md) and at least one browser window open. Drives a
 // throwaway hidden agent Space named 'phi-skill-selftest' against a local
 // HTTP server — no external sites, safe to run while the user browses.

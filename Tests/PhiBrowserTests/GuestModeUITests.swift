@@ -227,41 +227,47 @@ final class GuestModeUITests: XCTestCase {
         }
     }
 
-    func testZenMuxMarkdownParserPreservesInlineFormattingInsideOrderedLists() {
-        let blocks = ZenMuxMarkdownParser.blocks(from: """
-        Summary with **bold text**.
-
-        1. **First item**: details
-        2. Second item
-        """)
-
+    func testZenMuxMarkdownNormalizerRepairsQuotedStrongEmphasis() {
         XCTAssertEqual(
-            blocks,
-            [
-                .paragraph("Summary with **bold text**."),
-                .orderedList([
-                    .init(marker: 1, content: "**First item**: details"),
-                    .init(marker: 2, content: "Second item"),
-                ]),
-            ]
+            ZenMuxMarkdownNormalizer.normalize(#"This is **"important"**."#),
+            #"This is "**important**"."#
+        )
+        XCTAssertEqual(
+            ZenMuxMarkdownNormalizer.normalize("This is **“important”**."),
+            "This is “**important**”."
         )
     }
 
-    func testZenMuxMarkdownParserHandlesHeadingsQuotesAndCodeBlocks() {
-        let blocks = ZenMuxMarkdownParser.blocks(from: """
-        ## Details
-        > Important context
-        ```swift
-        let answer = 42
-        ```
-        """)
-
+    func testZenMuxMarkdownNormalizerSupportsMathAndChemistry() {
         XCTAssertEqual(
-            blocks,
+            ZenMuxMarkdownNormalizer.normalize(#"Inline $E=mc^2$ and \[x^2+y^2=z^2\]."#),
+            #"Inline \(E=mc^2\) and $$x^2+y^2=z^2$$."#
+        )
+        XCTAssertEqual(
+            ZenMuxMarkdownNormalizer.normalize(#"Reaction: \ce{2H2 + O2 -> 2H2O}."#),
+            #"Reaction: \mathrm{2H_{2} + O_{2} \rightarrow 2H_{2}O}."#
+        )
+    }
+
+    func testZenMuxMarkdownParserBuildsRichBlocks() {
+        XCTAssertEqual(
+            ZenMuxMarkdownParser.blocks(from: """
+            ## Result
+
+            **Bold** and `code`
+
+            - First
+            - Second
+
+            $$
+            E = mc^2
+            $$
+            """),
             [
-                .heading(level: 2, content: "Details"),
-                .quote("Important context"),
-                .code("let answer = 42"),
+                .heading(level: 2, content: "Result"),
+                .paragraph("**Bold** and `code`"),
+                .unorderedList(["First", "Second"]),
+                .math("E = mc^2"),
             ]
         )
     }

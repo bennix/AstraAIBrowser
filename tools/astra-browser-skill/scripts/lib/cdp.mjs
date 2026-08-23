@@ -1,6 +1,6 @@
 // Copyright 2026 Phinomenon Inc.
 //
-// Minimal dependency-free CDP client for Phi Browser (Node >= 22). The Phi app
+// Minimal dependency-free CDP client for Astra Browser (Node >= 22). The Phi app
 // owns a Unix-domain socket, authenticates the connecting process, and injects
 // the accepted connection into Chromium's DevTools server; agent-Space
 // management/lifecycle is served by the app directly on the same socket
@@ -10,7 +10,7 @@
 // raises the consent prompt that offers to turn it on, so the skill never has
 // to send the user into Settings first.
 //
-// That socket is Phi's ONLY CDP surface. `--remote-debugging-port` and
+// That socket is Astra Browser's ONLY CDP surface. `--remote-debugging-port` and
 // `--remote-debugging-pipe` are stripped from the launch arguments before
 // Chromium sees them (ChromiumLauncher.m), because a TCP or pipe endpoint
 // would supplant the FD-injection transport the app owns.
@@ -58,19 +58,19 @@ const LAUNCH_POLL_MS = 250
 const LAUNCH_BUNDLE_IDS = ['com.phibrowser.canary.Mac', 'com.phibrowser.Mac']
 
 const NOT_FOUND_MESSAGE =
-  'Phi Browser CDP endpoint not found, and Phi could not be started. Phi ' +
-  'publishes the socket whenever it runs, so this means no Phi Browser is ' +
+  'Astra Browser CDP endpoint not found, and Phi could not be started. Phi ' +
+  'publishes the socket whenever it runs, so this means no Astra Browser is ' +
   'installed where the skill looked, or launching it was suppressed ' +
   '(PHI_NO_LAUNCH). See references/install.md.'
 
 const LAUNCH_TIMEOUT_MESSAGE =
-  'Phi Browser was launched but never published its CDP socket within ' +
+  'Astra Browser was launched but never published its CDP socket within ' +
   `${Math.round(LAUNCH_WAIT_MS / 1000)}s. It may still be starting, or it ` +
   'may have stopped at a login or restore prompt — check the Phi window and ' +
   'retry.'
 
 const DENIED_MESSAGE =
-  'Phi Browser denied this agent CDP access. The user may have blocked it for ' +
+  'Astra Browser denied this agent CDP access. The user may have blocked it for ' +
   '30 minutes or for good, in which case retrying will not prompt again — ask ' +
   'them to allow it, or to unblock it under Settings ▸ Developer ▸ Remote ' +
   'debugging ▸ Blocked agents.'
@@ -107,7 +107,7 @@ export function discoverEndpoints() {
  * live inside one.
  *
  * Every install links `<agent>/skills/phi-browser` at
- * `<Phi.app>/Contents/Resources/phi-browser-skill`, so resolving this file's
+ * `<Astra Browser.app>/Contents/Resources/astra-browser-skill`, so resolving this file's
  * realpath and cutting at the enclosing `.app` names the exact app the skill
  * shipped with — canary or stable, /Applications or a DerivedData dev build —
  * with nothing to guess. Cutting at the FIRST `.app/` keeps the outer bundle
@@ -125,7 +125,7 @@ export function linkedAppPath() {
 }
 
 /**
- * Starts Phi Browser, returning what was launched (or null if nothing could
+ * Starts Astra Browser, returning what was launched (or null if nothing could
  * be). Opened with `-g` so an agent starting the browser never steals the
  * focus of whatever the user is doing — the agent's own Space is hidden
  * anyway, and a foreground steal from a background task is the rudest thing
@@ -256,7 +256,7 @@ export async function verifyEndpoint(endpoint, { agentPid = null,
   } catch (err) {
     if (err.message === DENIED_MESSAGE) throw err
     // Codex runs shell commands in a seatbelt sandbox that by default denies
-    // ALL network syscalls — including connect() on Phi's unix socket, which
+    // ALL network syscalls — including connect() on Astra Browser's unix socket, which
     // then fails in 0 ms. Phi itself is usually fine and toggling it cannot
     // help, so name the real fix instead of the generic toggle advice (which
     // otherwise loops forever: every retry hits the same sandbox wall).
@@ -264,14 +264,14 @@ export async function verifyEndpoint(endpoint, { agentPid = null,
         || (process.env.CODEX_SANDBOX && /connect|EPERM|ENETDOWN/i.test(err.message))) {
       throw new Error(
         `This shell runs inside Codex's network-disabled sandbox, which ` +
-        `blocks Phi's app socket (Phi itself is likely fine). Fix it on the ` +
+        `blocks Astra Browser's app socket (Phi itself is likely fine). Fix it on the ` +
         `Codex side: add "[sandbox_workspace_write]\nnetwork_access = true" ` +
         `to ~/.codex/config.toml, or re-run this command with escalated ` +
         `(unsandboxed) permissions. [${err.message}]`)
     }
     const wrapped = new Error(
-      `Phi Browser CDP endpoint is not responding. A consent prompt may be ` +
-      `waiting for the user in Phi; otherwise check that Phi Browser is ` +
+      `Astra Browser CDP endpoint is not responding. A consent prompt may be ` +
+      `waiting for the user in Phi; otherwise check that Astra Browser is ` +
       `running. [${err.message}]`)
     if (err?.code === 'ETIMEDOUT' || err?.message === 'timed out') {
       wrapped.code = 'ETIMEDOUT'
@@ -283,7 +283,7 @@ export async function verifyEndpoint(endpoint, { agentPid = null,
   const wsUrl = version.webSocketDebuggerUrl || ''
   const browserWsPath = wsUrl ? new URL(wsUrl).pathname : ''
   if (!browserWsPath) {
-    throw new Error('Phi Browser did not advertise a browser WebSocket target.')
+    throw new Error('Astra Browser did not advertise a browser WebSocket target.')
   }
   return { browserWsPath }
 }
@@ -509,7 +509,7 @@ export class CdpClient {
       this.ws.addEventListener('error', (ev) =>
         reject(ev?.error instanceof Error
           ? ev.error
-          : new Error('WebSocket failed to connect to Phi Browser')),
+          : new Error('WebSocket failed to connect to Astra Browser')),
         { once: true })
     })
     this.ws.addEventListener('message', (ev) => this.#onMessage(ev.data))

@@ -230,6 +230,11 @@
       "extractionState" : "extracted_with_value",
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Remove image %@" } } }
     },
+    "chat.zenMux.attachments.unsupportedModelError" : {
+      "comment" : "ZenMux chat attachments - Error shown when the selected text-only model cannot receive attached images; placeholder is the model name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "%@ does not accept image input. Choose Gemini or Grok to send images." } } }
+    },
     "chat.zenMux.capturingPageStatus" : {
       "comment" : "ZenMux chat - Status shown while the current visible page area is captured for message context",
       "extractionState" : "extracted_with_value",
@@ -2860,7 +2865,7 @@
       }
     },
     "accountDeletion.completion.signOutAndQuitButton" : {
-      "comment" : "Account deletion - Button confirming the finalize: Phi clears its local data, signs out and quits",
+      "comment" : "Account deletion - Button confirming the finalize: Astra Browser clears its local data, signs out and quits",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -3100,7 +3105,7 @@
       }
     },
     "accountDeletion.confirmation.message" : {
-      "comment" : "Account deletion - Warning explaining what deleting the Phi account destroys. %@ is the account's email address",
+      "comment" : "Account deletion - Warning explaining what deleting the Astra Browser account destroys. %@ is the account's email address",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -3160,7 +3165,7 @@
       }
     },
     "accountDeletion.confirmation.title" : {
-      "comment" : "Account deletion - Title of the warning shown before deleting the Phi account",
+      "comment" : "Account deletion - Title of the warning shown before deleting the Astra Browser account",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -3586,31 +3591,31 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ein Löschantrag für dieses Konto wird bereits bearbeitet. Du erhältst eine Bestätigung per E-Mail, sobald die Löschung abgeschlossen ist.\n\nPhi meldet dich jetzt ab, entfernt seine Daten von diesem Mac und wird beendet."
+            "value" : "Ein Löschantrag für dieses Konto wird bereits bearbeitet. Du erhältst eine Bestätigung per E-Mail, sobald die Löschung abgeschlossen ist.\n\nAstra Browser meldet dich jetzt ab, entfernt seine Daten von diesem Mac und wird beendet."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "A deletion request for this account is already being processed. You will receive an email receipt once the deletion is complete.\n\nPhi will now sign you out, remove its data from this Mac, and quit."
+            "value" : "A deletion request for this account is already being processed. You will receive an email receipt once the deletion is complete.\n\nAstra Browser will now sign you out, remove its data from this Mac, and quit."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ya se está procesando una solicitud de eliminación para esta cuenta. Recibirás un comprobante por correo electrónico cuando se complete la eliminación.\n\nPhi cerrará tu sesión, eliminará sus datos de este Mac y se cerrará."
+            "value" : "Ya se está procesando una solicitud de eliminación para esta cuenta. Recibirás un comprobante por correo electrónico cuando se complete la eliminación.\n\nAstra Browser cerrará tu sesión, eliminará sus datos de este Mac y se cerrará."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Une demande de suppression de ce compte est déjà en cours de traitement. Vous recevrez un accusé de réception par e-mail une fois la suppression terminée.\n\nPhi va maintenant vous déconnecter, supprimer ses données de ce Mac, puis quitter."
+            "value" : "Une demande de suppression de ce compte est déjà en cours de traitement. Vous recevrez un accusé de réception par e-mail une fois la suppression terminée.\n\nAstra Browser va maintenant vous déconnecter, supprimer ses données de ce Mac, puis quitter."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このアカウントの削除リクエストはすでに処理中です。削除が完了すると、確認メールが届きます。\n\nPhiはこれからログアウトし、このMacからAstra Browserのデータを削除して終了します。"
+            "value" : "このアカウントの削除リクエストはすでに処理中です。削除が完了すると、確認メールが届きます。\n\nAstra Browserはこれからログアウトし、このMacからAstra Browserのデータを削除して終了します。"
           }
         },
         "ko" : {
@@ -3622,19 +3627,19 @@
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Er wordt al een verwijderingsverzoek voor dit account verwerkt. Je ontvangt per e-mail een bevestiging zodra de verwijdering is voltooid.\n\nPhi logt je nu uit, verwijdert zijn gegevens van deze Mac en stopt."
+            "value" : "Er wordt al een verwijderingsverzoek voor dit account verwerkt. Je ontvangt per e-mail een bevestiging zodra de verwijdering is voltooid.\n\nAstra Browser logt je nu uit, verwijdert zijn gegevens van deze Mac en stopt."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此账号的删除请求已在处理中。删除完成后，你会收到一封确认邮件。\n\nPhi 现在会将你退出登录，移除它在这台 Mac 上的数据，然后退出。"
+            "value" : "此账号的删除请求已在处理中。删除完成后，你会收到一封确认邮件。\n\nAstra Browser 现在会将你退出登录，移除它在这台 Mac 上的数据，然后退出。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此帳號的刪除要求已在處理中。刪除完成後，你會收到一封確認電子郵件。\n\nPhi 現在會將你登出、移除它在這部 Mac 上的資料，然後結束。"
+            "value" : "此帳號的刪除要求已在處理中。刪除完成後，你會收到一封確認電子郵件。\n\nAstra Browser 現在會將你登出、移除它在這部 Mac 上的資料，然後結束。"
           }
         }
       }
@@ -3646,13 +3651,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Deine Löschanfrage wurde übermittelt. Du erhältst eine E-Mail-Bestätigung, sobald die Löschung abgeschlossen ist.\n\nPhi meldet dich jetzt ab, entfernt seine Daten von diesem Mac und beendet sich."
+            "value" : "Deine Löschanfrage wurde übermittelt. Du erhältst eine E-Mail-Bestätigung, sobald die Löschung abgeschlossen ist.\n\nAstra Browser meldet dich jetzt ab, entfernt seine Daten von diesem Mac und beendet sich."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Your deletion request has been submitted. You will receive an email receipt once the deletion is complete.\n\nPhi will now sign you out, remove its data from this Mac, and quit."
+            "value" : "Your deletion request has been submitted. You will receive an email receipt once the deletion is complete.\n\nAstra Browser will now sign you out, remove its data from this Mac, and quit."
           }
         },
         "es" : {
@@ -3664,7 +3669,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Votre demande de suppression a été envoyée. Vous recevrez un accusé de réception par e-mail une fois la suppression terminée.\n\nPhi va maintenant vous déconnecter, supprimer ses données de ce Mac et se fermer."
+            "value" : "Votre demande de suppression a été envoyée. Vous recevrez un accusé de réception par e-mail une fois la suppression terminée.\n\nAstra Browser va maintenant vous déconnecter, supprimer ses données de ce Mac et se fermer."
           }
         },
         "ja" : {
@@ -3682,19 +3687,19 @@
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Je verwijderingsverzoek is ingediend. Je ontvangt per e-mail een bevestiging zodra de verwijdering is voltooid.\n\nPhi logt je nu uit, verwijdert zijn gegevens van deze Mac en stopt."
+            "value" : "Je verwijderingsverzoek is ingediend. Je ontvangt per e-mail een bevestiging zodra de verwijdering is voltooid.\n\nAstra Browser logt je nu uit, verwijdert zijn gegevens van deze Mac en stopt."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "你的删除请求已提交。删除完成后，你会收到一封确认邮件。\n\nPhi 现在会将你退出登录，移除它在这台 Mac 上的数据，然后退出。"
+            "value" : "你的删除请求已提交。删除完成后，你会收到一封确认邮件。\n\nAstra Browser 现在会将你退出登录，移除它在这台 Mac 上的数据，然后退出。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "你的刪除要求已送出。刪除完成後，你會收到一封確認電子郵件。\n\nPhi 現在會將你登出、移除它在這部 Mac 上的資料，然後結束。"
+            "value" : "你的刪除要求已送出。刪除完成後，你會收到一封確認電子郵件。\n\nAstra Browser 現在會將你登出、移除它在這部 Mac 上的資料，然後結束。"
           }
         }
       }
@@ -4360,7 +4365,7 @@
       }
     },
     "accountRequired.phiAI.detail" : {
-      "comment" : "Account-required presentation - Detail shown when a Guest opens a Phi AI feature",
+      "comment" : "Account-required presentation - Detail shown when a Guest opens a Astra Browser AI feature",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -4420,7 +4425,7 @@
       }
     },
     "accountRequired.phiAI.loginButton" : {
-      "comment" : "Account-required presentation - Button that opens the Phi sign-in window",
+      "comment" : "Account-required presentation - Button that opens the Astra Browser sign-in window",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -4480,7 +4485,7 @@
       }
     },
     "accountRequired.phiAI.title" : {
-      "comment" : "Account-required presentation - Title shown when a Guest opens a Phi AI feature",
+      "comment" : "Account-required presentation - Title shown when a Guest opens a Astra Browser AI feature",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -10960,7 +10965,7 @@
       }
     },
     "app.helpMenu.exportLogs" : {
-      "comment" : "Help menu - Menu item to export Phi and Sentinel logs as a zip archive; visible only when holding Option key",
+      "comment" : "Help menu - Menu item to export Astra Browser and Sentinel logs as a zip archive; visible only when holding Option key",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -11020,7 +11025,7 @@
       }
     },
     "app.helpMenu.exportUserData" : {
-      "comment" : "Help menu - Submenu item to save Phi user data folder as a zip backup",
+      "comment" : "Help menu - Submenu item to save Astra Browser user data folder as a zip backup",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -11140,7 +11145,7 @@
       }
     },
     "app.helpMenu.importUserData" : {
-      "comment" : "Help menu - Submenu item to replace Phi user data from a zip backup and relaunch the app",
+      "comment" : "Help menu - Submenu item to replace Astra Browser user data from a zip backup and relaunch the app",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -11200,7 +11205,7 @@
       }
     },
     "app.helpMenu.improveTranslations" : {
-      "comment" : "Help menu - Menu item below What's New that opens Phi's translation contribution website",
+      "comment" : "Help menu - Menu item below What's New that opens Astra Browser's translation contribution website",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -11260,7 +11265,7 @@
       }
     },
     "app.helpMenu.manageUserData" : {
-      "comment" : "Help menu - Parent menu item for exporting and importing Phi user data backup",
+      "comment" : "Help menu - Parent menu item for exporting and importing Astra Browser user data backup",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -11320,7 +11325,7 @@
       }
     },
     "app.helpMenu.timeMachineBackups" : {
-      "comment" : "Help menu - Parent menu item listing completed Phi Time Machine backups",
+      "comment" : "Help menu - Parent menu item listing completed Astra Browser Time Machine backups",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -11439,8 +11444,8 @@
         }
       }
     },
-    "app.helpMenu.uninstallPhi" : {
-      "comment" : "Help menu - Menu item below Manage User Data that opens the critical confirmation for uninstalling Phi and its local data",
+    "app.helpMenu.uninstallAstra Browser" : {
+      "comment" : "Help menu - Menu item below Manage User Data that opens the critical confirmation for uninstalling Astra Browser and its local data",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -11920,7 +11925,7 @@
       }
     },
     "app.logExport.noLogsFound.message" : {
-      "comment" : "Help menu - Log export alert when both PhiLogs and Sentinel log directory are missing",
+      "comment" : "Help menu - Log export alert when both Astra BrowserLogs and Sentinel log directory are missing",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -12460,7 +12465,7 @@
       }
     },
     "app.phiMenu.checkForUpdatesMenuItem" : {
-      "comment" : "Phi menu - Menu item to check for app updates",
+      "comment" : "Astra Browser menu - Menu item to check for app updates",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -14679,7 +14684,7 @@
         }
       }
     },
-    "app.timeMachineRestore.progress.restartingPhi" : {
+    "app.timeMachineRestore.progress.restartingAstra Browser" : {
       "comment" : "Time Machine restore progress stage",
       "extractionState" : "extracted_with_value",
       "localizations" : {
@@ -14980,7 +14985,7 @@
       }
     },
     "app.uninstall.confirmation.cancelButton" : {
-      "comment" : "Phi uninstall - Button that cancels the uninstall confirmation",
+      "comment" : "Astra Browser uninstall - Button that cancels the uninstall confirmation",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -15040,7 +15045,7 @@
       }
     },
     "app.uninstall.confirmation.message" : {
-      "comment" : "Phi uninstall - Critical confirmation message describing the channel-scoped data that will be permanently removed",
+      "comment" : "Astra Browser uninstall - Critical confirmation message describing the channel-scoped data that will be permanently removed",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -15100,7 +15105,7 @@
       }
     },
     "app.uninstall.confirmation.title" : {
-      "comment" : "Phi uninstall - Critical confirmation alert title before permanently removing the app and local data",
+      "comment" : "Astra Browser uninstall - Critical confirmation alert title before permanently removing the app and local data",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -15160,7 +15165,7 @@
       }
     },
     "app.uninstall.confirmation.uninstallButton" : {
-      "comment" : "Phi uninstall - Destructive confirmation button that starts uninstalling Phi",
+      "comment" : "Astra Browser uninstall - Destructive confirmation button that starts uninstalling Astra Browser",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -15220,7 +15225,7 @@
       }
     },
     "app.uninstall.failure.dismissButton" : {
-      "comment" : "Phi uninstall - Button that dismisses an uninstall startup failure",
+      "comment" : "Astra Browser uninstall - Button that dismisses an uninstall startup failure",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -15280,7 +15285,7 @@
       }
     },
     "app.uninstall.failure.message" : {
-      "comment" : "Phi uninstall - Error alert message after uninstall preparation fails; the placeholder is the technical reason and sign-in cleanup may have partially completed",
+      "comment" : "Astra Browser uninstall - Error alert message after uninstall preparation fails; the placeholder is the technical reason and sign-in cleanup may have partially completed",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -15340,7 +15345,7 @@
       }
     },
     "app.uninstall.failure.title" : {
-      "comment" : "Phi uninstall - Error alert title when the uninstall helper could not be prepared or launched",
+      "comment" : "Astra Browser uninstall - Error alert title when the uninstall helper could not be prepared or launched",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -17020,7 +17025,7 @@
       }
     },
     "app.userDataExport.savePanel.saveButton" : {
-      "comment" : "User data export - NSSavePanel confirm button title when saving Phi user data backup zip",
+      "comment" : "User data export - NSSavePanel confirm button title when saving Astra Browser user data backup zip",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -17080,7 +17085,7 @@
       }
     },
     "app.userDataExport.savePanel.title" : {
-      "comment" : "User data export - NSSavePanel title for saving Phi user data directory as zip",
+      "comment" : "User data export - NSSavePanel title for saving Astra Browser user data directory as zip",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -17320,7 +17325,7 @@
       }
     },
     "app.userDataImport.confirmation.title" : {
-      "comment" : "User data import - Confirmation alert title before replacing Phi user data from zip",
+      "comment" : "User data import - Confirmation alert title before replacing Astra Browser user data from zip",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -17500,7 +17505,7 @@
       }
     },
     "app.userDataImport.filePicker.title" : {
-      "comment" : "User data import - NSOpenPanel title for choosing a Phi user data zip",
+      "comment" : "User data import - NSOpenPanel title for choosing a Astra Browser user data zip",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -17560,7 +17565,7 @@
       }
     },
     "app.userDataImport.invalidArchive.missingTopLevelFolder" : {
-      "comment" : "User data import - Error message when zip does not include the expected Phi directory at archive root",
+      "comment" : "User data import - Error message when zip does not include the expected Astra Browser directory at archive root",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -17620,7 +17625,7 @@
       }
     },
     "app.userDataImport.invalidArchive.restoredItemNotDirectory" : {
-      "comment" : "User data import - Error message when extracted Phi item is not a directory",
+      "comment" : "User data import - Error message when extracted Astra Browser item is not a directory",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -25905,7 +25910,7 @@
       }
     },
     "common.iconPicker.iconsSearchPlaceholder" : {
-      "comment" : "Icon picker - Search field placeholder for Phi icons",
+      "comment" : "Icon picker - Search field placeholder for Astra Browser icons",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -25965,7 +25970,7 @@
       }
     },
     "common.iconPicker.iconTabTitle" : {
-      "comment" : "Icon picker - Tab for choosing a Phi icon; translate using the locale's standard term for an icon",
+      "comment" : "Icon picker - Tab for choosing a Astra Browser icon; translate using the locale's standard term for an icon",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -36693,7 +36698,7 @@
       }
     },
     "oobe.guestPrivacy.privacyPolicyLink" : {
-      "comment" : "Guest privacy confirmation - Link title for the Phi privacy policy",
+      "comment" : "Guest privacy confirmation - Link title for the Astra Browser privacy policy",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -36813,7 +36818,7 @@
       }
     },
     "oobe.guestPrivacy.termsOfServiceLink" : {
-      "comment" : "Guest privacy confirmation - Link title for the Phi terms of service",
+      "comment" : "Guest privacy confirmation - Link title for the Astra Browser terms of service",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -39152,7 +39157,7 @@
         }
       }
     },
-    "oobe.nextSteps.enjoyPhi" : {
+    "oobe.nextSteps.enjoyAstra Browser" : {
       "comment" : "Onboarding next steps - Fourth guide step welcoming the user to Astra Browser",
       "extractionState" : "extracted_with_value",
       "localizations" : {
@@ -39453,7 +39458,7 @@
       }
     },
     "oobe.nextSteps.privacyLink" : {
-      "comment" : "Onboarding next steps - Link title for the Phi privacy policy",
+      "comment" : "Onboarding next steps - Link title for the Astra Browser privacy policy",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -39513,7 +39518,7 @@
       }
     },
     "oobe.nextSteps.termsLink" : {
-      "comment" : "Onboarding next steps - Link title for the Phi terms of service",
+      "comment" : "Onboarding next steps - Link title for the Astra Browser terms of service",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -41133,7 +41138,7 @@
       }
     },
     "settings.account.defaultBrowser.defaultStatus" : {
-      "comment" : "Account settings - Status text when Phi is the default browser",
+      "comment" : "Account settings - Status text when Astra Browser is the default browser",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -41253,7 +41258,7 @@
       }
     },
     "settings.account.defaultBrowser.notDefaultStatus" : {
-      "comment" : "Account settings - Status text when Phi is not the default browser",
+      "comment" : "Account settings - Status text when Astra Browser is not the default browser",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -41313,7 +41318,7 @@
       }
     },
     "settings.account.defaultBrowser.setDefaultButton" : {
-      "comment" : "Account settings - Button to set Phi as default browser",
+      "comment" : "Account settings - Button to set Astra Browser as default browser",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -41493,7 +41498,7 @@
       }
     },
     "settings.account.guest.paneTitle" : {
-      "comment" : "Account settings - Pane title shown while using Phi in Guest Mode",
+      "comment" : "Account settings - Pane title shown while using Astra Browser in Guest Mode",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -44913,7 +44918,7 @@
       }
     },
     "settings.ai.phiLink.sectionTitle" : {
-      "comment" : "Phi & AI settings - Section title for Phi Link messaging options",
+      "comment" : "Astra Browser & AI settings - Section title for Astra Browser Link messaging options",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -44973,7 +44978,7 @@
       }
     },
     "settings.ai.phiSentinel.autoLaunchToggle" : {
-      "comment" : "AI settings - Toggle to auto-launch Phi Sentinel when signing in to the Mac",
+      "comment" : "AI settings - Toggle to auto-launch Astra Browser Sentinel when signing in to the Mac",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -45033,7 +45038,7 @@
       }
     },
     "settings.ai.phiSentinel.description" : {
-      "comment" : "AI settings - Description explaining what Phi Sentinel does",
+      "comment" : "AI settings - Description explaining what Astra Browser Sentinel does",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -45093,7 +45098,7 @@
       }
     },
     "settings.ai.phiSentinel.sectionTitle" : {
-      "comment" : "AI settings - Section title for Phi Sentinel background helper",
+      "comment" : "AI settings - Section title for Astra Browser Sentinel background helper",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -45153,7 +45158,7 @@
       }
     },
     "settings.ai.privateAI.title" : {
-      "comment" : "AI settings - Row that opens Phi Sentinel's Private AI page",
+      "comment" : "AI settings - Row that opens Astra Browser Sentinel's Private AI page",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -48273,7 +48278,7 @@
       }
     },
     "settings.developer.passwordManager.approvals.allPasswordsEnabledStatus" : {
-      "comment" : "Phi & AI settings - approvals subtitle when the master grant is on",
+      "comment" : "Astra Browser & AI settings - approvals subtitle when the master grant is on",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -49413,7 +49418,7 @@
       }
     },
     "settings.developer.passwordManager.approvals.noStandingApprovalsStatus" : {
-      "comment" : "Phi & AI settings - approvals subtitle with no grants",
+      "comment" : "Astra Browser & AI settings - approvals subtitle with no grants",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -49773,7 +49778,7 @@
       }
     },
     "settings.developer.passwordManager.approvals.standingApprovalCount" : {
-      "comment" : "Phi & AI settings - approvals subtitle grant count",
+      "comment" : "Astra Browser & AI settings - approvals subtitle grant count",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -49833,7 +49838,7 @@
       }
     },
     "settings.developer.passwordManager.approvals.title" : {
-      "comment" : "Phi & AI settings - approvals row title",
+      "comment" : "Astra Browser & AI settings - approvals row title",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -49893,7 +49898,7 @@
       }
     },
     "settings.developer.passwordManager.approvals.tooltip" : {
-      "comment" : "Phi & AI settings - tooltip for the approvals row",
+      "comment" : "Astra Browser & AI settings - tooltip for the approvals row",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -49953,7 +49958,7 @@
       }
     },
     "settings.developer.passwordManager.bitwarden.helperUnavailableStatus" : {
-      "comment" : "Phi & AI settings - Bitwarden helper missing status",
+      "comment" : "Astra Browser & AI settings - Bitwarden helper missing status",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -50013,7 +50018,7 @@
       }
     },
     "settings.developer.passwordManager.bitwarden.lockedStatus" : {
-      "comment" : "Phi & AI settings - Bitwarden locked status",
+      "comment" : "Astra Browser & AI settings - Bitwarden locked status",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -50073,7 +50078,7 @@
       }
     },
     "settings.developer.passwordManager.bitwarden.loginAction" : {
-      "comment" : "Phi & AI settings - Bitwarden sign-in action",
+      "comment" : "Astra Browser & AI settings - Bitwarden sign-in action",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -50133,7 +50138,7 @@
       }
     },
     "settings.developer.passwordManager.bitwarden.logoutAction" : {
-      "comment" : "Phi & AI settings - Bitwarden sign-out action",
+      "comment" : "Astra Browser & AI settings - Bitwarden sign-out action",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -50193,7 +50198,7 @@
       }
     },
     "settings.developer.passwordManager.bitwarden.notSignedInStatus" : {
-      "comment" : "Phi & AI settings - Bitwarden signed-out status",
+      "comment" : "Astra Browser & AI settings - Bitwarden signed-out status",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -50253,7 +50258,7 @@
       }
     },
     "settings.developer.passwordManager.bitwarden.signedInAccountStatus" : {
-      "comment" : "Phi & AI settings - Bitwarden ready status with account",
+      "comment" : "Astra Browser & AI settings - Bitwarden ready status with account",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -50313,7 +50318,7 @@
       }
     },
     "settings.developer.passwordManager.bitwarden.signedInStatus" : {
-      "comment" : "Phi & AI settings - Bitwarden ready status",
+      "comment" : "Astra Browser & AI settings - Bitwarden ready status",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -50373,7 +50378,7 @@
       }
     },
     "settings.developer.passwordManager.bitwarden.toggleDescription" : {
-      "comment" : "Phi & AI settings - Bitwarden toggle explanation",
+      "comment" : "Astra Browser & AI settings - Bitwarden toggle explanation",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -50433,7 +50438,7 @@
       }
     },
     "settings.developer.passwordManager.bitwarden.toggleTitle" : {
-      "comment" : "Phi & AI settings - Bitwarden toggle title",
+      "comment" : "Astra Browser & AI settings - Bitwarden toggle title",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -50493,7 +50498,7 @@
       }
     },
     "settings.developer.passwordManager.bitwarden.unlockAction" : {
-      "comment" : "Phi & AI settings - Bitwarden unlock action",
+      "comment" : "Astra Browser & AI settings - Bitwarden unlock action",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -50553,7 +50558,7 @@
       }
     },
     "settings.developer.passwordManager.extensionInstallPrompt.installButton" : {
-      "comment" : "Phi & AI settings - Button that installs the Bitwarden browser extension",
+      "comment" : "Astra Browser & AI settings - Button that installs the Bitwarden browser extension",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -50613,7 +50618,7 @@
       }
     },
     "settings.developer.passwordManager.extensionInstallPrompt.message" : {
-      "comment" : "Phi & AI settings - Alert message explaining the suggested Bitwarden extension install",
+      "comment" : "Astra Browser & AI settings - Alert message explaining the suggested Bitwarden extension install",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -50673,7 +50678,7 @@
       }
     },
     "settings.developer.passwordManager.extensionInstallPrompt.notNowButton" : {
-      "comment" : "Phi & AI settings - Button that dismisses the Bitwarden extension install suggestion",
+      "comment" : "Astra Browser & AI settings - Button that dismisses the Bitwarden extension install suggestion",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -50733,7 +50738,7 @@
       }
     },
     "settings.developer.passwordManager.extensionInstallPrompt.title" : {
-      "comment" : "Phi & AI settings - Alert title suggesting the Bitwarden browser extension install",
+      "comment" : "Astra Browser & AI settings - Alert title suggesting the Bitwarden browser extension install",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -50793,7 +50798,7 @@
       }
     },
     "settings.developer.passwordManager.sectionTitle" : {
-      "comment" : "Phi & AI settings - Agent Password Manager section title",
+      "comment" : "Astra Browser & AI settings - Agent Password Manager section title",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -51273,7 +51278,7 @@
       }
     },
     "settings.developer.passwordManager.session.timeoutActionTitle" : {
-      "comment" : "Phi & AI settings - Row title for what happens when the Bitwarden session times out",
+      "comment" : "Astra Browser & AI settings - Row title for what happens when the Bitwarden session times out",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -51333,7 +51338,7 @@
       }
     },
     "settings.developer.passwordManager.session.timeoutTitle" : {
-      "comment" : "Phi & AI settings - Row title for how long the unlocked Bitwarden vault lasts",
+      "comment" : "Astra Browser & AI settings - Row title for how long the unlocked Bitwarden vault lasts",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -51459,55 +51464,55 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ kann jetzt den phi-browser-Skill verwenden. Starte neu konfigurierte Agenten neu; in Pi genügt /reload."
+            "value" : "%@ kann jetzt den astra-browser-Skill verwenden. Starte neu konfigurierte Agenten neu; in Pi genügt /reload."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "%@ can now use the phi-browser skill. Restart newly configured agents; in Pi, /reload is enough."
+            "value" : "%@ can now use the astra-browser skill. Restart newly configured agents; in Pi, /reload is enough."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ ya puede usar la habilidad phi-browser. Reinicia los agentes recién configurados; en Pi, basta con /reload."
+            "value" : "%@ ya puede usar la habilidad astra-browser. Reinicia los agentes recién configurados; en Pi, basta con /reload."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ peut désormais utiliser le skill phi-browser. Redémarrez les agents nouvellement configurés ; dans Pi, /reload suffit."
+            "value" : "%@ peut désormais utiliser le skill astra-browser. Redémarrez les agents nouvellement configurés ; dans Pi, /reload suffit."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@がphi-browserスキルを使用できるようになりました。新しく設定したエージェントは再起動してください。Piでは/reloadだけで十分です。"
+            "value" : "%@がastra-browserスキルを使用できるようになりました。新しく設定したエージェントは再起動してください。Piでは/reloadだけで十分です。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@이(가) 이제 phi-browser 스킬을 사용할 수 있어요. 새로 구성된 에이전트는 재시작해 주세요. Pi에서는 /reload로 충분해요."
+            "value" : "%@이(가) 이제 astra-browser 스킬을 사용할 수 있어요. 새로 구성된 에이전트는 재시작해 주세요. Pi에서는 /reload로 충분해요."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ kan nu de phi-browser-skill gebruiken. Start nieuw geconfigureerde agents opnieuw; in Pi is /reload voldoende."
+            "value" : "%@ kan nu de astra-browser-skill gebruiken. Start nieuw geconfigureerde agents opnieuw; in Pi is /reload voldoende."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 现在可以使用 phi-browser Skill 了。请重启新配置的智能体；在 Pi 中，执行 /reload 即可。"
+            "value" : "%@ 现在可以使用 astra-browser Skill 了。请重启新配置的智能体；在 Pi 中，执行 /reload 即可。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 現在可以使用 phi-browser Skill。請重新啟動新設定的 AI 代理；在 Pi 中，執行 /reload 即可。"
+            "value" : "%@ 現在可以使用 astra-browser Skill。請重新啟動新設定的 AI 代理；在 Pi 中，執行 /reload 即可。"
           }
         }
       }
@@ -51633,7 +51638,7 @@
       }
     },
     "settings.developer.skillInstall.description" : {
-      "comment" : "Developer settings - Explanation for the phi-browser skill installer",
+      "comment" : "Developer settings - Explanation for the astra-browser skill installer",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -51759,55 +51764,55 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieser Build enthält die Ressourcen des phi-browser-Skills nicht. Erstelle Astra Browser neu und versuche es erneut."
+            "value" : "Dieser Build enthält die Ressourcen des astra-browser-Skills nicht. Erstelle Astra Browser neu und versuche es erneut."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "This build doesn’t include the phi-browser skill resources. Rebuild Astra Browser and try again."
+            "value" : "This build doesn’t include the astra-browser skill resources. Rebuild Astra Browser and try again."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esta compilación no incluye los recursos de la habilidad phi-browser. Vuelve a compilar Astra Browser e inténtalo de nuevo."
+            "value" : "Esta compilación no incluye los recursos de la habilidad astra-browser. Vuelve a compilar Astra Browser e inténtalo de nuevo."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cette version ne contient pas les ressources du Skill phi-browser. Recompilez Astra Browser et réessayez."
+            "value" : "Cette version ne contient pas les ressources du Skill astra-browser. Recompilez Astra Browser et réessayez."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このビルドにはphi-browserスキルのリソースが含まれていません。Astra Browserを再ビルドして、もう一度お試しください。"
+            "value" : "このビルドにはastra-browserスキルのリソースが含まれていません。Astra Browserを再ビルドして、もう一度お試しください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 빌드에는 phi-browser 스킬 리소스가 없어요. Astra Browser를 다시 빌드하고 다시 시도해 주세요."
+            "value" : "이 빌드에는 astra-browser 스킬 리소스가 없어요. Astra Browser를 다시 빌드하고 다시 시도해 주세요."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Deze build bevat de skillbronnen van phi-browser niet. Bouw Astra Browser opnieuw en probeer het opnieuw."
+            "value" : "Deze build bevat de skillbronnen van astra-browser niet. Bouw Astra Browser opnieuw en probeer het opnieuw."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此版本不包含 phi-browser Skill 资源。请重新构建 Astra Browser 后重试。"
+            "value" : "此版本不包含 astra-browser Skill 资源。请重新构建 Astra Browser 后重试。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此版本未包含 phi-browser Skill 資源。請重新建置 Astra Browser 後再試一次。"
+            "value" : "此版本未包含 astra-browser Skill 資源。請重新建置 Astra Browser 後再試一次。"
           }
         }
       }
@@ -52113,61 +52118,61 @@
       }
     },
     "settings.developer.skillInstall.sectionTitle" : {
-      "comment" : "Developer settings - Title for installing the phi-browser agent skill",
+      "comment" : "Developer settings - Title for installing the astra-browser agent skill",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "phi-browser-Skill installieren"
+            "value" : "astra-browser-Skill installieren"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Install the phi-browser skill"
+            "value" : "Install the astra-browser skill"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Instalar la habilidad phi-browser"
+            "value" : "Instalar la habilidad astra-browser"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Installer le Skill phi-browser"
+            "value" : "Installer le Skill astra-browser"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "phi-browserスキルをインストール"
+            "value" : "astra-browserスキルをインストール"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "phi-browser 스킬 설치"
+            "value" : "astra-browser 스킬 설치"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "De phi-browser-skill installeren"
+            "value" : "De astra-browser-skill installeren"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "安装 phi-browser Skill"
+            "value" : "安装 astra-browser Skill"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "安裝 phi-browser Skill"
+            "value" : "安裝 astra-browser Skill"
           }
         }
       }
@@ -52239,55 +52244,55 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ kann jetzt den phi-browser-Skill verwenden. Starte neu konfigurierte Agenten neu; in Pi genügt /reload."
+            "value" : "%@ kann jetzt den astra-browser-Skill verwenden. Starte neu konfigurierte Agenten neu; in Pi genügt /reload."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "%@ can now use the phi-browser skill. Restart newly configured agents; in Pi, /reload is enough."
+            "value" : "%@ can now use the astra-browser skill. Restart newly configured agents; in Pi, /reload is enough."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ ya puede usar la habilidad phi-browser. Reinicia los agentes recién configurados; en Pi, basta con /reload."
+            "value" : "%@ ya puede usar la habilidad astra-browser. Reinicia los agentes recién configurados; en Pi, basta con /reload."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ peut désormais utiliser le skill phi-browser. Redémarrez les agents nouvellement configurés ; dans Pi, /reload suffit."
+            "value" : "%@ peut désormais utiliser le skill astra-browser. Redémarrez les agents nouvellement configurés ; dans Pi, /reload suffit."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@がphi-browserスキルを使用できるようになりました。新しく設定したエージェントは再起動してください。Piでは/reloadだけで十分です。"
+            "value" : "%@がastra-browserスキルを使用できるようになりました。新しく設定したエージェントは再起動してください。Piでは/reloadだけで十分です。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@이(가) 이제 phi-browser 스킬을 사용할 수 있어요. 새로 구성된 에이전트는 재시작해 주세요. Pi에서는 /reload로 충분해요."
+            "value" : "%@이(가) 이제 astra-browser 스킬을 사용할 수 있어요. 새로 구성된 에이전트는 재시작해 주세요. Pi에서는 /reload로 충분해요."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ kan nu de phi-browser-skill gebruiken. Start nieuw geconfigureerde agents opnieuw; in Pi is /reload voldoende."
+            "value" : "%@ kan nu de astra-browser-skill gebruiken. Start nieuw geconfigureerde agents opnieuw; in Pi is /reload voldoende."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 现在可以使用 phi-browser Skill 了。请重启新配置的智能体；在 Pi 中，执行 /reload 即可。"
+            "value" : "%@ 现在可以使用 astra-browser Skill 了。请重启新配置的智能体；在 Pi 中，执行 /reload 即可。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 現在可以使用 phi-browser Skill。請重新啟動新設定的 AI 代理；在 Pi 中，執行 /reload 即可。"
+            "value" : "%@ 現在可以使用 astra-browser Skill。請重新啟動新設定的 AI 代理；在 Pi 中，執行 /reload 即可。"
           }
         }
       }
@@ -52353,7 +52358,7 @@
       }
     },
     "settings.developer.skillInstall.targetMenuButton" : {
-      "comment" : "Developer settings - Dropdown button installing the phi-browser skill for an agent",
+      "comment" : "Developer settings - Dropdown button installing the astra-browser skill for an agent",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -52953,7 +52958,7 @@
       }
     },
     "settings.general.language.displayLanguageTitle" : {
-      "comment" : "General settings - Row title for choosing Phi's native interface language",
+      "comment" : "General settings - Row title for choosing Astra Browser's native interface language",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -53073,7 +53078,7 @@
       }
     },
     "settings.general.language.restartButton" : {
-      "comment" : "General settings - Button to restart Phi and apply the selected display language",
+      "comment" : "General settings - Button to restart Astra Browser and apply the selected display language",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -53733,7 +53738,7 @@
       }
     },
     "settings.general.newTabPage.aiRequiredHint" : {
-      "comment" : "General settings - Hint shown when Phi AI is disabled explaining New Tab Page requires it",
+      "comment" : "General settings - Hint shown when Astra Browser AI is disabled explaining New Tab Page requires it",
       "extractionState" : "stale",
       "localizations" : {
         "de" : {
@@ -55293,7 +55298,7 @@
       }
     },
     "settings.navigation.phiLinkTitle" : {
-      "comment" : "Settings - Tab title for Phi Link settings",
+      "comment" : "Settings - Tab title for Astra Browser Link settings",
       "extractionState" : "stale",
       "localizations" : {
         "de" : {
@@ -55533,7 +55538,7 @@
       }
     },
     "settings.phiLink.customBot.botFatherLink" : {
-      "comment" : "Phi Link - Custom bot guide link text",
+      "comment" : "Astra Browser Link - Custom bot guide link text",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -55593,7 +55598,7 @@
       }
     },
     "settings.phiLink.customBot.configuredStatus" : {
-      "comment" : "Phi Link - Custom bot configured status",
+      "comment" : "Astra Browser Link - Custom bot configured status",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -55653,7 +55658,7 @@
       }
     },
     "settings.phiLink.customBot.description" : {
-      "comment" : "Phi Link - Custom bot subtitle",
+      "comment" : "Astra Browser Link - Custom bot subtitle",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -55713,7 +55718,7 @@
       }
     },
     "settings.phiLink.customBot.genericError" : {
-      "comment" : "Phi Link - Custom bot generic error text",
+      "comment" : "Astra Browser Link - Custom bot generic error text",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -55773,7 +55778,7 @@
       }
     },
     "settings.phiLink.customBot.guide.prefixText" : {
-      "comment" : "Phi Link - Custom bot guide prefix",
+      "comment" : "Astra Browser Link - Custom bot guide prefix",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -55833,7 +55838,7 @@
       }
     },
     "settings.phiLink.customBot.guide.suffixText" : {
-      "comment" : "Phi Link - Custom bot guide suffix",
+      "comment" : "Astra Browser Link - Custom bot guide suffix",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -55893,7 +55898,7 @@
       }
     },
     "settings.phiLink.customBot.linkedStatus" : {
-      "comment" : "Phi Link - Custom bot linked status",
+      "comment" : "Astra Browser Link - Custom bot linked status",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -55953,7 +55958,7 @@
       }
     },
     "settings.phiLink.customBot.linkStatus.linked" : {
-      "comment" : "Phi Link - Custom bot linked text",
+      "comment" : "Astra Browser Link - Custom bot linked text",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -56013,7 +56018,7 @@
       }
     },
     "settings.phiLink.customBot.linkStatus.linking" : {
-      "comment" : "Phi Link - Custom bot linking text",
+      "comment" : "Astra Browser Link - Custom bot linking text",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -56073,7 +56078,7 @@
       }
     },
     "settings.phiLink.customBot.notConfiguredStatus" : {
-      "comment" : "Phi Link - Custom bot not configured status",
+      "comment" : "Astra Browser Link - Custom bot not configured status",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -56253,7 +56258,7 @@
       }
     },
     "settings.phiLink.customBot.serviceIssueStatus" : {
-      "comment" : "Phi Link - Custom bot service issue status",
+      "comment" : "Astra Browser Link - Custom bot service issue status",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -56373,7 +56378,7 @@
       }
     },
     "settings.phiLink.customBot.title" : {
-      "comment" : "Phi Link - Custom bot title",
+      "comment" : "Astra Browser Link - Custom bot title",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -56433,7 +56438,7 @@
       }
     },
     "settings.phiLink.customBot.tokenField.hideButton" : {
-      "comment" : "Phi Link - Hide token plaintext button",
+      "comment" : "Astra Browser Link - Hide token plaintext button",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -56493,7 +56498,7 @@
       }
     },
     "settings.phiLink.customBot.tokenField.label" : {
-      "comment" : "Phi Link - Custom bot token label",
+      "comment" : "Astra Browser Link - Custom bot token label",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -56553,7 +56558,7 @@
       }
     },
     "settings.phiLink.customBot.tokenField.showButton" : {
-      "comment" : "Phi Link - Show token plaintext button",
+      "comment" : "Astra Browser Link - Show token plaintext button",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -56853,7 +56858,7 @@
       }
     },
     "settings.phiLink.officialBot.description" : {
-      "comment" : "Phi Link - Official Bot subtitle",
+      "comment" : "Astra Browser Link - Official Bot subtitle",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -56913,7 +56918,7 @@
       }
     },
     "settings.phiLink.officialBot.linkButton" : {
-      "comment" : "Phi Link - Official bot link button",
+      "comment" : "Astra Browser Link - Official bot link button",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -56973,7 +56978,7 @@
       }
     },
     "settings.phiLink.officialBot.linkedStatus" : {
-      "comment" : "Phi Link - Official bot linked status",
+      "comment" : "Astra Browser Link - Official bot linked status",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -57033,7 +57038,7 @@
       }
     },
     "settings.phiLink.officialBot.linkPrompt" : {
-      "comment" : "Phi Link - Official bot link prompt with agent name",
+      "comment" : "Astra Browser Link - Official bot link prompt with agent name",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -57093,7 +57098,7 @@
       }
     },
     "settings.phiLink.officialBot.notLinkedStatus" : {
-      "comment" : "Phi Link - Official bot not linked status",
+      "comment" : "Astra Browser Link - Official bot not linked status",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -57153,7 +57158,7 @@
       }
     },
     "settings.phiLink.officialBot.openInTelegramButton" : {
-      "comment" : "Phi Link - Open official bot link in Telegram",
+      "comment" : "Astra Browser Link - Open official bot link in Telegram",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -57213,7 +57218,7 @@
       }
     },
     "settings.phiLink.officialBot.qrCode.expiredHint" : {
-      "comment" : "Phi Link - Official bot QR expired hint",
+      "comment" : "Astra Browser Link - Official bot QR expired hint",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -57273,7 +57278,7 @@
       }
     },
     "settings.phiLink.officialBot.qrCode.scanHint" : {
-      "comment" : "Phi Link - Official bot QR hint",
+      "comment" : "Astra Browser Link - Official bot QR hint",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -57333,7 +57338,7 @@
       }
     },
     "settings.phiLink.officialBot.refreshQRCodeAction" : {
-      "comment" : "Phi Link - Official bot refresh QR action",
+      "comment" : "Astra Browser Link - Official bot refresh QR action",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -57393,7 +57398,7 @@
       }
     },
     "settings.phiLink.officialBot.relinkAction" : {
-      "comment" : "Phi Link - Official bot relink action",
+      "comment" : "Astra Browser Link - Official bot relink action",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -57453,7 +57458,7 @@
       }
     },
     "settings.phiLink.officialBot.retryButton" : {
-      "comment" : "Phi Link - Retry loading official bot",
+      "comment" : "Astra Browser Link - Retry loading official bot",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -57513,7 +57518,7 @@
       }
     },
     "settings.phiLink.officialBot.serviceIssueStatus" : {
-      "comment" : "Phi Link - Official bot service issue status",
+      "comment" : "Astra Browser Link - Official bot service issue status",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -57693,7 +57698,7 @@
       }
     },
     "settings.phiLink.officialBot.telegramIDLabel" : {
-      "comment" : "Phi Link - Official bot connected label",
+      "comment" : "Astra Browser Link - Official bot connected label",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -57753,7 +57758,7 @@
       }
     },
     "settings.phiLink.officialBot.title" : {
-      "comment" : "Phi Link - Official Bot title",
+      "comment" : "Astra Browser Link - Official Bot title",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -57813,7 +57818,7 @@
       }
     },
     "settings.phiLink.officialBot.unlinkButton" : {
-      "comment" : "Phi Link - Official bot unlink button",
+      "comment" : "Astra Browser Link - Official bot unlink button",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -57873,7 +57878,7 @@
       }
     },
     "settings.phiLink.sectionDescription" : {
-      "comment" : "Phi Link - Section subtitle with agent name",
+      "comment" : "Astra Browser Link - Section subtitle with agent name",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -57933,7 +57938,7 @@
       }
     },
     "settings.phiLink.sectionTitle" : {
-      "comment" : "Phi Link - Section title",
+      "comment" : "Astra Browser Link - Section title",
       "extractionState" : "stale",
       "localizations" : {
         "de" : {
@@ -58053,7 +58058,7 @@
       }
     },
     "settings.phiLink.sessionExpiredMessage" : {
-      "comment" : "Phi Link - Message shown when phi-agent returns 401 unauthorized",
+      "comment" : "Astra Browser Link - Message shown when phi-agent returns 401 unauthorized",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -61592,7 +61597,7 @@
       }
     },
     "settings.shortcuts.command.openSettings" : {
-      "comment" : "Shortcuts settings - Command title for opening Phi settings",
+      "comment" : "Shortcuts settings - Command title for opening Astra Browser settings",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -76292,7 +76297,7 @@
       }
     },
     "updates.menu.availableStatus" : {
-      "comment" : "Phi menu - Menu item text when new version is available",
+      "comment" : "Astra Browser menu - Menu item text when new version is available",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -76352,7 +76357,7 @@
       }
     },
     "updates.menu.checkForUpdatesStatus" : {
-      "comment" : "Phi menu - Menu item text when no update operation is active",
+      "comment" : "Astra Browser menu - Menu item text when no update operation is active",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -76412,7 +76417,7 @@
       }
     },
     "updates.menu.checkingStatus" : {
-      "comment" : "Phi menu - Menu item text while checking for updates",
+      "comment" : "Astra Browser menu - Menu item text while checking for updates",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -76472,7 +76477,7 @@
       }
     },
     "updates.menu.downloadingStatus" : {
-      "comment" : "Phi menu - Menu item text while downloading update",
+      "comment" : "Astra Browser menu - Menu item text while downloading update",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -76532,7 +76537,7 @@
       }
     },
     "updates.menu.readyToInstallStatus" : {
-      "comment" : "Phi menu - Menu item text when update is ready to install",
+      "comment" : "Astra Browser menu - Menu item text when update is ready to install",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {

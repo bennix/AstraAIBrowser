@@ -393,7 +393,7 @@ struct AccountDeletionFlowView: View {
         comment: "Account deletion - Resend button label while the one-minute cooldown runs. %d is the seconds remaining"
     )
 
-    private static let submittedText = NSLocalizedString("accountDeletion.submission.successMessage", value: "Your deletion request has been submitted. You will receive an email receipt once the deletion is complete.\n\nPhi will now sign you out, remove its data from this Mac, and quit.",
+    private static let submittedText = NSLocalizedString("accountDeletion.submission.successMessage", value: "Your deletion request has been submitted. You will receive an email receipt once the deletion is complete.\n\nAstra Browser will now sign you out, remove its data from this Mac, and quit.",
         comment: "Account deletion - Text shown once the deletion request is queued server-side; the deletion itself has not finished yet, and the finalize confirmation comes next"
     )
 
@@ -401,7 +401,7 @@ struct AccountDeletionFlowView: View {
         comment: "Account deletion - Progress text while the finalize clears local data, right before the app quits"
     )
 
-    private static let alreadyRunningText = NSLocalizedString("accountDeletion.submission.alreadyInProgressMessage", value: "A deletion request for this account is already being processed. You will receive an email receipt once the deletion is complete.\n\nPhi will now sign you out, remove its data from this Mac, and quit.",
+    private static let alreadyRunningText = NSLocalizedString("accountDeletion.submission.alreadyInProgressMessage", value: "A deletion request for this account is already being processed. You will receive an email receipt once the deletion is complete.\n\nAstra Browser will now sign you out, remove its data from this Mac, and quit.",
         comment: "Account deletion - Text shown when a previous deletion request is already running server-side; the finalize confirmation comes next, as after a submission"
     )
 

@@ -24,7 +24,11 @@ enum ZenMuxModel: String, CaseIterable, Codable, Identifiable {
     }
 
     var supportsVisualBrowserControl: Bool {
-        self == .geminiFlash
+        self == .geminiFlash || self == .grok
+    }
+
+    var supportsImageInput: Bool {
+        self == .geminiFlash || self == .grok
     }
 
     var supportsYouTubeVideoAnalysis: Bool {
@@ -124,6 +128,26 @@ struct ZenMuxToolCall: Codable, Equatable {
     let id: String
     let type: String
     let function: Function
+    let thoughtSignature: String?
+
+    init(
+        id: String,
+        type: String,
+        function: Function,
+        thoughtSignature: String? = nil
+    ) {
+        self.id = id
+        self.type = type
+        self.function = function
+        self.thoughtSignature = thoughtSignature
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case type
+        case function
+        case thoughtSignature = "thought_signature"
+    }
 }
 
 struct ZenMuxChatContentPart: Encodable, Equatable {
@@ -279,6 +303,180 @@ private struct ZenMuxVertexTextResponse: Decodable {
         }
         let content: Content?
     }
+    let candidates: [Candidate]
+}
+
+private enum ZenMuxJSONValue: Codable, Equatable {
+    case string(String)
+    case number(Double)
+    case bool(Bool)
+    case object([String: ZenMuxJSONValue])
+    case array([ZenMuxJSONValue])
+    case null
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            self = .null
+        } else if let value = try? container.decode(Bool.self) {
+            self = .bool(value)
+        } else if let value = try? container.decode(Double.self) {
+            self = .number(value)
+        } else if let value = try? container.decode(String.self) {
+            self = .string(value)
+        } else if let value = try? container.decode([String: ZenMuxJSONValue].self) {
+            self = .object(value)
+        } else {
+            self = .array(try container.decode([ZenMuxJSONValue].self))
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .string(let value): try container.encode(value)
+        case .number(let value): try container.encode(value)
+        case .bool(let value): try container.encode(value)
+        case .object(let value): try container.encode(value)
+        case .array(let value): try container.encode(value)
+        case .null: try container.encodeNil()
+        }
+    }
+}
+
+private struct ZenMuxVertexChatRequest: Encodable {
+    struct Content: Encodable {
+        let role: String?
+        let parts: [Part]
+    }
+
+    struct Part: Encodable {
+        struct InlineData: Encodable {
+            let mimeType: String
+            let data: String
+        }
+
+        struct FunctionCall: Encodable {
+            let id: String?
+            let name: String
+            let args: [String: ZenMuxJSONValue]
+        }
+
+        struct FunctionResponse: Encodable {
+            let id: String?
+            let name: String
+            let response: [String: ZenMuxJSONValue]
+        }
+
+        let text: String?
+        let inlineData: InlineData?
+        let functionCall: FunctionCall?
+        let functionResponse: FunctionResponse?
+        let thoughtSignature: String?
+
+        static func text(_ value: String) -> Self {
+            .init(
+                text: value,
+                inlineData: nil,
+                functionCall: nil,
+                functionResponse: nil,
+                thoughtSignature: nil
+            )
+        }
+
+        static func image(mimeType: String, data: String) -> Self {
+            .init(
+                text: nil,
+                inlineData: .init(mimeType: mimeType, data: data),
+                functionCall: nil,
+                functionResponse: nil,
+                thoughtSignature: nil
+            )
+        }
+
+        static func functionCall(_ call: ZenMuxToolCall) -> Self {
+            .init(
+                text: nil,
+                inlineData: nil,
+                functionCall: .init(
+                    id: call.id,
+                    name: call.function.name,
+                    args: Self.arguments(from: call.function.arguments)
+                ),
+                functionResponse: nil,
+                thoughtSignature: call.thoughtSignature
+            )
+        }
+
+        static func functionResponse(
+            id: String,
+            name: String,
+            output: String
+        ) -> Self {
+            .init(
+                text: nil,
+                inlineData: nil,
+                functionCall: nil,
+                functionResponse: .init(
+                    id: id,
+                    name: name,
+                    response: ["output": .string(output)]
+                ),
+                thoughtSignature: nil
+            )
+        }
+
+        private static func arguments(from source: String) -> [String: ZenMuxJSONValue] {
+            guard let data = source.data(using: .utf8),
+                  let value = try? JSONDecoder().decode(ZenMuxJSONValue.self, from: data),
+                  case .object(let arguments) = value else {
+                return [:]
+            }
+            return arguments
+        }
+    }
+
+    struct Tool: Encodable {
+        struct FunctionDeclaration: Encodable {
+            let name: String
+            let description: String
+            let parameters: ZenMuxToolDefinition.Function.Parameters
+        }
+
+        let functionDeclarations: [FunctionDeclaration]
+    }
+
+    struct GenerationConfig: Encodable {
+        let maxOutputTokens = 8_192
+    }
+
+    let systemInstruction: Content?
+    let contents: [Content]
+    let tools: [Tool]
+    let generationConfig = GenerationConfig()
+}
+
+private struct ZenMuxVertexChatResponse: Decodable {
+    struct Candidate: Decodable {
+        struct Content: Decodable {
+            struct Part: Decodable {
+                struct FunctionCall: Decodable {
+                    let id: String?
+                    let name: String
+                    let args: [String: ZenMuxJSONValue]
+                }
+
+                let text: String?
+                let functionCall: FunctionCall?
+                let thoughtSignature: String?
+            }
+
+            let parts: [Part]
+        }
+
+        let content: Content?
+    }
+
     let candidates: [Candidate]
 }
 
@@ -1478,6 +1676,14 @@ class APIClient {
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { throw ZenMuxAPIError.invalidCredential }
 
+        if model == .geminiFlash {
+            return try await sendZenMuxVertexChat(
+                apiKey: key,
+                model: model,
+                messages: messages
+            )
+        }
+
         let url = Self.zenMuxBaseURL.appendingPathComponent("chat/completions")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -1488,9 +1694,7 @@ class APIClient {
             ZenMuxChatRequest(
                 model: model.rawValue,
                 messages: messages,
-                tools: Self.zenMuxBrowserTools.filter {
-                    model.supportsVisualBrowserControl || !Self.visualBrowserToolNames.contains($0.function.name)
-                }
+                tools: Self.zenMuxTools(for: model)
             )
         )
 
@@ -1510,6 +1714,165 @@ class APIClient {
             content: content?.isEmpty == false ? content : nil,
             toolCalls: toolCalls
         )
+    }
+
+    private func sendZenMuxVertexChat(
+        apiKey: String,
+        model: ZenMuxModel,
+        messages: [ZenMuxChatRequestMessage]
+    ) async throws -> ZenMuxChatCompletion {
+        guard let modelName = model.rawValue.split(separator: "/", maxSplits: 1).last else {
+            throw ZenMuxAPIError.modelUnavailable
+        }
+        let url = Self.zenMuxVertexBaseURL
+            .appendingPathComponent("publishers/google/models")
+            .appendingPathComponent("\(modelName):generateContent")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 120
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try Self.makeZenMuxVertexChatRequestData(
+            model: model,
+            messages: messages
+        )
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try Self.validateZenMuxResponse(response, data: data)
+        return try Self.decodeZenMuxVertexChatResponse(data)
+    }
+
+    static func makeZenMuxVertexChatRequestData(
+        model: ZenMuxModel,
+        messages: [ZenMuxChatRequestMessage]
+    ) throws -> Data {
+        var systemParts: [ZenMuxVertexChatRequest.Part] = []
+        var contents: [ZenMuxVertexChatRequest.Content] = []
+        var toolNamesByID: [String: String] = [:]
+
+        for message in messages {
+            if message.role == "system" {
+                if case .text(let text)? = message.content, !text.isEmpty {
+                    systemParts.append(.text(text))
+                }
+                continue
+            }
+
+            if message.role == "tool" {
+                guard let id = message.toolCallID,
+                      let name = toolNamesByID[id],
+                      case .text(let output)? = message.content else {
+                    continue
+                }
+                contents.append(.init(
+                    role: "user",
+                    parts: [.functionResponse(id: id, name: name, output: output)]
+                ))
+                continue
+            }
+
+            var parts = try vertexParts(from: message.content)
+            if message.role == "assistant", let toolCalls = message.toolCalls {
+                for call in toolCalls {
+                    toolNamesByID[call.id] = call.function.name
+                    parts.append(.functionCall(call))
+                }
+            }
+            guard !parts.isEmpty else { continue }
+            contents.append(.init(
+                role: message.role == "assistant" ? "model" : "user",
+                parts: parts
+            ))
+        }
+
+        let functions = zenMuxTools(for: model).map { tool in
+            ZenMuxVertexChatRequest.Tool.FunctionDeclaration(
+                name: tool.function.name,
+                description: tool.function.description,
+                parameters: tool.function.parameters
+            )
+        }
+        let request = ZenMuxVertexChatRequest(
+            systemInstruction: systemParts.isEmpty
+                ? nil
+                : .init(role: nil, parts: systemParts),
+            contents: contents,
+            tools: functions.isEmpty ? [] : [.init(functionDeclarations: functions)]
+        )
+        return try JSONEncoder().encode(request)
+    }
+
+    static func decodeZenMuxVertexChatResponse(_ data: Data) throws -> ZenMuxChatCompletion {
+        let response = try JSONDecoder().decode(ZenMuxVertexChatResponse.self, from: data)
+        guard let parts = response.candidates.first?.content?.parts else {
+            throw ZenMuxAPIError.emptyResponse
+        }
+        let content = parts
+            .compactMap(\.text)
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let toolCalls = try parts.compactMap { part -> ZenMuxToolCall? in
+            guard let call = part.functionCall else { return nil }
+            let arguments = String(
+                data: try encoder.encode(ZenMuxJSONValue.object(call.args)),
+                encoding: .utf8
+            ) ?? "{}"
+            return ZenMuxToolCall(
+                id: call.id ?? "call_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))",
+                type: "function",
+                function: .init(name: call.name, arguments: arguments),
+                thoughtSignature: part.thoughtSignature
+            )
+        }
+        guard !content.isEmpty || !toolCalls.isEmpty else {
+            throw ZenMuxAPIError.emptyResponse
+        }
+        return .init(content: content.isEmpty ? nil : content, toolCalls: toolCalls)
+    }
+
+    private static func vertexParts(
+        from content: ZenMuxChatRequestContent?
+    ) throws -> [ZenMuxVertexChatRequest.Part] {
+        guard let content else { return [] }
+        switch content {
+        case .text(let text):
+            return text.isEmpty ? [] : [.text(text)]
+        case .parts(let values):
+            var parts: [ZenMuxVertexChatRequest.Part] = []
+            for value in values {
+                if value.type == "text", let text = value.text, !text.isEmpty {
+                    parts.append(.text(text))
+                } else if value.type == "image_url", let dataURL = value.imageURL?.url {
+                    let image = try vertexInlineImage(from: dataURL)
+                    parts.append(.image(mimeType: image.mimeType, data: image.data))
+                }
+            }
+            return parts
+        }
+    }
+
+    private static func vertexInlineImage(
+        from dataURL: String
+    ) throws -> (mimeType: String, data: String) {
+        guard dataURL.hasPrefix("data:image/"),
+              let separator = dataURL.range(of: ";base64,"),
+              separator.lowerBound > dataURL.startIndex else {
+            throw ZenMuxAPIError.invalidResponse
+        }
+        let mimeType = String(dataURL[dataURL.index(dataURL.startIndex, offsetBy: 5)..<separator.lowerBound])
+        let encodedData = String(dataURL[separator.upperBound...])
+        guard !encodedData.isEmpty, Data(base64Encoded: encodedData) != nil else {
+            throw ZenMuxAPIError.invalidResponse
+        }
+        return (mimeType, encodedData)
+    }
+
+    private static func zenMuxTools(for model: ZenMuxModel) -> [ZenMuxToolDefinition] {
+        zenMuxBrowserTools.filter {
+            model.supportsVisualBrowserControl || !visualBrowserToolNames.contains($0.function.name)
+        }
     }
 
     func analyzeYouTubeVideo(

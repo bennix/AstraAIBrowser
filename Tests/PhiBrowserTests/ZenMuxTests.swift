@@ -27,10 +27,13 @@ final class ZenMuxTests: XCTestCase {
         )
     }
 
-    func testVisualBrowserControlUsesMultimodalModelOnly() {
+    func testModelCapabilitiesMatchZenMuxCatalog() {
         XCTAssertTrue(ZenMuxModel.geminiFlash.supportsVisualBrowserControl)
-        XCTAssertFalse(ZenMuxModel.grok.supportsVisualBrowserControl)
+        XCTAssertTrue(ZenMuxModel.grok.supportsVisualBrowserControl)
         XCTAssertFalse(ZenMuxModel.glm.supportsVisualBrowserControl)
+        XCTAssertTrue(ZenMuxModel.geminiFlash.supportsImageInput)
+        XCTAssertTrue(ZenMuxModel.grok.supportsImageInput)
+        XCTAssertFalse(ZenMuxModel.glm.supportsImageInput)
     }
 
     func testEncryptedCredentialRoundTripsWithoutPlaintextInJSON() throws {
@@ -253,6 +256,110 @@ final class ZenMuxTests: XCTestCase {
             (parts[2]["image_url"] as? [String: Any])?["url"] as? String,
             secondDataURL
         )
+    }
+
+    func testVertexChatRequestSendsImagesAsInlineData() throws {
+        let message = ZenMuxChatRequestMessage.multimodalUserMessage(
+            text: "Describe this image",
+            imageDataURLs: ["data:image/png;base64,aW1hZ2U="]
+        )
+        let data = try APIClient.makeZenMuxVertexChatRequestData(
+            model: .geminiFlash,
+            messages: [
+                ZenMuxChatRequestMessage(role: "system", content: "Be concise"),
+                message,
+            ]
+        )
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        let systemInstruction = try XCTUnwrap(object["systemInstruction"] as? [String: Any])
+        let systemParts = try XCTUnwrap(systemInstruction["parts"] as? [[String: Any]])
+        XCTAssertEqual(systemParts.first?["text"] as? String, "Be concise")
+
+        let contents = try XCTUnwrap(object["contents"] as? [[String: Any]])
+        let parts = try XCTUnwrap(contents.first?["parts"] as? [[String: Any]])
+        let inlineData = try XCTUnwrap(parts[1]["inlineData"] as? [String: Any])
+        XCTAssertEqual(inlineData["mimeType"] as? String, "image/png")
+        XCTAssertEqual(inlineData["data"] as? String, "aW1hZ2U=")
+        XCTAssertNil(parts[1]["fileData"])
+        XCTAssertFalse(String(data: data, encoding: .utf8)?.contains("temp/chat-completions") == true)
+    }
+
+    func testVertexChatRequestPreservesFunctionCallsAndResponses() throws {
+        let call = ZenMuxToolCall(
+            id: "call-1",
+            type: "function",
+            function: .init(name: "inspect_page", arguments: "{\"index\":2}"),
+            thoughtSignature: "signature"
+        )
+        let data = try APIClient.makeZenMuxVertexChatRequestData(
+            model: .geminiFlash,
+            messages: [
+                ZenMuxChatRequestMessage(role: "user", content: "Inspect the page"),
+                ZenMuxChatRequestMessage(
+                    role: "assistant",
+                    content: nil,
+                    toolCalls: [call]
+                ),
+                ZenMuxChatRequestMessage(
+                    role: "tool",
+                    content: "Browser tool succeeded",
+                    toolCallID: "call-1"
+                ),
+            ]
+        )
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        let contents = try XCTUnwrap(object["contents"] as? [[String: Any]])
+        let modelParts = try XCTUnwrap(contents[1]["parts"] as? [[String: Any]])
+        let functionCall = try XCTUnwrap(modelParts[0]["functionCall"] as? [String: Any])
+        XCTAssertEqual(functionCall["name"] as? String, "inspect_page")
+        XCTAssertEqual((functionCall["args"] as? [String: Any])?["index"] as? Int, 2)
+        XCTAssertEqual(modelParts[0]["thoughtSignature"] as? String, "signature")
+
+        let responseParts = try XCTUnwrap(contents[2]["parts"] as? [[String: Any]])
+        let functionResponse = try XCTUnwrap(
+            responseParts[0]["functionResponse"] as? [String: Any]
+        )
+        XCTAssertEqual(functionResponse["id"] as? String, "call-1")
+        XCTAssertEqual(functionResponse["name"] as? String, "inspect_page")
+        XCTAssertEqual(
+            (functionResponse["response"] as? [String: Any])?["output"] as? String,
+            "Browser tool succeeded"
+        )
+    }
+
+    func testVertexChatResponseDecodesTextAndFunctionCalls() throws {
+        let data = Data(#"""
+        {
+          "candidates": [{
+            "content": {
+              "role": "model",
+              "parts": [
+                {"text": "Working on it."},
+                {
+                  "functionCall": {
+                    "id": "call-2",
+                    "name": "click",
+                    "args": {"index": 3}
+                  },
+                  "thoughtSignature": "signature-2"
+                }
+              ]
+            }
+          }]
+        }
+        """#.utf8)
+        let completion = try APIClient.decodeZenMuxVertexChatResponse(data)
+
+        XCTAssertEqual(completion.content, "Working on it.")
+        XCTAssertEqual(completion.toolCalls.count, 1)
+        XCTAssertEqual(completion.toolCalls[0].id, "call-2")
+        XCTAssertEqual(completion.toolCalls[0].function.name, "click")
+        XCTAssertEqual(completion.toolCalls[0].function.arguments, "{\"index\":3}")
+        XCTAssertEqual(completion.toolCalls[0].thoughtSignature, "signature-2")
     }
 
     func testTextOnlyMessagesKeepStringContent() throws {

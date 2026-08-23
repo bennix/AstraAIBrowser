@@ -1,6 +1,6 @@
 // Copyright 2026 Phinomenon Inc.
 //
-// Phi Browser companion extension for Pi. A skill subprocess cannot wake an
+// Astra Browser companion extension for Pi. A skill subprocess cannot wake an
 // idle Pi session; this extension runs inside Pi and owns the supported
 // in-process delivery API.
 
@@ -12,11 +12,11 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 type Bridge = { start(): void; stop(): void };
 
 // Pi's extension loader resolves relative imports from the installed symlink
-// path (~/.pi/agent/extensions/phi-browser), not from the link's source inside
+// path (~/.pi/agent/extensions/astra-browser), not from the link's source inside
 // the bundled skill. Load the shared bridge through the skill's canonical Pi
 // install path so app-bundle updates and source-checkout links both work.
 const bridgeModuleURL = pathToFileURL(join(
-  homedir(), ".pi", "agent", "skills", "phi-browser",
+  homedir(), ".pi", "agent", "skills", "astra-browser",
   "scripts", "lib", "mirror-pi-bridge.mjs",
 )).href;
 

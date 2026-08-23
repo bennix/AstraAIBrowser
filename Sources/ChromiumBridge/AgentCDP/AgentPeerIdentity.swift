@@ -316,7 +316,7 @@ enum AgentPeerIdentity {
         // identity than the skill's own plumbing.
         guard boundary == nil, let ownPlumbingExe else { return nil }
         // The skill's own plumbing is not an agent — no pid to echo back.
-        return unsignedIdentity(name: "phi-browser", path: "phi-browser",
+        return unsignedIdentity(name: "astra-browser", path: "astra-browser",
                                 exe: ownPlumbingExe, pid: nil)
     }
 
@@ -414,10 +414,12 @@ enum AgentPeerIdentity {
     /// This skill's own plumbing (heredoc runner, mirror-tailer daemon) —
     /// skipped when walking for the agent so we identify the launcher above
     /// it, not our own scripts. Matches both the installed skill directory
-    /// ("phi-browser") and a repo checkout ("phi-browser-skill"), which Node
+    /// ("astra-browser") and a repo checkout ("astra-browser-skill"), which Node
     /// exposes via realpath when the install is a symlink.
     private static func isOwnRunner(_ scriptPath: String) -> Bool {
-        scriptPath.contains("/phi-browser/scripts/")
+        scriptPath.contains("/astra-browser/scripts/")
+            || scriptPath.contains("/astra-browser-skill/scripts/")
+            || scriptPath.contains("/phi-browser/scripts/")
             || scriptPath.contains("/phi-browser-skill/scripts/")
     }
 

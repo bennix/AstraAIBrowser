@@ -246,7 +246,7 @@ function tailLines(value, max) {
 
 function isPhiPlumbing(command) {
   return typeof command === 'string'
-    && /(?:phi-browser-skill|(?:^|[\\/])runner\.mjs\b)/.test(command)
+    && /(?:(?:astra|phi)-browser-skill|(?:^|[\\/])runner\.mjs\b)/.test(command)
 }
 
 /**

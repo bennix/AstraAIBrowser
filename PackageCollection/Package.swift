@@ -26,6 +26,7 @@ let package = Package(
         .package(url: "https://github.com/PostHog/posthog-ios.git", exact: "3.53.1"),
         .package(url: "https://github.com/exyte/SVGView.git", exact: "1.0.6"),
         .package(url: "https://github.com/arraypress/swift-youtube-metadata.git", exact: "0.1.0"),
+        .package(url: "https://github.com/mgriebling/SwiftMath.git", exact: "1.7.3"),
         .package(path: "../Vendor/CefSwift"),
 
     ],
@@ -46,6 +47,7 @@ let package = Package(
                 .product(name: "PostHog", package: "posthog-ios"),
                 .product(name: "SVGView", package: "SVGView"),
                 .product(name: "YouTubeTranscript", package: "swift-youtube-metadata"),
+                .product(name: "SwiftMath", package: "SwiftMath"),
                 .product(name: "CefKit", package: "CefSwift"),
                 .product(name: "CefSwiftUI", package: "CefSwift"),
             ])

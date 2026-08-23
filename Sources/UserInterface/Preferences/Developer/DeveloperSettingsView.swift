@@ -7,9 +7,9 @@ import AppKit
 import SwiftUI
 
 /// Settings pane content for developer tooling, moved out of the General pane
-/// into its own tab. The "Allow agents to control Phi (CDP)" switch is the
+/// into its own tab. The "Allow agents to control Astra Browser (CDP)" switch is the
 /// Agent control section's master gate: while it is off only that card shows;
-/// turning it on reveals the phi-browser skill installer, the allowed-agent
+/// turning it on reveals the astra-browser skill installer, the allowed-agent
 /// list, and the agent permission cards right under it, all in the one
 /// section. The password manager (agent credential provider) section is
 /// always visible — vault settings stay reachable with agent access off.
@@ -557,11 +557,11 @@ private struct AgentBrandIcon: View {
     }
 }
 
-// MARK: - phi-browser skill installer
+// MARK: - Astra Browser skill installer
 
 private struct SkillInstallRowView: View {
     // A coding agent that loads skills from a folder.
-    // "Install" links this app's bundled phi-browser skill into
+    // "Install" links this app's bundled astra-browser skill into
     // <skillsDirectory>/phi-browser so the agent can drive Phi over CDP.
     private struct SkillTarget: Identifiable {
         let id: String
@@ -585,12 +585,12 @@ private struct SkillInstallRowView: View {
         }
 
         var linkURL: URL {
-            skillsDirectory.appendingPathComponent("phi-browser", isDirectory: true)
+            skillsDirectory.appendingPathComponent("astra-browser", isDirectory: true)
         }
 
         var companionExtensionLinkURL: URL? {
             companionExtensionDirectory?
-                .appendingPathComponent("phi-browser", isDirectory: true)
+                .appendingPathComponent("astra-browser", isDirectory: true)
         }
     }
 
@@ -615,10 +615,10 @@ private struct SkillInstallRowView: View {
         ]
     }()
 
-    // The skill tree is bundled at Contents/Resources/phi-browser-skill.
+    // The skill tree is bundled at Contents/Resources/astra-browser-skill.
     private static var bundledSkillURL: URL? {
         Bundle.main.resourceURL?
-            .appendingPathComponent("phi-browser-skill", isDirectory: true)
+            .appendingPathComponent("astra-browser-skill", isDirectory: true)
     }
 
     private static var bundledPiExtensionURL: URL? {
@@ -633,7 +633,7 @@ private struct SkillInstallRowView: View {
         HStack(alignment: .top, spacing: 12) {
             SettingsIconChip(systemName: "puzzlepiece.extension.fill", color: .teal)
             VStack(alignment: .leading, spacing: 4) {
-                Text(NSLocalizedString("settings.developer.skillInstall.sectionTitle", value: "Install the phi-browser skill", comment: "Developer settings - Title for installing the phi-browser agent skill"))
+                Text(NSLocalizedString("settings.developer.skillInstall.sectionTitle", value: "Install the astra-browser skill", comment: "Developer settings - Title for installing the Astra Browser agent skill"))
                     .font(.system(size: 13))
                     .themedForeground(.textPrimary)
                 Text(NSLocalizedString("settings.developer.skillInstall.description", value: "Links the skill bundled in this app into an AI coding agent’s skills folder so it can drive Astra Browser over the DevTools Protocol. Pi also gets a companion extension that wakes idle sessions from Agent Transcript commands. Requires Node 22+.", comment: "Developer settings - Explanation for the phi-browser skill installer"))
@@ -693,7 +693,7 @@ private struct SkillInstallRowView: View {
             presentSkillAlert(
                 title: NSLocalizedString("settings.developer.skillInstall.all.successTitle", value: "Skill installed", comment: "Developer settings - Skill install success title"),
                 body: String(
-                    format: NSLocalizedString("settings.developer.skillInstall.all.successMessage", value: "%@ can now use the phi-browser skill. Restart newly configured agents; in Pi, /reload is enough.", comment: "Developer settings - Skill install success body; %@ is the agent name"),
+                    format: NSLocalizedString("settings.developer.skillInstall.all.successMessage", value: "%@ can now use the astra-browser skill. Restart newly configured agents; in Pi, /reload is enough.", comment: "Developer settings - Skill install success body; %@ is the agent name"),
                     succeeded.joined(separator: ", ")))
         } else {
             presentSkillAlert(
@@ -746,7 +746,7 @@ private struct SkillInstallRowView: View {
         let fm = FileManager.default
         guard let bundled = Self.bundledSkillURL,
               fm.fileExists(atPath: bundled.path) else {
-            return .failure(NSLocalizedString("settings.developer.skillInstall.missingResourcesError", value: "This build doesn’t include the phi-browser skill resources. Rebuild Astra Browser and try again.", comment: "Developer settings - Skill install failure body when the resource is missing"))
+            return .failure(NSLocalizedString("settings.developer.skillInstall.missingResourcesError", value: "This build doesn’t include the astra-browser skill resources. Rebuild Astra Browser and try again.", comment: "Developer settings - Skill install failure body when the resource is missing"))
         }
 
         var installs: [(link: URL, source: URL)] = [(target.linkURL, bundled)]
@@ -795,7 +795,7 @@ private struct SkillInstallRowView: View {
             presentSkillAlert(
                 title: NSLocalizedString("settings.developer.skillInstall.single.successTitle", value: "Skill installed", comment: "Developer settings - Skill install success title"),
                 body: String(
-                    format: NSLocalizedString("settings.developer.skillInstall.single.successMessage", value: "%@ can now use the phi-browser skill. Restart newly configured agents; in Pi, /reload is enough.", comment: "Developer settings - Skill install success body; %@ is the agent name"),
+                    format: NSLocalizedString("settings.developer.skillInstall.single.successMessage", value: "%@ can now use the astra-browser skill. Restart newly configured agents; in Pi, /reload is enough.", comment: "Developer settings - Skill install success body; %@ is the agent name"),
                     target.name))
         case .cancelled:
             break
@@ -833,4 +833,3 @@ private struct SkillInstallRowView: View {
                 response: .alertFirstButtonReturn)))
     }
 }
-

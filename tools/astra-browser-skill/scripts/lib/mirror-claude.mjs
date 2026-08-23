@@ -175,7 +175,7 @@ function conversationEntries(obj) {
 // The phi heredocs that drive the browser are already narrated line-by-line
 // by the skill's own action log; mirroring the Bash call too would double
 // every step.
-const PHI_PLUMBING = /runner\.mjs|phi-browser/
+const PHI_PLUMBING = /runner\.mjs|(?:astra|phi)-browser/
 
 /**
  * A tool_use block → the console line Claude Code itself shows for it

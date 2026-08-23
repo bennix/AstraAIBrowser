@@ -117,7 +117,7 @@ can render fine over broken XHRs.
   fetched, so on a page that defers images until they scroll into view,
   `scroll` through it first.
 - `saveArticle(path?, {complete, inlineImages})` — the page distilled to its
-  article as one standalone HTML file: Phi's own Reader View export, styled
+  article as one standalone HTML file: Astra Browser's own Reader View export, styled
   the way the reader renders it, not a re-render of a scrape. Images are
   inlined by default so the file opens with no network; `{inlineImages:
   false}` leaves them as origin URLs, which is smaller. `{complete: true}`

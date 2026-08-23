@@ -94,7 +94,7 @@ or covered control that a person could not reach.
 There is a second timing guard: the first high-level input on a document waits
 through the remaining part of a short late-banner window and reruns the static
 selector pass. Later inputs probe once immediately. If a consent-looking modal
-is visibly blocking but no safe accept/close rule matches, Phi refuses
+is visibly blocking but no safe accept/close rule matches, Astra Browser refuses
 KEYBOARD input instead of sending it through the overlay — pointer clicks and
 wheel scrolling stay available, because they are how such a layer gets
 dismissed: clicks are natively hit-tested, so they land on the banner, and a

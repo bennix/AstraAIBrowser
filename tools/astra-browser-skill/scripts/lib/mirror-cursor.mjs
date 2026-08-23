@@ -74,7 +74,7 @@ export function discoverCursorTranscript(heredocSource) {
     if (exact.length) return hit(exact[0])
   }
   const marked = candidates.filter(
-    (c) => c.tail.includes('phi-browser') && c.tail.includes('runner.mjs'))
+    (c) => /(?:astra|phi)-browser/.test(c.tail) && c.tail.includes('runner.mjs'))
   return marked.length === 1 ? hit(marked[0]) : null
 }
 
@@ -150,7 +150,7 @@ export class CursorConsoleNotice {
         kind: 'error',
         text: 'Cursor cannot be woken from outside — your command is queued'
           + ' for its next round',
-        detail: 'It is read the next time the agent runs a phi-browser step.'
+        detail: 'It is read the next time the agent runs an astra-browser step.'
           + ' If Cursor has finished its turn, send it any message in Cursor'
           + ' to make it check the queue.',
       }], channel)

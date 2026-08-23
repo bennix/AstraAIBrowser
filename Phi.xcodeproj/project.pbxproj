@@ -274,7 +274,7 @@
 		A10600022FF2000000000002 /* GuestPrivacyConfirmationViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10600012FF2000000000001 /* GuestPrivacyConfirmationViewController.swift */; };
 		A11E00000000000000000001 /* PhiScriptingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00000000000000000011 /* PhiScriptingService.swift */; };
 		A11E00000000000000000002 /* PhiScriptCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00000000000000000012 /* PhiScriptCommands.swift */; };
-		A11E00000000000000000003 /* Phi.sdef in Resources */ = {isa = PBXBuildFile; fileRef = A11E00000000000000000013 /* Phi.sdef */; };
+		A11E00000000000000000003 /* Astra.sdef in Resources */ = {isa = PBXBuildFile; fileRef = A11E00000000000000000013 /* Astra.sdef */; };
 		A1B2C3D4E5F60718293A4B56 /* SharedAuthTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B55 /* SharedAuthTokenStore.swift */; };
 		A71E00000000000000000002 /* PhiAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71E00000000000000000001 /* PhiAlert.swift */; };
 		A71E00000000000000000004 /* CredentialApprovalAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71E00000000000000000003 /* CredentialApprovalAlert.swift */; };
@@ -479,7 +479,7 @@
 		CD1100090000000000000001 /* IconPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1100040000000000000001 /* IconPicker.swift */; };
 		CD11000B0000000000000001 /* Emoji/emoji-catalog.json in Resources */ = {isa = PBXBuildFile; fileRef = CD11000A0000000000000001 /* Emoji/emoji-catalog.json */; };
 		CD4F3A012E56000100FACC01 /* FloatingTrafficLightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD4F3A002E56000100FACC01 /* FloatingTrafficLightsView.swift */; };
-		CDA11ED500000000000000B1 /* phi-browser-skill in Resources */ = {isa = PBXBuildFile; fileRef = CDA11ED500000000000000A1 /* phi-browser-skill */; };
+		CDA11ED500000000000000B1 /* astra-browser-skill in Resources */ = {isa = PBXBuildFile; fileRef = CDA11ED500000000000000A1 /* astra-browser-skill */; };
 		CEF000013080000000000001 /* CefBrowserRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEF000113080000000000001 /* CefBrowserRuntime.swift */; };
 		CEF000023080000000000002 /* CefWebContentWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEF000123080000000000002 /* CefWebContentWrapper.swift */; };
 		CEF000033080000000000003 /* WebCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEF000133080000000000003 /* WebCredentialStore.swift */; };
@@ -914,7 +914,7 @@
 		A10600012FF2000000000001 /* GuestPrivacyConfirmationViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestPrivacyConfirmationViewController.swift; sourceTree = "<group>"; };
 		A11E00000000000000000011 /* PhiScriptingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhiScriptingService.swift; sourceTree = "<group>"; };
 		A11E00000000000000000012 /* PhiScriptCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhiScriptCommands.swift; sourceTree = "<group>"; };
-		A11E00000000000000000013 /* Phi.sdef */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = Phi.sdef; sourceTree = "<group>"; };
+		A11E00000000000000000013 /* Astra.sdef */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = Astra.sdef; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B55 /* SharedAuthTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedAuthTokenStore.swift; sourceTree = "<group>"; };
 		A71E00000000000000000001 /* PhiAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhiAlert.swift; sourceTree = "<group>"; };
 		A71E00000000000000000003 /* CredentialApprovalAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialApprovalAlert.swift; sourceTree = "<group>"; };
@@ -1128,7 +1128,7 @@
 		CD1100040000000000000001 /* IconPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconPicker.swift; sourceTree = "<group>"; };
 		CD11000A0000000000000001 /* Emoji/emoji-catalog.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "Emoji/emoji-catalog.json"; sourceTree = "<group>"; };
 		CD4F3A002E56000100FACC01 /* FloatingTrafficLightsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingTrafficLightsView.swift; sourceTree = "<group>"; };
-		CDA11ED500000000000000A1 /* phi-browser-skill */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "phi-browser-skill"; path = "tools/phi-browser-skill"; sourceTree = SOURCE_ROOT; };
+		CDA11ED500000000000000A1 /* astra-browser-skill */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "astra-browser-skill"; path = "tools/astra-browser-skill"; sourceTree = SOURCE_ROOT; };
 		CE7E61A49E8A472DB330779E /* TabGroupCellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabGroupCellView.swift; sourceTree = "<group>"; };
 		CEF000113080000000000001 /* CefBrowserRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CefBrowserRuntime.swift; sourceTree = "<group>"; };
 		CEF000123080000000000002 /* CefWebContentWrapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CefWebContentWrapper.swift; sourceTree = "<group>"; };
@@ -1936,7 +1936,7 @@
 				B02BEB632E3B2F5A00E5859A /* Package.swift */,
 				B02586F42E42FD97001B08FC /* Sources */,
 				B0C469752E3B158D007F0C7A /* Resources */,
-				CDA11ED500000000000000A1 /* phi-browser-skill */,
+				CDA11ED500000000000000A1 /* astra-browser-skill */,
 				B0691CB22E3B639000934AEE /* Frameworks */,
 				B0C4698F2E3B1915007F0C7A /* Tests */,
 				B0C469492E3B10E1007F0C7A /* Products */,
@@ -1969,7 +1969,7 @@
 				37B977D42EF3F62F007E0568 /* login-dot-bg.mp4 */,
 				CC4BFB922E9798ED00CC6162 /* Auth0.plist */,
 				CC8B35202E81618F00C8A380 /* PhiBrowser-Info.plist */,
-				A11E00000000000000000013 /* Phi.sdef */,
+				A11E00000000000000000013 /* Astra.sdef */,
 				F01D3A000000000000000012 /* bookmark-folder-closed.svg */,
 				F01D3A000000000000000011 /* bookmark-folder-open.svg */,
 				B0C4694D2E3B10E2007F0C7A /* Assets.xcassets */,
@@ -2765,10 +2765,10 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A11E00000000000000000003 /* Phi.sdef in Resources */,
+				A11E00000000000000000003 /* Astra.sdef in Resources */,
 				F01D3A000000000000000001 /* bookmark-folder-open.svg in Resources */,
 				F01D3A000000000000000002 /* bookmark-folder-closed.svg in Resources */,
-				CDA11ED500000000000000B1 /* phi-browser-skill in Resources */,
+				CDA11ED500000000000000B1 /* astra-browser-skill in Resources */,
 				B0C4694E2E3B10E2007F0C7A /* Assets.xcassets in Resources */,
 				3765817B2EE963AD00D3E031 /* Localizable.xcstrings in Resources */,
 				37B977D52EF3F62F007E0568 /* login-dot-bg.mp4 in Resources */,
@@ -3538,7 +3538,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 22;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -3553,8 +3553,8 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Websites may use your bluetooth for features on their site.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Websites may use your camera for features on their site.";
-				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Access to \"Desktop\" is required to make files accessible from Phi.";
-				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Access to \"Downloads\" is required for downloading files from the web and to make files accessible from Phi.";
+				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Access to \"Desktop\" is required to make files accessible from Astra Browser.";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Access to \"Downloads\" is required for downloading files from the web and to make files accessible from Astra Browser.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Phinomenon. All rights reserved.";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Websites may use your location for features on their site.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Websites may use your location for features on their site.";
@@ -3701,8 +3701,8 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Websites may use your bluetooth for features on their site.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Websites may use your camera for features on their site.";
-				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Access to \"Desktop\" is required to make files accessible from Phi.";
-				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Access to \"Downloads\" is required for downloading files from the web and to make files accessible from Phi.";
+				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Access to \"Desktop\" is required to make files accessible from Astra Browser.";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Access to \"Downloads\" is required for downloading files from the web and to make files accessible from Astra Browser.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Phinomenon. All rights reserved.";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Websites may use your location for features on their site.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Websites may use your location for features on their site.";
@@ -4001,7 +4001,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 22;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -4016,8 +4016,8 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Websites may use your bluetooth for features on their site.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Websites may use your camera for features on their site.";
-				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Access to \"Desktop\" is required to make files accessible from Phi.";
-				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Access to \"Downloads\" is required for downloading files from the web and to make files accessible from Phi.";
+				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Access to \"Desktop\" is required to make files accessible from Astra Browser.";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Access to \"Downloads\" is required for downloading files from the web and to make files accessible from Astra Browser.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Phinomenon. All rights reserved.";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Websites may use your location for features on their site.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Websites may use your location for features on their site.";
@@ -4055,7 +4055,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 22;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -4067,8 +4067,8 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Websites may use your bluetooth for features on their site.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Websites may use your camera for features on their site.";
-				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Access to \"Desktop\" is required to make files accessible from Phi.";
-				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Access to \"Downloads\" is required for downloading files from the web and to make files accessible from Phi.";
+				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Access to \"Desktop\" is required to make files accessible from Astra Browser.";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Access to \"Downloads\" is required for downloading files from the web and to make files accessible from Astra Browser.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Phinomenon. All rights reserved.";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Websites may use your location for features on their site.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Websites may use your location for features on their site.";
@@ -4248,7 +4248,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 22;
+				CURRENT_PROJECT_VERSION = 23;
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -4264,8 +4264,8 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Websites may use your bluetooth for features on their site.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Websites may use your camera for features on their site.";
-				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Access to \"Desktop\" is required to make files accessible from Phi.";
-				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Access to \"Downloads\" is required for downloading files from the web and to make files accessible from Phi.";
+				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Access to \"Desktop\" is required to make files accessible from Astra Browser.";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Access to \"Downloads\" is required for downloading files from the web and to make files accessible from Astra Browser.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Phinomenon. All rights reserved.";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Websites may use your location for features on their site.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Websites may use your location for features on their site.";

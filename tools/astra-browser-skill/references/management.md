@@ -133,7 +133,7 @@ unchanged — they are tab-scoped, not Space-scoped.
 Arrange tabs inside a window: group related tabs, or show two pages side by
 side. By default these operate on the current agent Space's window — they
 take the CDP `targetId`s from `listTabs()`/`enterContext`, map them to
-Phi's internal tab ids automatically, follow control ownership like every
+Astra Browser's internal tab ids automatically, follow control ownership like every
 other action (hard stop while the user is controlling), and need the usual
 `enterContext` first.
 

@@ -81,7 +81,7 @@
 		<string>NSUserActivityTypeBrowsingWeb</string>
 	</array>
 	<key>OSAScriptingDefinition</key>
-	<string>Phi.sdef</string>
+	<string>Astra.sdef</string>
 	<key>SUAutomaticallyUpdate</key>
 	<true/>
 	<key>SUEnableAutomaticChecks</key>

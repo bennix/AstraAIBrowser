@@ -324,7 +324,7 @@ const sql = (db, stmt) => execFileSync('/usr/bin/sqlite3', [db, stmt], { encodin
 
   const plumbing = piToEntry({ type: 'message', message: { role: 'assistant', content: [
     { type: 'toolCall', id: 'pi-phi-1', name: 'bash',
-      arguments: { command: 'node tools/phi-browser-skill/scripts/runner.mjs' } }] } })
+      arguments: { command: 'node tools/astra-browser-skill/scripts/runner.mjs' } }] } })
   check('pi: phi browser plumbing call is suppressed', plumbing === null)
   check('pi: matching plumbing result is suppressed', piToEntry({ type: 'message',
     message: { role: 'toolResult', toolCallId: 'pi-phi-1', toolName: 'bash',

@@ -31,7 +31,7 @@ logins can be filled into pages — `fillCredential` on another type fails with
 
 **Prefer the secret-free helpers — you never see the value.**
 
-- Web form → `fillCredential(target, domain, {field})`. Phi fills the field
+- Web form → `fillCredential(target, domain, {field})`. Astra Browser fills the field
   itself — the value goes app → page and never reaches you; all you get back is
   `{filled: true, field, matches}`. `field` is `'password'` (default) or
   `'username'`. A typical login is two calls, then verify by re-observing:
@@ -42,7 +42,7 @@ logins can be filled into pages — `fillCredential` on another type fails with
   await click('@7') // the Sign in button from observe()
   ```
 
-  In-app fill is a Phi-side capability: on an older build without it,
+  In-app fill is a Astra Browser-side capability: on an older build without it,
   `fillCredential` throws with `autofill_not_available`. It will NOT fall back
   to fetching the secret into your context — a fill must never become a reveal.
   If a value genuinely has to enter your context, use `getCredential`. The
@@ -92,13 +92,13 @@ readback or error echo can't smuggle the value back to you. Don't try to read
 a filled value back; verify a login by its outcome (the post-submit page).
 
 **Ambiguity**: a served credential is always the query's unique match. When
-several vault items fit, Phi releases nothing and the call throws `ambiguous`,
+several vault items fit, Astra Browser releases nothing and the call throws `ambiguous`,
 listing the candidate usernames — narrow with `{domain, username}` (or
 `{id: credentialId}`) and call again, asking the user which account when it
-isn't obvious from the task. Phi never picks an account on the user's behalf.
+isn't obvious from the task. Astra Browser never picks an account on the user's behalf.
 
 Every secret-touching call (fills and runs included) pops an approve/deny
-prompt in Phi that names you and the site; the user may grant a 10-minute
+prompt in Astra Browser that names you and the site; the user may grant a 10-minute
 remember for that site. Prompts are typed by exposure — a browser fill, a
 command-env injection, or revealing the raw value to you — and a remembered
 grant covers only the kind it was approved for (a fill-only grant never

@@ -539,7 +539,7 @@ async function enterAgentContext(name, { profile = '', persistent = false } = {}
       // here; reopening it (or an app relaunch) restores its window.
       throw new Error(
         `enterContext(agent): persistent space '${name}' has no tabs — ` +
-        'reopen it from the Space switcher (or relaunch Phi Browser), then retry')
+        'reopen it from the Space switcher (or relaunch Astra Browser), then retry')
     }
     await phiSend('agentSpace.complete', {
       taskId: name, status: 'failure', message: 'agent window lost',
@@ -597,7 +597,7 @@ async function enterAgentContext(name, { profile = '', persistent = false } = {}
 /**
  * SHADOW-context impl (private — reach it via enterContext({kind:'shadow'})).
  *
- * A shadow window is Phi's background-execution primitive: a real browser
+ * A shadow window is Astra Browser's background-execution primitive: a real browser
  * window on a real profile — real cookies, real renderers, driven by every
  * page helper exactly as a Space is — that the user CANNOT see. It sits
  * off-screen at alpha 0, absent from the Space switcher, Mission Control and
@@ -636,7 +636,7 @@ async function enterShadowContext(name, { profile = '', incognito = false } = {}
     await phiSend('agentSpace.shadow.close', { taskId: name }).catch(() => {})
     throw new Error(
       "enterContext({kind:'shadow', incognito:true}): this Phi build does not " +
-      'support incognito shadow windows — update Phi Browser, or drop `incognito`.')
+      'support incognito shadow windows — update Astra Browser, or drop `incognito`.')
   }
   // Rides state.task (see contextKind): a shadow context IS a task — same
   // taskId, keep-alive and complete() — with `shadow` marking the one
@@ -816,7 +816,7 @@ export async function listTabs() {
  * hidden (its view size is 0×0 — the reason the override exists at all), but
  * sibling frame mirroring keeps it at the user's window size, so a user-tab's
  * panel is exactly what this page would get there. http(s) pages first: a
- * WebUI tab (Phi's NTP) is a native view whose backing WebContents is a
+ * WebUI tab (Astra Browser's NTP) is a native view whose backing WebContents is a
  * near-window-sized shell, not the panel. Tabs of agent windows are skipped
  * implicitly: their metrics read 0×0 and fail the >0 check. Passive — a flat
  * attach + one Page.getLayoutMetrics, no activation, no overrides.
@@ -1937,7 +1937,7 @@ export async function js(expression) {
 
 /**
  * Reader View extraction for the current tab: the page distilled to its
- * article, through Phi's own pipeline rather than a scrape.
+ * article, through Astra Browser's own pipeline rather than a scrape.
  *
  * Prefer this over `snapshotText()` when you want an ARTICLE — the prose of a
  * post, a doc page, a PDF — rather than the page as a whole. It runs the same
@@ -5647,7 +5647,7 @@ export async function handleDialog(accept = true, promptText = undefined) {
     throw new Error(
       'handleDialog: a dialog from an earlier round blocks this tab, and ' +
       'this Phi build has no browser-level dialog handling ' +
-      '(PhiAgentSpace.handleJavaScriptDialog) — update Phi Browser, or drop ' +
+      '(PhiAgentSpace.handleJavaScriptDialog) — update Astra Browser, or drop ' +
       'the tab with closeTab()')
   }
   state.openDialog = null
@@ -5678,7 +5678,7 @@ export async function dismissDialog(targetId, accept = false, promptText = undef
   if (!res) {
     throw new Error(
       'dismissDialog: this Phi build has no ' +
-      'PhiAgentSpace.handleJavaScriptDialog — update Phi Browser')
+      'PhiAgentSpace.handleJavaScriptDialog — update Astra Browser')
   }
   if (res.handled && targetId === state.targetId) {
     state.openDialog = null
@@ -5726,7 +5726,7 @@ export async function say(text, { role = 'assistant' } = {}) {
 }
 
 /**
- * Drains the commands the user typed into Phi's Agent Transcript console
+ * Drains the commands the user typed into Astra Browser's Agent Transcript console
  * since the last drain. Returns [{id, text, ts}] (oldest first; empty when
  * none). Call at every round start and before complete() — treat the text as
  * user instructions with the same authority as chat, and acknowledge via
@@ -6913,7 +6913,7 @@ export async function runWithCredential(query, command,
 // Tab references are CDP targetIds, or the integer tabIds listSpaceTabs()
 // returns (a user Space's tabs may have no CDP target to name them by).
 
-/** Maps tab references to Phi's stable tab ids: integers pass through (they
+/** Maps tab references to Astra Browser's stable tab ids: integers pass through (they
  *  are already tab ids, from listSpaceTabs), strings resolve as CDP target
  *  ids via the PhiAgentSpace.resolveTabIds command. strict (default) throws
  *  on any unresolvable target. */

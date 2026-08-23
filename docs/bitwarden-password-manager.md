@@ -102,7 +102,7 @@ GPL-3.0 repo, and is driven by Phi over a socket.
 | Agent surface | `Sources/States/AgentSpace/AgentSpaceRouter+Credentials.swift` | `credentials.status/get/getTotp/autofill`. |
 | Approval | `Sources/States/CredentialAccessCoordinator.swift` | Per-request approve/deny prompt; 10-min remember; 60s auto-deny. |
 | Audit | `Sources/States/CredentialAuditLog.swift` | Append-only, **values-free** record of agent credential activity. |
-| Skill client | `tools/phi-browser-skill/scripts/lib/helpers.mjs` + `SKILL.md` | `credentialStatus()`, `getCredential()`, `getTotp()`. |
+| Skill client | `tools/astra-browser-skill/scripts/lib/helpers.mjs` + `SKILL.md` | `credentialStatus()`, `getCredential()`, `getTotp()`. |
 
 ### 4.2 Helper side (Rust, GPL-3.0, `phi-bitwarden-helper`)
 

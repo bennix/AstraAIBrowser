@@ -7,6 +7,7 @@ import Cocoa
 import Combine
 import ImageIO
 import SwiftUI
+import SwiftMath
 import UniformTypeIdentifiers
 
 struct ZenMuxPageContext: Equatable {
@@ -314,6 +315,16 @@ final class ZenMuxChatSession: ObservableObject {
         let typedInput = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         let outgoingAttachments = imageAttachments
         guard !typedInput.isEmpty || !outgoingAttachments.isEmpty, !isSending else { return }
+        let model = PhiPreferences.AISettings.loadZenMuxModel()
+        guard outgoingAttachments.isEmpty || model.supportsImageInput else {
+            let format = NSLocalizedString(
+                "chat.zenMux.attachments.unsupportedModelError",
+                value: "%@ does not accept image input. Choose Gemini or Grok to send images.",
+                comment: "ZenMux chat attachments - Error shown when the selected text-only model cannot receive attached images; placeholder is the model name"
+            )
+            errorMessage = String(format: format, model.displayName)
+            return
+        }
         let input = typedInput.isEmpty
             ? NSLocalizedString(
                 "chat.zenMux.attachments.defaultPrompt",
@@ -341,18 +352,22 @@ final class ZenMuxChatSession: ObservableObject {
                   !apiKey.isEmpty else {
                 throw ZenMuxAPIError.invalidCredential
             }
-            let model = PhiPreferences.AISettings.loadZenMuxModel()
             let inputLanguage = PhiPreferences.AISettings.loadZenMuxInputLanguage()
             let responseLanguage = PhiPreferences.AISettings.loadZenMuxResponseLanguage()
-            activityDescription = NSLocalizedString(
-                "chat.zenMux.capturingPageStatus",
-                value: "Capturing the visible page…",
-                comment: "ZenMux chat - Status shown while the current visible page area is captured for message context"
-            )
-            let currentPageImageDataURL = await captureCurrentPageImage(
-                browserAutomation: browserAutomation
-            )
-            activityDescription = nil
+            let currentPageImageDataURL: String?
+            if model.supportsImageInput {
+                activityDescription = NSLocalizedString(
+                    "chat.zenMux.capturingPageStatus",
+                    value: "Capturing the visible page…",
+                    comment: "ZenMux chat - Status shown while the current visible page area is captured for message context"
+                )
+                currentPageImageDataURL = await captureCurrentPageImage(
+                    browserAutomation: browserAutomation
+                )
+                activityDescription = nil
+            } else {
+                currentPageImageDataURL = nil
+            }
             let transcriptContext = await loadYouTubeTranscriptIfAvailable(
                 pageContext: pageContext,
                 inputLanguage: inputLanguage
@@ -1715,6 +1730,90 @@ private struct ZenMuxMessageView: View {
     }
 }
 
+enum ZenMuxMarkdownNormalizer {
+    static func normalize(_ source: String) -> String {
+        var result = source
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        result = normalizeQuotedEmphasis(in: result)
+        result = normalizeDisplayMath(in: result)
+        result = normalizeInlineMath(in: result)
+        result = normalizeChemistry(in: result)
+        return result
+    }
+
+    private static func normalizeQuotedEmphasis(in source: String) -> String {
+        let patterns = [
+            (#"\*\*\"([^\n]+?)\"\*\*"#, #"\"**$1**\""#),
+            (#"\*\*“([^\n]+?)”\*\*"#, #"“**$1**”"#),
+            (#"\*\*‘([^\n]+?)’\*\*"#, #"‘**$1**’"#),
+        ]
+        return patterns.reduce(source) { value, pattern in
+            value.replacingOccurrences(
+                of: pattern.0,
+                with: pattern.1,
+                options: .regularExpression
+            )
+        }
+    }
+
+    private static func normalizeDisplayMath(in source: String) -> String {
+        guard let expression = try? NSRegularExpression(
+            pattern: #"\\\[([\s\S]*?)\\\]"#
+        ) else { return source }
+        var result = source
+        let matches = expression.matches(
+            in: source,
+            range: NSRange(source.startIndex..., in: source)
+        )
+        for match in matches.reversed() {
+            guard let matchRange = Range(match.range, in: result),
+                  let formulaRange = Range(match.range(at: 1), in: result) else { continue }
+            result.replaceSubrange(matchRange, with: "$$\(result[formulaRange])$$")
+        }
+        return result
+    }
+
+    private static func normalizeInlineMath(in source: String) -> String {
+        source.replacingOccurrences(
+            of: #"(?<!\$)\$([^\n$]+?)\$(?!\$)"#,
+            with: #"\\($1\\)"#,
+            options: .regularExpression
+        )
+    }
+
+    private static func normalizeChemistry(in source: String) -> String {
+        guard let expression = try? NSRegularExpression(
+            pattern: #"\\ce\{([^{}]+)\}"#
+        ) else { return source }
+        var result = source
+        let matches = expression.matches(
+            in: source,
+            range: NSRange(source.startIndex..., in: source)
+        )
+        for match in matches.reversed() {
+            guard let matchRange = Range(match.range, in: result),
+                  let formulaRange = Range(match.range(at: 1), in: result) else { continue }
+            let formula = chemistryLatex(String(result[formulaRange]))
+            result.replaceSubrange(matchRange, with: "\\mathrm{\(formula)}")
+        }
+        return result
+    }
+
+    private static func chemistryLatex(_ formula: String) -> String {
+        var result = formula
+            .replacingOccurrences(of: "<=>", with: "\\rightleftharpoons")
+            .replacingOccurrences(of: "->", with: "\\rightarrow")
+            .replacingOccurrences(of: "=>", with: "\\rightarrow")
+        result = result.replacingOccurrences(
+            of: #"(?<=[A-Za-z\)])(\d+)"#,
+            with: "_{$1}",
+            options: .regularExpression
+        )
+        return result
+    }
+}
+
 enum ZenMuxMarkdownBlock: Equatable {
     struct OrderedItem: Equatable {
         let marker: Int
@@ -1727,20 +1826,20 @@ enum ZenMuxMarkdownBlock: Equatable {
     case orderedList([OrderedItem])
     case quote(String)
     case code(String)
+    case math(String)
 }
 
 enum ZenMuxMarkdownParser {
     static func blocks(from source: String) -> [ZenMuxMarkdownBlock] {
-        let lines = source
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
-            .components(separatedBy: "\n")
+        let lines = source.components(separatedBy: "\n")
         var blocks: [ZenMuxMarkdownBlock] = []
         var paragraphLines: [String] = []
         var unorderedItems: [String] = []
         var orderedItems: [ZenMuxMarkdownBlock.OrderedItem] = []
         var codeLines: [String] = []
+        var mathLines: [String] = []
         var isInsideCodeBlock = false
+        var isInsideMathBlock = false
 
         func flushParagraph() {
             guard !paragraphLines.isEmpty else { return }
@@ -1767,19 +1866,45 @@ enum ZenMuxMarkdownParser {
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
-            if trimmed.hasPrefix("```") {
-                if isInsideCodeBlock {
+            if isInsideCodeBlock {
+                if trimmed.hasPrefix("```") {
                     blocks.append(.code(codeLines.joined(separator: "\n")))
                     codeLines.removeAll()
+                    isInsideCodeBlock = false
                 } else {
-                    flushPendingText()
+                    codeLines.append(line)
                 }
-                isInsideCodeBlock.toggle()
                 continue
             }
 
-            if isInsideCodeBlock {
-                codeLines.append(line)
+            if isInsideMathBlock {
+                if trimmed.hasSuffix("$$") {
+                    let content = String(trimmed.dropLast(2))
+                    if !content.isEmpty { mathLines.append(content) }
+                    blocks.append(.math(mathLines.joined(separator: "\n")))
+                    mathLines.removeAll()
+                    isInsideMathBlock = false
+                } else {
+                    mathLines.append(line)
+                }
+                continue
+            }
+
+            if trimmed.hasPrefix("```") {
+                flushPendingText()
+                isInsideCodeBlock = true
+                continue
+            }
+
+            if trimmed.hasPrefix("$$") {
+                flushPendingText()
+                let content = String(trimmed.dropFirst(2))
+                if content.hasSuffix("$$") {
+                    blocks.append(.math(String(content.dropLast(2))))
+                } else {
+                    if !content.isEmpty { mathLines.append(content) }
+                    isInsideMathBlock = true
+                }
                 continue
             }
 
@@ -1816,9 +1941,9 @@ enum ZenMuxMarkdownParser {
 
             if trimmed.hasPrefix(">") {
                 flushPendingText()
-                let content = String(trimmed.dropFirst())
-                    .trimmingCharacters(in: .whitespaces)
-                blocks.append(.quote(content))
+                blocks.append(.quote(
+                    String(trimmed.dropFirst()).trimmingCharacters(in: .whitespaces)
+                ))
                 continue
             }
 
@@ -1826,9 +1951,8 @@ enum ZenMuxMarkdownParser {
             paragraphLines.append(line)
         }
 
-        if isInsideCodeBlock {
-            blocks.append(.code(codeLines.joined(separator: "\n")))
-        }
+        if isInsideCodeBlock { blocks.append(.code(codeLines.joined(separator: "\n"))) }
+        if isInsideMathBlock { blocks.append(.math(mathLines.joined(separator: "\n"))) }
         flushPendingText()
         return blocks
     }
@@ -1838,27 +1962,29 @@ enum ZenMuxMarkdownParser {
         guard (1...6).contains(markerCount) else { return nil }
         let contentStart = line.index(line.startIndex, offsetBy: markerCount)
         guard contentStart < line.endIndex, line[contentStart].isWhitespace else { return nil }
-        let content = line[contentStart...].trimmingCharacters(in: .whitespaces)
-        return (markerCount, content)
+        return (
+            markerCount,
+            line[contentStart...].trimmingCharacters(in: .whitespaces)
+        )
     }
 
     private static func orderedItem(from line: String) -> ZenMuxMarkdownBlock.OrderedItem? {
         let digits = line.prefix(while: { $0.isNumber })
-        guard !digits.isEmpty,
-              let marker = Int(digits) else { return nil }
+        guard !digits.isEmpty, let marker = Int(digits) else { return nil }
         let punctuationIndex = line.index(line.startIndex, offsetBy: digits.count)
         guard punctuationIndex < line.endIndex,
               line[punctuationIndex] == "." || line[punctuationIndex] == ")" else { return nil }
         let contentStart = line.index(after: punctuationIndex)
         guard contentStart < line.endIndex, line[contentStart].isWhitespace else { return nil }
-        let content = line[contentStart...].trimmingCharacters(in: .whitespaces)
-        return .init(marker: marker, content: content)
+        return .init(
+            marker: marker,
+            content: line[contentStart...].trimmingCharacters(in: .whitespaces)
+        )
     }
 
     private static func unorderedItem(from line: String) -> String? {
-        guard line.count >= 2 else { return nil }
-        let marker = line.first
-        guard marker == "-" || marker == "*" || marker == "+" else { return nil }
+        guard line.count >= 2,
+              line.first == "-" || line.first == "*" || line.first == "+" else { return nil }
         let separatorIndex = line.index(after: line.startIndex)
         guard line[separatorIndex].isWhitespace else { return nil }
         return line[line.index(after: separatorIndex)...]
@@ -1870,7 +1996,7 @@ private struct ZenMuxMarkdownView: View {
     let source: String
 
     private var blocks: [ZenMuxMarkdownBlock] {
-        ZenMuxMarkdownParser.blocks(from: source)
+        ZenMuxMarkdownParser.blocks(from: ZenMuxMarkdownNormalizer.normalize(source))
     }
 
     var body: some View {
@@ -1879,7 +2005,6 @@ private struct ZenMuxMarkdownView: View {
                 blockView(block)
             }
         }
-        .font(.system(size: 12))
         .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -1887,26 +2012,29 @@ private struct ZenMuxMarkdownView: View {
     private func blockView(_ block: ZenMuxMarkdownBlock) -> some View {
         switch block {
         case .paragraph(let content):
-            inlineText(content)
+            richText(content, font: .systemFont(ofSize: 12))
         case .heading(let level, let content):
-            inlineText(content)
-                .font(.system(size: headingFontSize(for: level), weight: .semibold))
+            richText(
+                content,
+                font: .systemFont(ofSize: headingFontSize(for: level), weight: .semibold)
+            )
         case .unorderedList(let items):
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    HStack(alignment: .firstTextBaseline, spacing: 7) {
-                        Text(verbatim: "•")
-                        inlineText(item)
+                    HStack(alignment: .top, spacing: 7) {
+                        Text(verbatim: "•").font(.system(size: 12))
+                        richText(item, font: .systemFont(ofSize: 12))
                     }
                 }
             }
         case .orderedList(let items):
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    HStack(alignment: .firstTextBaseline, spacing: 7) {
+                    HStack(alignment: .top, spacing: 7) {
                         Text(verbatim: "\(item.marker).")
+                            .font(.system(size: 12))
                             .foregroundStyle(.secondary)
-                        inlineText(item.content)
+                        richText(item.content, font: .systemFont(ofSize: 12))
                     }
                 }
             }
@@ -1915,8 +2043,7 @@ private struct ZenMuxMarkdownView: View {
                 RoundedRectangle(cornerRadius: 1)
                     .fill(Color.secondary.opacity(0.45))
                     .frame(width: 2)
-                inlineText(content)
-                    .foregroundStyle(.secondary)
+                richText(content, font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
             }
         case .code(let content):
             ScrollView(.horizontal, showsIndicators: false) {
@@ -1927,18 +2054,18 @@ private struct ZenMuxMarkdownView: View {
             }
             .background(Color.primary.opacity(0.06))
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        case .math(let latex):
+            ZenMuxMathView(latex: latex)
         }
     }
 
-    private func inlineText(_ source: String) -> Text {
-        let options = AttributedString.MarkdownParsingOptions(
-            interpretedSyntax: .inlineOnlyPreservingWhitespace,
-            failurePolicy: .returnPartiallyParsedIfPossible
-        )
-        guard let attributed = try? AttributedString(markdown: source, options: options) else {
-            return Text(verbatim: source)
-        }
-        return Text(attributed)
+    private func richText(
+        _ source: String,
+        font: NSFont,
+        color: NSColor = .labelColor
+    ) -> some View {
+        ZenMuxRichTextView(source: source, font: font, color: color)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private func headingFontSize(for level: Int) -> CGFloat {
@@ -1948,6 +2075,159 @@ private struct ZenMuxMarkdownView: View {
         case 3: return 14
         default: return 12
         }
+    }
+}
+
+private struct ZenMuxRichTextView: NSViewRepresentable {
+    let source: String
+    let font: NSFont
+    let color: NSColor
+
+    func makeNSView(context: Context) -> NSTextView {
+        let view = NSTextView()
+        view.isEditable = false
+        view.isSelectable = true
+        view.drawsBackground = false
+        view.textContainerInset = .zero
+        view.textContainer?.lineFragmentPadding = 0
+        view.textContainer?.widthTracksTextView = true
+        view.isHorizontallyResizable = false
+        view.isVerticallyResizable = true
+        return view
+    }
+
+    func updateNSView(_ view: NSTextView, context: Context) {
+        view.textStorage?.setAttributedString(attributedContent())
+    }
+
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        nsView: NSTextView,
+        context: Context
+    ) -> CGSize? {
+        let width = max(1, proposal.width ?? 240)
+        nsView.textContainer?.containerSize = CGSize(
+            width: width,
+            height: .greatestFiniteMagnitude
+        )
+        nsView.layoutManager?.ensureLayout(for: nsView.textContainer!)
+        let height = nsView.layoutManager?.usedRect(for: nsView.textContainer!).height ?? font.pointSize
+        return CGSize(width: width, height: max(ceil(height), ceil(font.pointSize * 1.25)))
+    }
+
+    private func attributedContent() -> NSAttributedString {
+        let output = NSMutableAttributedString()
+        var remaining = source[...]
+        while let start = remaining.range(of: "\\("),
+              let end = remaining[start.upperBound...].range(of: "\\)") {
+            appendMarkdown(String(remaining[..<start.lowerBound]), to: output)
+            let latex = String(remaining[start.upperBound..<end.lowerBound])
+            appendMath(latex, to: output)
+            remaining = remaining[end.upperBound...]
+        }
+        appendMarkdown(String(remaining), to: output)
+        return output
+    }
+
+    private func appendMarkdown(_ text: String, to output: NSMutableAttributedString) {
+        guard !text.isEmpty else { return }
+        guard let parsed = try? AttributedString(
+            markdown: text,
+            options: .init(
+                interpretedSyntax: .inlineOnlyPreservingWhitespace,
+                failurePolicy: .returnPartiallyParsedIfPossible
+            )
+        ) else {
+            output.append(NSAttributedString(
+                string: text,
+                attributes: [.font: font, .foregroundColor: color]
+            ))
+            return
+        }
+
+        for run in parsed.runs {
+            let intent = run.inlinePresentationIntent ?? []
+            let runFont: NSFont
+            if intent.contains(.code) {
+                runFont = .monospacedSystemFont(ofSize: font.pointSize, weight: .regular)
+            } else {
+                var traits = font.fontDescriptor.symbolicTraits
+                if intent.contains(.stronglyEmphasized) { traits.insert(.bold) }
+                if intent.contains(.emphasized) { traits.insert(.italic) }
+                let descriptor = font.fontDescriptor.withSymbolicTraits(traits)
+                runFont = NSFont(descriptor: descriptor, size: font.pointSize) ?? font
+            }
+            let piece = NSMutableAttributedString(
+                string: String(parsed[run.range].characters),
+                attributes: [.font: runFont, .foregroundColor: color]
+            )
+            if intent.contains(.code) {
+                piece.addAttribute(
+                    .backgroundColor,
+                    value: NSColor.quaternaryLabelColor,
+                    range: NSRange(location: 0, length: piece.length)
+                )
+            }
+            if let link = run.link {
+                piece.addAttribute(
+                    .link,
+                    value: link,
+                    range: NSRange(location: 0, length: piece.length)
+                )
+            }
+            output.append(piece)
+        }
+    }
+
+    private func appendMath(_ latex: String, to output: NSMutableAttributedString) {
+        var renderer = MathImage(
+            latex: latex,
+            fontSize: font.pointSize + 1,
+            textColor: color,
+            labelMode: .text,
+            textAlignment: .left
+        )
+        let (_, image, layout) = renderer.asImage()
+        guard let image, let layout else {
+            appendMarkdown("\\(\(latex)\\)", to: output)
+            return
+        }
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        attachment.bounds = NSRect(
+            x: 0,
+            y: -layout.descent,
+            width: image.size.width,
+            height: image.size.height
+        )
+        output.append(NSAttributedString(attachment: attachment))
+    }
+}
+
+private struct ZenMuxMathView: View {
+    let latex: String
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            if let image = renderedImage {
+                Image(nsImage: image)
+            } else {
+                Text(verbatim: "$$\(latex)$$")
+                    .font(.system(size: 12, design: .monospaced))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var renderedImage: NSImage? {
+        var renderer = MathImage(
+            latex: latex,
+            fontSize: 15,
+            textColor: .labelColor,
+            labelMode: .display,
+            textAlignment: .left
+        )
+        return renderer.asImage().1
     }
 }
 

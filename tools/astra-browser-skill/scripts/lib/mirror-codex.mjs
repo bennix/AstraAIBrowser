@@ -69,7 +69,7 @@ export function toEntry(obj) {
 // The phi heredocs that drive the browser are already narrated line-by-line
 // by the skill's own action log; mirroring the call too would double every
 // step.
-const PHI_PLUMBING = /runner\.mjs|phi-browser/
+const PHI_PLUMBING = /runner\.mjs|(?:astra|phi)-browser/
 
 /**
  * A function_call / custom_tool_call response_item → the console line the

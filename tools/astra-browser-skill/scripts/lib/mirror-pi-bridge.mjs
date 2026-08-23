@@ -4,7 +4,7 @@
 // mirror tailer can observe Phi, but only a Pi extension loaded inside the
 // active session can call pi.sendUserMessage() and wake an idle agent. This
 // bridge binds that extension to the task recorded by ensureAgentSpace(),
-// drains Phi's authoritative command queue while the task is idle, and hands
+// drains Astra Browser's authoritative command queue while the task is idle, and hands
 // the commands to the extension callback as one user turn.
 
 import { readDaemonControl, openPhiChannel } from './mirror-core.mjs'

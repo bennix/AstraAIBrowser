@@ -14,7 +14,7 @@
 // verified programmatically, so it doubles as a functional check of
 // hover/click/fillInput/typeText/pressKey/scroll running AFTER a handoff.
 //
-// Needs a running Phi Browser with the CDP endpoint enabled (see
+// Needs a running Astra Browser with the CDP endpoint enabled (see
 // references/install.md). If you never hand back (15 min) the throwaway
 // Space is cleaned up and the test exits non-zero; taking control mid-demo
 // leaves the Space with you (honoring the handoff rules). ~2 min.
@@ -27,7 +27,7 @@ const BASE = `http://127.0.0.1:${PORT}`
 const SPACE = 'phi-skill-animation-demo'
 const HANDBACK_TIMEOUT = 900 // seconds a human gets to click "Hand back"
 
-const NAME_TEXT = 'Hello from Phi’s agent'
+const NAME_TEXT = 'Hello from Astra Browser’s agent'
 const CHAT_TEXT = 'Watch me type, then press Enter'
 
 // The demo page: big, high-contrast targets (they must read on the scaled

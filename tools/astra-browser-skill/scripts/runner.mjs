@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Copyright 2026 Phinomenon Inc.
 //
-// phi-browser heredoc runner: reads a script from stdin and executes it with
+// astra-browser heredoc runner: reads a script from stdin and executes it with
 // all helpers in scope. Usage:
 //   node runner.mjs <<'EOF'
 //   const task = await ensureAgentSpace('my task')
@@ -14,7 +14,7 @@
 // error from deep inside the first connect.
 if (Number(process.versions.node.split('.')[0]) < 22) {
   console.error(
-    `phi-browser: Node >= 22 required (running ${process.version})`)
+    `astra-browser: Node >= 22 required (running ${process.version})`)
   process.exit(2)
 }
 
@@ -54,7 +54,7 @@ surface.console = Object.assign(Object.create(console), {
 // Treat both like a normal failure: scrub, dispose, exit 1.
 for (const event of ['unhandledRejection', 'uncaughtException']) {
   process.on(event, (err) => {
-    console.error(scrub(`phi-browser ${event}: ${err?.message || err}`))
+    console.error(scrub(`astra-browser ${event}: ${err?.message || err}`))
     __dispose().catch(() => {}).finally(() => process.exit(1))
   })
 }
@@ -72,7 +72,7 @@ process.stdin.setEncoding('utf8')
 for await (const chunk of process.stdin) source += chunk
 
 if (!source.trim()) {
-  console.error('phi-browser: empty script on stdin')
+  console.error('astra-browser: empty script on stdin')
   process.exit(2)
 }
 
@@ -90,7 +90,7 @@ try {
   const fn = new AsyncFunction(...names, source)
   await fn(...values)
 } catch (err) {
-  console.error(scrub(`phi-browser error: ${err?.message || err}`))
+  console.error(scrub(`astra-browser error: ${err?.message || err}`))
   // A few stack frames locate the failing line inside the heredoc (the
   // script compiles as an anonymous async function, so frames read
   // "<anonymous>:LINE"). Skip the message line already printed above. The
