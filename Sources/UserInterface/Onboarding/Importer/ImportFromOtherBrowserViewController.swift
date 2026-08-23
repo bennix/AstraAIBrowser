@@ -171,7 +171,7 @@ class ImportFromOtherBrowserViewController: OnboardingBaseViewController {
     }()
     
     private lazy var desLabel: NSTextField = {
-        let label = NSTextField(labelWithString: NSLocalizedString("oobe.importBrowserData.permission.fullDiskAccessDescription", value: "Phi needs Full Disk Access to import your data from Safari.", comment: "Import browser data page - Description explaining why Full Disk Access permission is needed"))
+        let label = NSTextField(labelWithString: NSLocalizedString("oobe.importBrowserData.permission.fullDiskAccessDescription", value: "Astra Browser needs Full Disk Access to import your data from Safari.", comment: "Import browser data page - Description explaining why Full Disk Access permission is needed"))
         label.textColor = NSColor.white
         label.font = NSFont.systemFont(ofSize: descriptionFontSize)
         label.isHidden = true

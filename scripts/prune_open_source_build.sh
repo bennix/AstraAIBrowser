@@ -42,8 +42,8 @@ remove_component "$contents_path/Library/LoginItems/Phi Sentinel.app"
 remove_component "$contents_path/Library/LoginItems/Sentinel.app"
 
 phi_framework="$contents_path/Frameworks/Phi Framework.framework"
-if [ ! -d "$phi_framework" ]; then
-    echo "error: required Phi Framework is missing from app product" >&2
+if [ -e "$phi_framework" ]; then
+    echo "error: retired Phi Framework remains in app product" >&2
     exit 1
 fi
 
@@ -61,7 +61,6 @@ if [ -n "$sentinel_component_path" ]; then
     exit 1
 fi
 
-phi_framework_linked=NO
 for binary_path in "$macos_path"/*; do
     [ -f "$binary_path" ] || continue
     /usr/bin/file "$binary_path" | /usr/bin/grep -q 'Mach-O' || continue
@@ -76,7 +75,8 @@ for binary_path in "$macos_path"/*; do
         exit 1
     fi
     if printf '%s\n' "$linked_libraries" | /usr/bin/grep -q 'Phi Framework.framework'; then
-        phi_framework_linked=YES
+        echo "error: retired Phi Framework load command remains in $binary_path" >&2
+        exit 1
     fi
 
     if /usr/bin/nm -g "$binary_path" 2>/dev/null | /usr/bin/grep -E -q 'SPU|SUAppcast|\$s7Sparkle|_OBJC_(CLASS|METACLASS)_\$_SU'; then
@@ -84,11 +84,6 @@ for binary_path in "$macos_path"/*; do
         exit 1
     fi
 done
-
-if [ "$phi_framework_linked" != "YES" ]; then
-    echo "error: required Phi Framework load command is missing" >&2
-    exit 1
-fi
 
 for key in \
     SUAutomaticallyUpdate \

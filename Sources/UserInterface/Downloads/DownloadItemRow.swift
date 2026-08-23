@@ -292,19 +292,21 @@ struct DownloadItemRow: View {
                     action: { onCopyLink(item) },
                     tooltip: NSLocalizedString("downloads.item.inProgress.copyLinkButtonTooltip", value: "Copy Link", comment: "Download item - Tooltip for copying the link of an in-progress download")
                 )
-                // Pause/Resume button
-                DownloadActionButton(
-                    icon: item.isPaused ? .init(.resumeDownload) : .init(.pauseDownload),
-                    action: { item.isPaused ? onResume(item) : onPause(item) },
-                    tooltip: item.isPaused ? NSLocalizedString("downloads.item.resumeButtonTooltip", value: "Resume", comment: "Download item row - Tooltip for resume download button") : NSLocalizedString("downloads.item.pauseButtonTooltip", value: "Pause", comment: "Download item row - Tooltip for pause download button")
-                )
-                
-                // Cancel button
-                DownloadActionButton(
-                    icon: .init(.deleteDownload),
-                    action: { onCancel(item) },
-                    tooltip: NSLocalizedString("downloads.item.cancelButtonTooltip", value: "Cancel", comment: "Download item row - Tooltip for cancel download button")
-                )
+                if !item.isCEFDownload {
+                    // Pause/Resume button
+                    DownloadActionButton(
+                        icon: item.isPaused ? .init(.resumeDownload) : .init(.pauseDownload),
+                        action: { item.isPaused ? onResume(item) : onPause(item) },
+                        tooltip: item.isPaused ? NSLocalizedString("downloads.item.resumeButtonTooltip", value: "Resume", comment: "Download item row - Tooltip for resume download button") : NSLocalizedString("downloads.item.pauseButtonTooltip", value: "Pause", comment: "Download item row - Tooltip for pause download button")
+                    )
+
+                    // Cancel button
+                    DownloadActionButton(
+                        icon: .init(.deleteDownload),
+                        action: { onCancel(item) },
+                        tooltip: NSLocalizedString("downloads.item.cancelButtonTooltip", value: "Cancel", comment: "Download item row - Tooltip for cancel download button")
+                    )
+                }
                 
             case .complete:
                 DownloadCopyLinkButton(

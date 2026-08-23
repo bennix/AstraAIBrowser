@@ -643,7 +643,7 @@ class SidebarHeaderView: NSView, TitlebarAwareHitTestable {
     }
     
     @objc private func sidebarButtonClicked() {
-        MainBrowserWindowControllersManager.shared.activeWindowController?.browserState.toggleSidebar(nil)
+        browserState?.toggleSidebar(nil)
     }
 
     @objc private func searchTabsButtonClicked() {

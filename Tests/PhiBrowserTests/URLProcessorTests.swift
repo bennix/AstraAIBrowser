@@ -7,6 +7,20 @@ import XCTest
 @testable import Phi
 
 final class URLProcessorTests: XCTestCase {
+    func testExplicitGoogleSearchDoesNotInterpretDomainAsNavigation() {
+        let result = URLProcessor.googleSearchURL(for: "google.com")
+
+        XCTAssertEqual(result, "https://www.google.com/search?q=google.com")
+    }
+
+    func testExplicitGoogleSearchPercentEncodesMultilingualQuery() throws {
+        let result = URLProcessor.googleSearchURL(for: "浏览器 AI")
+        let components = try XCTUnwrap(URLComponents(string: result))
+
+        XCTAssertEqual(components.queryItems?.first?.name, "q")
+        XCTAssertEqual(components.queryItems?.first?.value, "浏览器 AI")
+    }
+
     func testOriginNavigationComparisonTreatsWWWAndRootSlashAsEquivalent() {
         XCTAssertTrue(
             URLProcessor.areEquivalentForOriginNavigation(

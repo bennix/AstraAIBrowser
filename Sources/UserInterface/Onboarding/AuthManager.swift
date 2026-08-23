@@ -933,6 +933,16 @@ class AuthManager {
     }
     
     func refreshAuthStatus() async {
+        guard PhiBuildCapabilities.supportsAuthentication else {
+            await MainActor.run {
+                currentCredentials = nil
+                reauthenticationState = .normal
+                clearPersistedReauthenticationState()
+            }
+            recordTrace("refresh-auth-status-skipped-authentication-disabled")
+            return
+        }
+
         guard !isAccountDeletionInProgress else {
             currentCredentials = nil
             recordTrace("refresh-auth-status-skipped-account-deletion")
@@ -1213,6 +1223,10 @@ class AuthManager {
     }
 
     func checkLoginStatusOnChromiumLaunch() -> Bool {
+        guard PhiBuildCapabilities.supportsAuthentication else {
+            return false
+        }
+
         guard !isAccountDeletionInProgress else {
             return false
         }

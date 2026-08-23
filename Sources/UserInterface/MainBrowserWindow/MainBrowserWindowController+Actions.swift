@@ -74,6 +74,10 @@ extension MainBrowserWindowController {
         if omniBoxContainerViewController?.hasShown ?? false == false {
             if omniBoxContainerViewController == nil {
                 omniBoxContainerViewController = OmniBoxContainerViewController(browserState: self.browserState, superView: omnibackgroundView)
+                omniBoxContainerViewController?.onVisibilityChanged = { [weak self] visible in
+                    self?.mainSplitViewController.webContentContainerViewController
+                        .setCurrentContentSuppressedByNativeOverlay(visible)
+                }
             }
             omniBoxContainerViewController?.omniBoxController?.beginOpenTrace(
                 trigger: fromAddressBar ? "address-bar" : "omnibox",
@@ -155,13 +159,19 @@ extension MainBrowserWindowController {
                 browserState: browserState,
                 superView: searchTabsBackgroundView
             )
+            searchTabsContainerViewController?.onVisibilityChanged = { [weak self] visible in
+                self?.mainSplitViewController.webContentContainerViewController
+                    .setCurrentContentSuppressedByNativeOverlay(visible)
+            }
         }
 
         guard let contentView = contentViewController?.view else {
             return
         }
 
-        contentView.addSubview(searchTabsBackgroundView)
+        searchTabsBackgroundView.wantsLayer = true
+        searchTabsBackgroundView.layer?.zPosition = 10_000
+        contentView.addSubview(searchTabsBackgroundView, positioned: .above, relativeTo: nil)
         searchTabsBackgroundView.snp.remakeConstraints { make in
             make.edges.equalToSuperview()
         }
@@ -525,7 +535,7 @@ extension MainBrowserWindowController: NSMenuItemValidation {
         window.identifier = identifier
         window.center()
         window.isReleasedWhenClosed = false
-        window.title = NSLocalizedString("app.feedback.windowTitle", value: "Send Feedback to Phi", comment: "Feedback window - Window title for feedback submission")
+        window.title = NSLocalizedString("app.feedback.windowTitle", value: "Send Feedback to Astra Browser", comment: "Feedback window - Window title for feedback submission")
         window.contentViewController = vc
         window.makeKeyAndOrderFront(nil)
     }

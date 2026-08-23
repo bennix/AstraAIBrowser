@@ -23,14 +23,17 @@ final class SettingsPresentationState: ObservableObject {
 extension AppController {
     
     private func panes() -> [SettingsPane] {
-        var panes: [SettingsPane] =
-        [AccountSettingViewController(),
-         GeneralSettingViewController(),
-         ProfilesSettingViewController(),
-         SpacesSettingViewController(),
-         AISettingsViewController(),
-         ShortcutsSettingViewController(),
-        ]
+        var panes: [SettingsPane] = []
+        if PhiBuildCapabilities.supportsAuthentication {
+            panes.append(AccountSettingViewController())
+        }
+        panes.append(contentsOf: [
+            GeneralSettingViewController(),
+            ProfilesSettingViewController(),
+            SpacesSettingViewController(),
+            AISettingsViewController(),
+            ShortcutsSettingViewController(),
+        ])
         settingsPanesIncludeDeveloper = PhiPreferences.AgentSpaces.developerModeEnabled
         if settingsPanesIncludeDeveloper {
             panes.append(DeveloperSettingViewController())

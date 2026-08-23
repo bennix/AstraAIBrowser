@@ -82,7 +82,7 @@ import PostHog
         // recover a fresher shared credential snapshot afterwards.
         resolveBrowserAccessFromAuthentication(checkChromiumLaunchStatus: true)
         if ApplicationState.shared.isGuest || !PhiBuildCapabilities.supportsAI {
-            GuestModePreferences.disableAI()
+            GuestModePreferences.disableBuiltInAI()
         }
         let permitsSentinelLaunch: Bool
         if PhiBuildCapabilities.supportsAuthentication {
@@ -184,6 +184,8 @@ import PostHog
                 )
             }
         }
+
+        CefBrowserRuntime.shared.applicationDidFinishLaunching()
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {

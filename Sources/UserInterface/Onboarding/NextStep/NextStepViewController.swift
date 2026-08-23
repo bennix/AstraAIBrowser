@@ -202,7 +202,7 @@ final class NextStepViewController: OnboardingBaseViewController {
     private lazy var metricsConsentRow = OnboardingCheckboxRow(
         title: NSLocalizedString(
             "oobe.nextSteps.metricsConsent",
-            value: "Help make Phi better by sharing usage metrics and crash reports",
+            value: "Help make Astra Browser better by sharing usage metrics and crash reports",
             comment: "Onboarding next steps - Optional checkbox for sharing usage metrics and crash reports"
         ),
         isChecked: consentState.sharesUsageMetrics
@@ -236,8 +236,8 @@ final class NextStepViewController: OnboardingBaseViewController {
             ),
             NSLocalizedString(
                 "oobe.nextSteps.enjoyPhi",
-                value: "Enjoy using Phi Browser 🎉",
-                comment: "Onboarding next steps - Fourth guide step welcoming the user to Phi Browser"
+                value: "Enjoy using Astra Browser 🎉",
+                comment: "Onboarding next steps - Fourth guide step welcoming the user to Astra Browser"
             )
         ]
     }
@@ -534,6 +534,10 @@ struct NextStepGuideContentView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .layoutPriority(1)
 
+                if index == 0 {
+                    ZenMuxOnboardingSetupView()
+                }
+
                 if index == illustrationStepIndex {
                     ImportHintIllustration()
                         .offset(x: -NextStepGuideLayout.illustrationVisibleLeadingInset)
@@ -554,6 +558,198 @@ struct NextStepGuideContentView: View {
             }
         }
         .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct ZenMuxOnboardingSetupView: View {
+    private enum Status {
+        case saved
+        case testing
+        case success
+        case failure(String)
+    }
+
+    @State private var apiKey = (try? ZenMuxCredentialStore.shared.loadAPIKey()) ?? ""
+    @State private var revealsAPIKey = false
+    @State private var status: Status?
+
+    private var trimmedAPIKey: String {
+        apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(NSLocalizedString(
+                "chat.zenMux.setup.description",
+                value: "Add your ZenMux API key to use Gemini, Grok, or GLM. Astra Browser encrypts the key before saving it on this Mac.",
+                comment: "ZenMux onboarding - Explanation of setup and credential protection"
+            ))
+            .font(.system(size: 12))
+            .foregroundStyle(.white.opacity(0.65))
+            .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 8) {
+                Group {
+                    if revealsAPIKey {
+                        TextField(apiKeyPlaceholder, text: $apiKey)
+                    } else {
+                        SecureField(apiKeyPlaceholder, text: $apiKey)
+                    }
+                }
+                .textFieldStyle(.roundedBorder)
+
+                Button {
+                    revealsAPIKey.toggle()
+                } label: {
+                    Image(systemName: revealsAPIKey ? "eye.slash" : "eye")
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.white.opacity(0.85))
+                .help(revealsAPIKey ? hideAPIKeyTitle : showAPIKeyTitle)
+            }
+
+            HStack(spacing: 8) {
+                Button(saveButtonTitle, action: saveAPIKey)
+                    .controlSize(.small)
+                    .disabled(trimmedAPIKey.isEmpty)
+
+                Button(testButtonTitle, action: testAPIKey)
+                    .controlSize(.small)
+                    .disabled(trimmedAPIKey.isEmpty || isTesting)
+
+                statusView
+                Spacer(minLength: 4)
+            }
+
+            Link(
+                NSLocalizedString(
+                    "chat.zenMux.setup.invitationLink",
+                    value: "Don't have ZenMux? Use the invitation link",
+                    comment: "ZenMux onboarding - Link to create a ZenMux account through the invitation page"
+                ),
+                destination: URL(string: "https://zenmux.ai/invite/GBQMC5")!
+            )
+            .font(.system(size: 11))
+        }
+        .padding(10)
+        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(.white.opacity(0.1), lineWidth: 1)
+        }
+        .onDisappear {
+            persistAPIKeyIfNeeded()
+        }
+    }
+
+    private var apiKeyPlaceholder: String {
+        NSLocalizedString(
+            "chat.zenMux.setup.apiKeyPlaceholder",
+            value: "ZenMux API key",
+            comment: "ZenMux onboarding - Placeholder in the API key field"
+        )
+    }
+
+    private var saveButtonTitle: String {
+        NSLocalizedString(
+            "settings.ai.zenMux.saveButton",
+            value: "Save",
+            comment: "ZenMux onboarding - Button that encrypts and saves the API key"
+        )
+    }
+
+    private var testButtonTitle: String {
+        NSLocalizedString(
+            "settings.ai.zenMux.testButton",
+            value: "Test API key",
+            comment: "ZenMux onboarding - Button that verifies the API key"
+        )
+    }
+
+    private var showAPIKeyTitle: String {
+        NSLocalizedString(
+            "settings.ai.zenMux.showAPIKeyTooltip",
+            value: "Show API key",
+            comment: "ZenMux onboarding - Tooltip for revealing the API key"
+        )
+    }
+
+    private var hideAPIKeyTitle: String {
+        NSLocalizedString(
+            "settings.ai.zenMux.hideAPIKeyTooltip",
+            value: "Hide API key",
+            comment: "ZenMux onboarding - Tooltip for hiding the API key"
+        )
+    }
+
+    private var isTesting: Bool {
+        if case .testing = status { return true }
+        return false
+    }
+
+    @ViewBuilder
+    private var statusView: some View {
+        switch status {
+        case .saved:
+            Image(systemName: "lock.fill")
+                .foregroundStyle(.white.opacity(0.7))
+                .help(NSLocalizedString(
+                    "settings.ai.zenMux.savedStatus",
+                    value: "Saved securely",
+                    comment: "ZenMux onboarding - Status after the API key is saved"
+                ))
+        case .testing:
+            ProgressView().controlSize(.small)
+        case .success:
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .help(NSLocalizedString(
+                    "settings.ai.zenMux.testSuccessStatus",
+                    value: "Connection successful",
+                    comment: "ZenMux onboarding - Status after a successful API key test"
+                ))
+        case .failure(let message):
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .help(message)
+        case nil:
+            EmptyView()
+        }
+    }
+
+    private func saveAPIKey() {
+        do {
+            try ZenMuxCredentialStore.shared.saveAPIKey(trimmedAPIKey)
+            status = .saved
+        } catch {
+            status = .failure(error.localizedDescription)
+        }
+    }
+
+    private func testAPIKey() {
+        status = .testing
+        let candidate = trimmedAPIKey
+        Task { @MainActor in
+            do {
+                try ZenMuxCredentialStore.shared.saveAPIKey(candidate)
+                try await APIClient.shared.testZenMuxAPIKey(
+                    candidate,
+                    model: PhiPreferences.AISettings.loadZenMuxModel()
+                )
+                status = .success
+            } catch {
+                status = .failure(error.localizedDescription)
+            }
+        }
+    }
+
+    private func persistAPIKeyIfNeeded() {
+        guard !trimmedAPIKey.isEmpty else { return }
+        do {
+            try ZenMuxCredentialStore.shared.saveAPIKey(trimmedAPIKey)
+        } catch {
+            AppLogError("Unable to persist the ZenMux API key when leaving onboarding: \(error.localizedDescription)")
+        }
     }
 }
 

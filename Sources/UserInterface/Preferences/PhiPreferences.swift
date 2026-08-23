@@ -199,27 +199,24 @@ extension PhiPreferences {
         var defaultValue: Bool {
             switch self {
             case .phiAIEnabled:
-                return PhiBuildCapabilities.supportsAI
-            case .enableConnectors:
                 return true
-            case .enableConnectorContext:
-                return true
-            case .enableChatWithTabs:
-                return true
-            case .enableBrowserMemories:
-                return true
-            case .launchSentinelOnLogin:
-                return true
-            case .enableProactiveSuggestionsOnNTP:
-                return true
+            case .enableConnectors, .enableConnectorContext:
+                return false
+            case .enableChatWithTabs, .enableBrowserMemories, .launchSentinelOnLogin,
+                 .enableProactiveSuggestionsOnNTP:
+                return false
             }
         }
 
         func loadValue() -> Bool {
-            if self == .phiAIEnabled && !PhiBuildCapabilities.supportsAI {
+            switch self {
+            case .enableConnectors, .enableConnectorContext,
+                 .enableChatWithTabs, .enableBrowserMemories, .launchSentinelOnLogin,
+                 .enableProactiveSuggestionsOnNTP:
                 return false
+            case .phiAIEnabled:
+                return UserDefaults.standard.bool(forKey: rawValue, default: defaultValue)
             }
-            return UserDefaults.standard.bool(forKey: rawValue, default: defaultValue)
         }
 
         static func buildConfig() -> String {
@@ -231,6 +228,38 @@ extension PhiPreferences {
             }
             let data = try? JSONSerialization.data(withJSONObject: result, options: [])
             return String(data: data ?? Data(), encoding: .utf8) ?? "{}"
+        }
+
+        static let zenMuxModelKey = "zenMuxModel"
+        static let zenMuxInputLanguageKey = "zenMuxInputLanguage"
+        static let zenMuxResponseLanguageKey = "zenMuxResponseLanguage"
+
+        static func loadZenMuxModel(from defaults: UserDefaults = .standard) -> ZenMuxModel {
+            guard let rawValue = defaults.string(forKey: zenMuxModelKey),
+                  let model = ZenMuxModel(rawValue: rawValue) else {
+                return .geminiFlash
+            }
+            return model
+        }
+
+        static func loadZenMuxInputLanguage(
+            from defaults: UserDefaults = .standard
+        ) -> ZenMuxInputLanguage {
+            guard let rawValue = defaults.string(forKey: zenMuxInputLanguageKey),
+                  let language = ZenMuxInputLanguage(rawValue: rawValue) else {
+                return .automatic
+            }
+            return language
+        }
+
+        static func loadZenMuxResponseLanguage(
+            from defaults: UserDefaults = .standard
+        ) -> ZenMuxResponseLanguage {
+            guard let rawValue = defaults.string(forKey: zenMuxResponseLanguageKey),
+                  let language = ZenMuxResponseLanguage(rawValue: rawValue) else {
+                return .matchInput
+            }
+            return language
         }
     }
     
@@ -611,17 +640,20 @@ extension PhiPreferences {
 /// either settings view.
 enum GuestModePreferences {
     static let aiEnabledKey = PhiPreferences.AISettings.phiAIEnabled.rawValue
+    static let builtInAIKeys = [
+        PhiPreferences.AISettings.enableConnectors.rawValue,
+        PhiPreferences.AISettings.enableConnectorContext.rawValue,
+        PhiPreferences.AISettings.enableChatWithTabs.rawValue,
+        PhiPreferences.AISettings.enableBrowserMemories.rawValue,
+        PhiPreferences.AISettings.launchSentinelOnLogin.rawValue,
+        PhiPreferences.AISettings.enableProactiveSuggestionsOnNTP.rawValue,
+    ]
 
-    @discardableResult
-    static func disableAI(
+    static func disableBuiltInAI(
         defaults: UserDefaults = .standard
-    ) -> Bool {
-        let didChange = defaults.bool(
-            forKey: aiEnabledKey,
-            default: PhiPreferences.AISettings.phiAIEnabled.defaultValue
-        )
-
-        defaults.set(false, forKey: aiEnabledKey)
-        return didChange
+    ) {
+        for key in builtInAIKeys {
+            defaults.set(false, forKey: key)
+        }
     }
 }

@@ -138,13 +138,13 @@ extension LocalStore {
     /// untouched — the strip sorts by it first, so keeping the value keeps
     /// the Space's position; any tie with the new profile's existing values
     /// stays deterministic via the `getAllSpaces` tiebreaks.
-    /// The default space is excluded: its bookmark root is shared with the
-    /// legacy `profile.bookmarkRoot` (see `ensureDefaultSpace`), so migrating
-    /// it would mutate the old profile's root.
+    /// The default Space may be rebound. Its bookmark root is shared with the
+    /// outgoing profile's legacy `bookmarkRoot`, so that pointer is detached
+    /// first and only attached to the incoming profile when that profile has
+    /// no root of its own.
     func changeSpaceProfile(spaceId: String, toProfileId newProfileId: String) {
         performBackgroundWrite { context in
             do {
-                guard spaceId != Self.defaultSpaceId else { return }
                 let descriptor = FetchDescriptor<SpaceModel>(
                     predicate: #Predicate { $0.spaceId == spaceId }
                 )
@@ -153,6 +153,11 @@ extension LocalStore {
                 guard let newProfile = try self.profile(with: newProfileId,
                                                         in: context,
                                                         createIfNeeded: true) else { return }
+                let oldProfile = try self.profile(
+                    with: space.profileId,
+                    in: context,
+                    createIfNeeded: false
+                )
                 // Flat fetch by spaceId rather than a walk from
                 // `space.bookmarkRoot`: it also catches orphan roots left by
                 // the heal-on-read path in `bookmarkRoot(profileId:spaceId:)`,
@@ -169,6 +174,14 @@ extension LocalStore {
                     || (includesPinnedTabs && row.type == pinnedType) {
                     row.profileId = newProfileId
                     row.profile = newProfile
+                }
+                if spaceId == Self.defaultSpaceId,
+                   let oldProfile,
+                   oldProfile.bookmarkRoot?.guid == space.bookmarkRoot?.guid {
+                    oldProfile.bookmarkRoot = nil
+                }
+                if spaceId == Self.defaultSpaceId, newProfile.bookmarkRoot == nil {
+                    newProfile.bookmarkRoot = space.bookmarkRoot
                 }
                 space.profileId = newProfileId
                 space.updatedDate = Date()

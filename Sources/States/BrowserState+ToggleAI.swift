@@ -8,23 +8,15 @@ import Cocoa
 
 extension BrowserState {
     func onAIEnabledChanged(_ enabled: Bool, sentinelOnLogin: Bool) {
-        let effectiveEnabled = enabled && PhiBuildCapabilities.supportsAI
-        if effectiveEnabled {
-            ChromiumLauncher.sharedInstance().bridge?.enablePhiExtensions()
-        } else {
-            ChromiumLauncher.sharedInstance().bridge?.disablePhiExtensions(false)
+        _ = sentinelOnLogin
+        Task {
+            await SentinelHelper.unregister()
         }
-        if effectiveEnabled {
-            updateSentinelRegistration(sentinelOnLogin)
-        } else {
-            Task {
-                await SentinelHelper.unregister()
-            }
-
-            // Stop the watchdog BEFORE requesting termination so it does not
-            // resurrect the Sentinel we are intentionally shutting down.
-            MainActor.assumeIsolated { SentinelWatchdog.shared.stop() }
-            SentinelHelper.requestTerminationForBrowserUpdate()
+        // ZenMux is the only AI provider. Keep the legacy scheduled-agent
+        // process stopped regardless of the native chat toggle.
+        MainActor.assumeIsolated { SentinelWatchdog.shared.stop() }
+        SentinelHelper.requestTerminationForBrowserUpdate()
+        if !enabled {
             closeAllAIContent()
         }
     }
@@ -49,10 +41,9 @@ extension BrowserState {
     /// re-enter the Mac side with registry change events for a window that is
     /// not yet addressable.
     func syncPhiExtensionsIfAIDisabled() {
-        guard !PhiPreferences.AISettings.phiAIEnabled.loadValue() else { return }
-        DispatchQueue.main.async {
-            ChromiumLauncher.sharedInstance().bridge?.disablePhiExtensions(false)
-        }
+        // The ZenMux chat does not use the private AI extension. Do not toggle
+        // the framework's extension bundle here because non-AI browser
+        // features, including Reader View, have their own lifecycle in it.
     }
 
     /// Only called when AI is enabled.
@@ -74,6 +65,7 @@ extension BrowserState {
 
         let aiTabsSnapshot = aiChatTabs
         aiChatTabs.removeAll()
+        removeAllZenMuxChatSessions()
         for (_, aiTab) in aiTabsSnapshot {
             aiTab.webContentWrapper?.close()
         }

@@ -4988,10 +4988,6 @@ final class SpaceManager: ObservableObject {
     /// from `spaces`) and reopens the captured tabs. The user never leaves
     /// the Space. Tagged rows and URL rules stay with the Space.
     func changeProfile(spaceId: String, toProfileId newProfileId: String) {
-        guard spaceId != LocalStore.defaultSpaceId else {
-            AppLogWarn("[SpaceManager] refusing to change the default space's profile")
-            return
-        }
         // An agent Space is bound to the profile its task runs against;
         // re-profiling replaces its windows and would break the running agent.
         // Refuse regardless of ownership — even after the user takes control.
@@ -7424,11 +7420,6 @@ final class SpaceWindowSlot: ObservableObject {
             onActivationFailed?()
             return
         }
-        guard let bridge = ChromiumLauncher.sharedInstance().bridge else {
-            AppLogWarn("[SpaceWindowSlot] activate cannot spawn: bridge unavailable")
-            onActivationFailed?()
-            return
-        }
         // Settle any in-flight swap before spawning, exactly as the swap
         // path does inside its per-style animation functions. The vertical
         // push-in defers `makeKeyAndOrderFront(target)` to its completion;
@@ -7599,6 +7590,41 @@ final class SpaceWindowSlot: ObservableObject {
                 onSwapSettled: onSwapSettled
             )
             : nil
+        if ChromiumLauncher.sharedInstance().bridge == nil {
+            pendingSpawnSpaceIds.insert(spaceId)
+            let startCEFSpawn = { [weak self, weak previous] in
+                guard let self else {
+                    if let spawnSwitch {
+                        spawnSwitch.settle()
+                    } else {
+                        onActivationFailed?()
+                    }
+                    return
+                }
+                self.spawnCEFWindow(
+                    spaceId: spaceId,
+                    profileId: targetProfileId,
+                    isIncognito: isIncognitoSpace,
+                    inheritedFrame: inheritedFrame,
+                    previous: previous,
+                    spawnSwitch: spawnSwitch,
+                    spawnHidden: spawnHidden,
+                    onActivationFailed: onActivationFailed,
+                    onSwapSettled: onSwapSettled
+                )
+            }
+            if spawnSwitch != nil {
+                DispatchQueue.main.async(execute: startCEFSpawn)
+            } else {
+                startCEFSpawn()
+            }
+            return
+        }
+        guard let bridge = ChromiumLauncher.sharedInstance().bridge else {
+            AppLogWarn("[SpaceWindowSlot] activate cannot spawn: bridge unavailable")
+            onActivationFailed?()
+            return
+        }
         let spawn: () -> Void = { [weak self, weak previous, weak manager] in
             guard let self = self else {
                 if let spawnSwitch {
@@ -8058,6 +8084,61 @@ final class SpaceWindowSlot: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             self?.pendingSpawnSpaceIds.remove(spaceId)
         }
+    }
+
+    private func spawnCEFWindow(
+        spaceId: String,
+        profileId: String?,
+        isIncognito: Bool,
+        inheritedFrame: NSRect?,
+        previous: MainBrowserWindowController?,
+        spawnSwitch: SpawnSwitchAnimation?,
+        spawnHidden: Bool,
+        onActivationFailed: (() -> Void)?,
+        onSwapSettled: (() -> Void)?
+    ) {
+        let reopenURLs = manager?.consumePendingProfileChangeReopenURLs(
+            forSpaceId: spaceId,
+            profileId: profileId
+        ) ?? []
+        AppLogInfo(
+            "[SpaceWindowSlot] spawnCEF(\(spaceId)) on \(profileId ?? "Default"): " +
+            "replaying \(reopenURLs.count) captured tab(s)"
+        )
+        _ = MainActor.assumeIsolated {
+            CefBrowserRuntime.shared.spawnWindow(
+                in: self,
+                spaceId: spaceId,
+                profileId: profileId ?? LocalStore.defaultProfileId,
+                isIncognito: isIncognito,
+                initialURLs: reopenURLs,
+                inheritedFrame: inheritedFrame,
+                hidden: spawnHidden
+            )
+        }
+        guard let registered = windowsBySpaceId[spaceId] else {
+            AppLogWarn("[SpaceWindowSlot] spawnCEF(\(spaceId)): window did not register")
+            pendingSpawnSpaceIds.remove(spaceId)
+            if let spawnSwitch {
+                spawnSwitch.settle()
+            } else {
+                onActivationFailed?()
+            }
+            return
+        }
+        if let inheritedFrame {
+            registered.window?.setFrame(inheritedFrame, display: false)
+        }
+        if let spawnSwitch, spawnSwitch.spawnCompleted(registered) {
+            return
+        }
+        guard activeSpaceId == spaceId else {
+            onActivationFailed?()
+            return
+        }
+        makeKeyAndOrderFrontHidingSlotTabBar(registered.window)
+        orderOutIfNotTabbedWithTarget(previous?.window, targetWindow: registered.window)
+        onSwapSettled?()
     }
 
     /// Spawns an agent Space's Chromium window WITHOUT surfacing or activating

@@ -36,6 +36,7 @@ enum SearchTabsPresentation {
 
 @MainActor
 final class SearchTabsContainerViewController: NSViewController {
+    var onVisibilityChanged: ((Bool) -> Void)?
     private(set) var searchTabsController: SearchTabsViewController?
     private weak var parentView: EventBlockBgView?
     private weak var browserState: BrowserState?
@@ -64,6 +65,14 @@ final class SearchTabsContainerViewController: NSViewController {
         }
         superView?.mouseDown = { [weak self] event in
             self?.handleBackgroundMouseDown(event)
+        }
+        superView?.shouldPassThroughHitTest = { [weak self, weak superView] point in
+            guard let self, let superView, self.hasShown,
+                  let searchTabsView = self.searchTabsController?.view else { return false }
+            let pointInRoot = self.view.convert(point, from: superView)
+            guard !searchTabsView.frame.contains(pointInRoot) else { return false }
+            self.hideSearchTabs()
+            return true
         }
     }
 
@@ -99,6 +108,7 @@ final class SearchTabsContainerViewController: NSViewController {
             return
         }
         applyPresentation(presentation)
+        onVisibilityChanged?(true)
         hasShown = true
         searchTabsView.alphaValue = 1
         searchTabsController?.refresh()
@@ -123,6 +133,7 @@ final class SearchTabsContainerViewController: NSViewController {
         observedContainerSize = nil
         searchTabsController?.view.alphaValue = 0
         parentView?.removeFromSuperview()
+        onVisibilityChanged?(false)
     }
 
     fileprivate func handleBackgroundMouseDown(_ event: NSEvent) {

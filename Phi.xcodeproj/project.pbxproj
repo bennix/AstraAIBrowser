@@ -103,8 +103,6 @@
 		37C1B2862EE03C7300DD4496 /* DownloadsListViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37C1B2852EE03C7300DD4496 /* DownloadsListViewController.swift */; };
 		37C1B2882EE0418700DD4496 /* DownloadsManager+Test.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37C1B2872EE0418700DD4496 /* DownloadsManager+Test.swift */; };
 		37C1B28A2EE0457F00DD4496 /* LivingDownloadsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37C1B2892EE0457F00DD4496 /* LivingDownloadsListView.swift */; };
-		37C1B28B2EE0504100DD4496 /* Phi Framework.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CC6BFFD82E72B83500D4F133 /* Phi Framework.framework */; };
-		37C1B28C2EE0504100DD4496 /* Phi Framework.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CC6BFFD82E72B83500D4F133 /* Phi Framework.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		37C1B28F2EE1364D00DD4496 /* EnvironmentChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37C1B28E2EE1364D00DD4496 /* EnvironmentChecker.swift */; };
 		37C1B2A42EE162EE00DD4496 /* DownloadItemRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37C1B2A32EE162EE00DD4496 /* DownloadItemRow.swift */; };
 		37C1B2A62EE16B5700DD4496 /* ProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37C1B2A52EE16B5700DD4496 /* ProgressView.swift */; };
@@ -143,7 +141,6 @@
 		37EA23AC2F6C010C00D3C4A9 /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = B02BEB612E3B2D5900E5859A /* Dependencies */; };
 		37EA25EF2F6D5A5A00D3C4A9 /* CommonMessageRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37EA25EE2F6D5A5A00D3C4A9 /* CommonMessageRouter.swift */; };
 		37EECF222F0F623A0022A176 /* EmbeddedChatViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37EECF212F0F623A0022A176 /* EmbeddedChatViewController.swift */; };
-		37F574482F7A7C5D00879867 /* PhiIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 37F574472F7A7C5D00879867 /* PhiIcon.icon */; };
 		37FA01012FDA000100000001 /* LocalStoreCompatibilityManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37FA01112FDA000100000001 /* LocalStoreCompatibilityManifest.swift */; };
 		37FA01022FDA000100000002 /* LocalStoreBackupPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37FA01122FDA000100000002 /* LocalStoreBackupPolicy.swift */; };
 		37FA01032FDA000100000003 /* LocalStoreCompatibilityConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37FA01132FDA000100000003 /* LocalStoreCompatibilityConfiguration.swift */; };
@@ -483,6 +480,10 @@
 		CD11000B0000000000000001 /* Emoji/emoji-catalog.json in Resources */ = {isa = PBXBuildFile; fileRef = CD11000A0000000000000001 /* Emoji/emoji-catalog.json */; };
 		CD4F3A012E56000100FACC01 /* FloatingTrafficLightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD4F3A002E56000100FACC01 /* FloatingTrafficLightsView.swift */; };
 		CDA11ED500000000000000B1 /* phi-browser-skill in Resources */ = {isa = PBXBuildFile; fileRef = CDA11ED500000000000000A1 /* phi-browser-skill */; };
+		CEF000013080000000000001 /* CefBrowserRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEF000113080000000000001 /* CefBrowserRuntime.swift */; };
+		CEF000023080000000000002 /* CefWebContentWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEF000123080000000000002 /* CefWebContentWrapper.swift */; };
+		CEF000033080000000000003 /* WebCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEF000133080000000000003 /* WebCredentialStore.swift */; };
+		CEF000043080000000000004 /* WebCredentialPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEF000143080000000000004 /* WebCredentialPrompt.swift */; };
 		D10000000000000000000001 /* BrowserImagePreviewState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000011 /* BrowserImagePreviewState.swift */; };
 		D10000000000000000000002 /* ImagePreviewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000012 /* ImagePreviewModels.swift */; };
 		D10000000000000000000003 /* ImagePreviewGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000013 /* ImagePreviewGeometry.swift */; };
@@ -557,7 +558,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				37C1B28C2EE0504100DD4496 /* Phi Framework.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -968,7 +968,7 @@
 		B06B4D140000000000000004 /* BookmarkManagerCellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkManagerCellView.swift; sourceTree = "<group>"; };
 		B06B4D150000000000000005 /* BookmarkManagerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkManagerViewController.swift; sourceTree = "<group>"; };
 		B06B4D160000000000000006 /* BookmarkManagerRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkManagerRoute.swift; sourceTree = "<group>"; };
-		B0C469482E3B10E1007F0C7A /* Phi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Phi.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B0C469482E3B10E1007F0C7A /* Astra Browser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Astra Browser.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B0C4694D2E3B10E2007F0C7A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B0C469522E3B10E2007F0C7A /* PhiBrowser.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PhiBrowser.entitlements; sourceTree = "<group>"; };
 		B0C469572E3B10E2007F0C7A /* PhiBrowserTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PhiBrowserTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -1058,7 +1058,6 @@
 		CC6B000E2E77E04800D4F133 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		CC6B001A2E793EAC00D4F133 /* PinnedTabViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedTabViewController.swift; sourceTree = "<group>"; };
 		CC6B00312E7941C300D4F133 /* PinnedTabItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedTabItem.swift; sourceTree = "<group>"; };
-		CC6BFFD82E72B83500D4F133 /* Phi Framework.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = "Phi Framework.framework"; sourceTree = "<group>"; };
 		CC6BFFDC2E72C04000D4F133 /* FaviconDataProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaviconDataProvider.swift; sourceTree = "<group>"; };
 		CC71BAB82E9E2E74006C7238 /* EventBlockBgView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventBlockBgView.swift; sourceTree = "<group>"; };
 		CC71BABA2E9E40A9006C7238 /* OmniBoxSuggestionCellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OmniBoxSuggestionCellView.swift; sourceTree = "<group>"; };
@@ -1131,6 +1130,10 @@
 		CD4F3A002E56000100FACC01 /* FloatingTrafficLightsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingTrafficLightsView.swift; sourceTree = "<group>"; };
 		CDA11ED500000000000000A1 /* phi-browser-skill */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "phi-browser-skill"; path = "tools/phi-browser-skill"; sourceTree = SOURCE_ROOT; };
 		CE7E61A49E8A472DB330779E /* TabGroupCellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabGroupCellView.swift; sourceTree = "<group>"; };
+		CEF000113080000000000001 /* CefBrowserRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CefBrowserRuntime.swift; sourceTree = "<group>"; };
+		CEF000123080000000000002 /* CefWebContentWrapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CefWebContentWrapper.swift; sourceTree = "<group>"; };
+		CEF000133080000000000003 /* WebCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebCredentialStore.swift; sourceTree = "<group>"; };
+		CEF000143080000000000004 /* WebCredentialPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebCredentialPrompt.swift; sourceTree = "<group>"; };
 		D10000000000000000000011 /* BrowserImagePreviewState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserImagePreviewState.swift; sourceTree = "<group>"; };
 		D10000000000000000000012 /* ImagePreviewModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePreviewModels.swift; sourceTree = "<group>"; };
 		D10000000000000000000013 /* ImagePreviewGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePreviewGeometry.swift; sourceTree = "<group>"; };
@@ -1208,7 +1211,6 @@
 			files = (
 				37EA23AC2F6C010C00D3C4A9 /* Dependencies in Frameworks */,
 				37EA23AB2F6C010C00D3C4A9 /* Dependencies in Frameworks */,
-				37C1B28B2EE0504100DD4496 /* Phi Framework.framework in Frameworks */,
 				CC293E462E8A7BD4009FECA5 /* Dependencies in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1892,6 +1894,9 @@
 		B02586F92E42FDA9001B08FC /* ChromiumBridge */ = {
 			isa = PBXGroup;
 			children = (
+				CEF000113080000000000001 /* CefBrowserRuntime.swift */,
+				CEF000123080000000000002 /* CefWebContentWrapper.swift */,
+				CEF000133080000000000003 /* WebCredentialStore.swift */,
 				8E571D4F30131FEF00E3FBE7 /* SessionRestorePreference.swift */,
 				ACDC00000000000000000C01 /* AgentCDP */,
 				B00179592E49CF84007B4635 /* PhiChromiumCoordinator.swift */,
@@ -1905,7 +1910,6 @@
 		B0691CB22E3B639000934AEE /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				CC6BFFD82E72B83500D4F133 /* Phi Framework.framework */,
 				76E8F41378C97F983BCE6B33 /* OS X */,
 			);
 			path = Frameworks;
@@ -1942,7 +1946,7 @@
 		B0C469492E3B10E1007F0C7A /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				B0C469482E3B10E1007F0C7A /* Phi.app */,
+				B0C469482E3B10E1007F0C7A /* Astra Browser.app */,
 				54A200122FE1000000000012 /* PhiTimeMachineInstaller */,
 				A8F100162FF0000000000016 /* PhiUninstaller */,
 				B0C469572E3B10E2007F0C7A /* PhiBrowserTests.xctest */,
@@ -2392,6 +2396,7 @@
 				A71E00000000000000000001 /* PhiAlert.swift */,
 				A71E00000000000000000003 /* CredentialApprovalAlert.swift */,
 				A71E00000000000000000005 /* AgentAccessApprovalAlert.swift */,
+				CEF000143080000000000004 /* WebCredentialPrompt.swift */,
 				D12800000000000000000002 /* PhiSegmentedPicker.swift */,
 				C70000000000000000000020 /* Tooltip */,
 				C80000000000000000000020 /* TabPreview */,
@@ -2643,7 +2648,7 @@
 				CC293E452E8A7BD4009FECA5 /* Dependencies */,
 			);
 			productName = PhiBrowser;
-			productReference = B0C469482E3B10E1007F0C7A /* Phi.app */;
+			productReference = B0C469482E3B10E1007F0C7A /* Astra Browser.app */;
 			productType = "com.apple.product-type.application";
 		};
 		B0C469562E3B10E2007F0C7A /* PhiBrowserTests */ = {
@@ -2764,7 +2769,6 @@
 				F01D3A000000000000000001 /* bookmark-folder-open.svg in Resources */,
 				F01D3A000000000000000002 /* bookmark-folder-closed.svg in Resources */,
 				CDA11ED500000000000000B1 /* phi-browser-skill in Resources */,
-				37F574482F7A7C5D00879867 /* PhiIcon.icon in Resources */,
 				B0C4694E2E3B10E2007F0C7A /* Assets.xcassets in Resources */,
 				3765817B2EE963AD00D3E031 /* Localizable.xcstrings in Resources */,
 				37B977D52EF3F62F007E0568 /* login-dot-bg.mp4 in Resources */,
@@ -2933,6 +2937,10 @@
 				CC24EF082E89251D00CE9DD7 /* AuthManager.swift in Sources */,
 				8EC70E162F0BBF3D009FE2CD /* BookmarkItemView.swift in Sources */,
 				B001795A2E49CF84007B4635 /* PhiChromiumCoordinator.swift in Sources */,
+				CEF000013080000000000001 /* CefBrowserRuntime.swift in Sources */,
+				CEF000023080000000000002 /* CefWebContentWrapper.swift in Sources */,
+				CEF000033080000000000003 /* WebCredentialStore.swift in Sources */,
+				CEF000043080000000000004 /* WebCredentialPrompt.swift in Sources */,
 				ACDC00000000000000000B01 /* AgentCDPListener.swift in Sources */,
 				ACDC00000000000000000B02 /* AgentPeerIdentity.swift in Sources */,
 				ACDC00000000000000000B03 /* AgentDirectChannel.swift in Sources */,
@@ -3523,20 +3531,17 @@
 		8EFE14E32EF27FA900BD41C6 /* Debug-Canary */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIconCanary;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AstraIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "$(APP_ENTITLEMENTS)";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
-				DEVELOPMENT_TEAM = 87DQ3HMK5G;
+				CURRENT_PROJECT_VERSION = 12;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Frameworks",
-				);
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
 					"$(GPD_COMMON)",
@@ -3544,7 +3549,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				GPD_COMMON = "NIGHTLY_BUILD=$(NIGHTLY_BUILD)";
 				INFOPLIST_FILE = "PhiBrowser-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "$(PRODUCT_NAME)";
+				INFOPLIST_KEY_CFBundleDisplayName = "Astra Browser Canary";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Websites may use your bluetooth for features on their site.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Websites may use your camera for features on their site.";
@@ -3561,15 +3566,14 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Frameworks",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = debug;
 				NIGHTLY_BUILD = 1;
 				OTHER_CFLAGS = "-DDEBUG";
 				OTHER_SWIFT_FLAGS = "-DDEBUG -DNIGHTLY_BUILD";
+				PRODUCT_BUNDLE_IDENTIFIER = com.phibrowser.canary.Mac;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -3595,7 +3599,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Phi Canary.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Phi Canary";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Astra Browser Canary.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Astra Browser Canary";
 			};
 			name = "Debug-Canary";
 		};
@@ -3678,25 +3682,22 @@
 		8EFE14E82EF27FBD00BD41C6 /* Release-Canary */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIconCanary;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AstraIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "$(APP_ENTITLEMENTS)";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 87DQ3HMK5G;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Frameworks",
-				);
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GCC_PREPROCESSOR_DEFINITIONS = "$(GPD_COMMON)";
 				GENERATE_INFOPLIST_FILE = YES;
 				GPD_COMMON = "NIGHTLY_BUILD=$(NIGHTLY_BUILD)";
 				INFOPLIST_FILE = "PhiBrowser-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "$(PRODUCT_NAME)";
+				INFOPLIST_KEY_CFBundleDisplayName = "Astra Browser Canary";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Websites may use your bluetooth for features on their site.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Websites may use your camera for features on their site.";
@@ -3713,15 +3714,14 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Frameworks",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = debug;
 				NIGHTLY_BUILD = 1;
 				OTHER_CFLAGS = "";
 				OTHER_SWIFT_FLAGS = "";
+				PRODUCT_BUNDLE_IDENTIFIER = com.phibrowser.canary.Mac;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -3746,7 +3746,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Phi Canary.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Phi Canary";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Astra Browser Canary.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Astra Browser Canary";
 			};
 			name = "Release-Canary";
 		};
@@ -3994,20 +3994,17 @@
 		B0C4696C2E3B10E2007F0C7A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = PhiIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AstraIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "$(APP_ENTITLEMENTS)";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
-				DEVELOPMENT_TEAM = 87DQ3HMK5G;
+				CURRENT_PROJECT_VERSION = 12;
+				DEVELOPMENT_TEAM = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = YES;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Frameworks",
-				);
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
 					"$(GPD_COMMON)",
@@ -4015,7 +4012,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				GPD_COMMON = "NIGHTLY_BUILD=$(NIGHTLY_BUILD)";
 				INFOPLIST_FILE = "PhiBrowser-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "$(PRODUCT_NAME)";
+				INFOPLIST_KEY_CFBundleDisplayName = "Astra Browser";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Websites may use your bluetooth for features on their site.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Websites may use your camera for features on their site.";
@@ -4032,10 +4029,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Frameworks",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = debug;
 				NIGHTLY_BUILD = 0;
@@ -4054,25 +4048,22 @@
 		B0C4696D2E3B10E2007F0C7A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = PhiIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AstraIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "$(APP_ENTITLEMENTS)";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
-				DEVELOPMENT_TEAM = 87DQ3HMK5G;
+				CURRENT_PROJECT_VERSION = 12;
+				DEVELOPMENT_TEAM = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = YES;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Frameworks",
-				);
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GCC_PREPROCESSOR_DEFINITIONS = "$(GPD_COMMON)";
 				GENERATE_INFOPLIST_FILE = YES;
 				GPD_COMMON = "NIGHTLY_BUILD=$(NIGHTLY_BUILD)";
 				INFOPLIST_FILE = "PhiBrowser-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "$(PRODUCT_NAME)";
+				INFOPLIST_KEY_CFBundleDisplayName = "Astra Browser";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Websites may use your bluetooth for features on their site.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Websites may use your camera for features on their site.";
@@ -4089,12 +4080,9 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Frameworks",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = debug;
+				MARKETING_VERSION = 1.0;
 				NIGHTLY_BUILD = 0;
 				OTHER_CFLAGS = "";
 				OTHER_SWIFT_FLAGS = "";
@@ -4123,7 +4111,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Phi.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Phi";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Astra Browser.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Astra Browser";
 			};
 			name = Debug;
 		};
@@ -4143,7 +4131,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Phi.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Phi";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Astra Browser.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Astra Browser";
 			};
 			name = Release;
 		};
@@ -4251,7 +4239,7 @@
 		E10000000000000000000003 /* OpenSource */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = PhiIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AstraIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGNING_ALLOWED = NO;
@@ -4260,13 +4248,11 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 12;
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Frameworks",
-				);
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
 					"$(GPD_COMMON)",
@@ -4274,7 +4260,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				GPD_COMMON = "NIGHTLY_BUILD=$(NIGHTLY_BUILD)";
 				INFOPLIST_FILE = "PhiBrowser-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "$(PRODUCT_NAME)";
+				INFOPLIST_KEY_CFBundleDisplayName = "Astra Browser";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Websites may use your bluetooth for features on their site.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Websites may use your camera for features on their site.";
@@ -4291,10 +4277,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Frameworks",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = debug;
 				NIGHTLY_BUILD = 1;
@@ -4302,7 +4285,6 @@
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-Wl,-dead_strip_dylibs",
-					"-Wl,-needed_framework,Phi\\ Framework",
 				);
 				OTHER_SWIFT_FLAGS = "-DDEBUG -DNIGHTLY_BUILD";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -4332,7 +4314,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Phi.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Phi";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Astra Browser.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Astra Browser";
 			};
 			name = OpenSource;
 		};

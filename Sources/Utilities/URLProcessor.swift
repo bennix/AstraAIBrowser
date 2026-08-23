@@ -25,6 +25,14 @@ public struct URLProcessor {
         }
     }
 
+    /// Builds an explicit Google search URL without applying URL detection.
+    /// Used when the user selects Google mode in the new-tab unified input.
+    public static func googleSearchURL(for query: String) -> String {
+        var components = URLComponents(string: "https://www.google.com/search")!
+        components.queryItems = [URLQueryItem(name: "q", value: query)]
+        return components.url?.absoluteString ?? "https://www.google.com/search"
+    }
+
     /// Compares URLs for bookmark and pinned-tab origin navigation.
     /// HTTP(S) `www.` variants and an optional root slash are equivalent;
     /// scheme, port, non-root path, query, and fragment differences remain significant.

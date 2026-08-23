@@ -117,6 +117,15 @@ class OmniBoxTextField: NSView {
         self.appliedInlineCompletionText = nil
         self.stringValue = text
     }
+
+    func updatePlaceholder(_ text: String) {
+        let placeholder = NSMutableAttributedString(string: text)
+        placeholder.addAttributes([
+            .foregroundColor: NSColor.placeholderTextColor,
+            .font: NSFont.systemFont(ofSize: 16)
+        ], range: NSRange(location: 0, length: placeholder.length))
+        textFiled.placeholderAttributedString = placeholder
+    }
     
     func selectAll() {
         if let fieldEditor = window?.fieldEditor(true, for: self) {

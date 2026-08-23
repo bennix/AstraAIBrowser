@@ -173,7 +173,7 @@ struct AgentAccessApprovalAlert: View {
 
     private var title: String {
         String(
-            format: NSLocalizedString("agentControl.connectionApproval.title", value: "“%@” wants to control Phi Browser",
+            format: NSLocalizedString("agentControl.connectionApproval.title", value: "“%@” wants to control Astra Browser",
                                       comment: "CDP consent - title"),
             agentName)
     }
@@ -239,7 +239,7 @@ struct AgentAccessApprovalAlert: View {
             color: Color(nsColor: .systemOrange),
             headline: NSLocalizedString("agentControl.connectionApproval.control.headline", value: "Full control of this browser",
                                         comment: "CDP consent - headline naming what agent access grants"),
-            detail: NSLocalizedString("agentControl.connectionApproval.message", value: "An agent is asking to drive Phi Browser over the DevTools Protocol — opening pages, reading content, and acting on your behalf. Only allow agents you trust.",
+            detail: NSLocalizedString("agentControl.connectionApproval.message", value: "An agent is asking to drive Astra Browser over the DevTools Protocol — opening pages, reading content, and acting on your behalf. Only allow agents you trust.",
                                       comment: "CDP consent - body"))
     }
 
@@ -249,7 +249,7 @@ struct AgentAccessApprovalAlert: View {
             color: Color(nsColor: .systemBlue),
             headline: NSLocalizedString("agentControl.connectionApproval.enablesFeature.headline", value: "Agent control is currently off",
                                         comment: "CDP consent - headline shown when allowing will also enable the feature"),
-            detail: NSLocalizedString("agentControl.connectionApproval.enablesFeatureNote", value: "Allowing also turns on Developer mode and “Allow agents to control Phi (CDP)” in Settings; you can switch them back off there at any time.",
+            detail: NSLocalizedString("agentControl.connectionApproval.enablesFeatureNote", value: "Allowing also turns on Developer mode and “Allow agents to control Astra Browser (CDP)” in Settings; you can switch them back off there at any time.",
                                       comment: "CDP consent - body of the banner shown when allowing will also enable the developer mode and agent control settings"))
     }
 
@@ -346,7 +346,7 @@ struct AgentAccessApprovalAlert: View {
 
     private var denySection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(NSLocalizedString("agentControl.connectionApproval.denyScope.label", value: "How long should Phi refuse?",
+            Text(NSLocalizedString("agentControl.connectionApproval.denyScope.label", value: "How long should Astra Browser refuse?",
                                    comment: "CDP consent - label over the picker that scopes the refusal, shown after the user presses Deny"))
                 .font(.system(size: 12))
                 .themedForeground(.textSecondary)

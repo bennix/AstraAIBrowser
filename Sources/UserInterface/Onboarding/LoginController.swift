@@ -160,7 +160,7 @@ class LoginController {
     func showLoginWindow() {
         guard PhiBuildCapabilities.supportsAuthentication else {
             ApplicationState.shared.enterGuestMode()
-            GuestModePreferences.disableAI()
+            GuestModePreferences.disableBuiltInAI()
             return
         }
 
@@ -205,15 +205,10 @@ class LoginController {
 
     @MainActor
     func showLoginWindowToEnableAI() {
-        guard PhiBuildCapabilities.supportsAI else {
-            GuestModePreferences.disableAI()
-            return
-        }
-        if ApplicationState.shared.isGuest {
-            guestModeExitAnalyticsContext.request(.aiSetting)
-        }
-        postLoginAIEnableIntent.request()
-        showLoginWindow()
+        UserDefaults.standard.set(
+            true,
+            forKey: PhiPreferences.AISettings.phiAIEnabled.rawValue
+        )
     }
 
     @MainActor
@@ -364,7 +359,7 @@ class LoginController {
         AccountController.shared.account = nil
         pendingAuthenticatedAccount = nil
         ApplicationState.shared.cancelGuestAccountPromotion()
-        GuestModePreferences.disableAI()
+        GuestModePreferences.disableBuiltInAI()
         ApplicationState.shared.enterGuestMode()
         if let metricsReportingPreference {
             if let bridge = ChromiumLauncher.sharedInstance().bridge {
@@ -1012,7 +1007,7 @@ class LoginController {
         )
         alert.informativeText = NSLocalizedString(
             "oobe.guestMigration.failure.message",
-            value: "Phi couldn’t move your Guest data. Your data is safe, and you can try again.",
+            value: "Astra Browser couldn’t move your Guest data. Your data is safe, and you can try again.",
             comment: "Guest migration - Alert message explaining that Guest data remains safe and migration can be retried"
         )
         alert.alertStyle = .warning
@@ -1041,7 +1036,7 @@ class LoginController {
         )
         alert.informativeText = NSLocalizedString(
             "oobe.guestMode.credentialClearFailure.message",
-            value: "Phi couldn’t securely clear the previous session. Try again before continuing as Guest.",
+            value: "Astra Browser couldn’t securely clear the previous session. Try again before continuing as Guest.",
             comment: "Guest mode - Alert message asking the user to retry after credential cleanup failed"
         )
         alert.alertStyle = .warning
@@ -1063,7 +1058,7 @@ class LoginController {
         )
         alert.informativeText = NSLocalizedString(
             "oobe.guestMigration.targetRecovery.message",
-            value: "Some data has already been moved to this account. Phi must retry with the same account before Guest data can be used again.",
+            value: "Some data has already been moved to this account. Astra Browser must retry with the same account before Guest data can be used again.",
             comment: "Guest migration - Alert message explaining why the same account migration must be retried"
         )
         alert.alertStyle = .warning
@@ -1090,7 +1085,7 @@ class LoginController {
         )
         alert.informativeText = NSLocalizedString(
             "oobe.guestMigration.cleanupDeferred.message",
-            value: "Your account is ready and your data is safe. Phi will try to remove the old Guest data again the next time it starts.",
+            value: "Your account is ready and your data is safe. Astra Browser will try to remove the old Guest data again the next time it starts.",
             comment: "Guest migration - Alert message for deferred deletion of the old Guest data directory"
         )
         alert.alertStyle = .warning

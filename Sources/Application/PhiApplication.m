@@ -9,6 +9,9 @@
 #import <Cocoa/Cocoa.h>
 @interface PhiApplication ()
 @property(nonatomic, assign) BOOL handlingSendEvent;
+@property(nonatomic, assign) BOOL terminationStarted;
+@property(nonatomic, assign) BOOL terminationRetryScheduled;
+@property(nonatomic, assign) BOOL terminationRetryReady;
 @end
 
 #define DEBUG_EVENT 0
@@ -52,16 +55,38 @@
 }
 
 - (void)terminate:(id)sender {
-    if ([[ChromiumLauncher sharedInstance].bridge respondsToSelector:@selector(tryToTerminateApplication:)]) {
-        [[ChromiumLauncher sharedInstance].bridge tryToTerminateApplication:self];
+    if (!self.terminationStarted) {
+        self.terminationStarted = YES;
+        [super terminate:sender];
+        return;
     }
-   
+
+    // CefRuntime requests termination again from CEF's on_before_close
+    // callback after the final browser leaves its registry. Let the current
+    // message-pump turn finish before cef_shutdown(); Chrome-style windows
+    // still own CEF Views objects until that callback has unwound.
+    if (!self.terminationRetryReady) {
+        if (self.terminationRetryScheduled) {
+            return;
+        }
+        self.terminationRetryScheduled = YES;
+        __weak PhiApplication *weakSelf = self;
+        dispatch_async(dispatch_get_main_queue(), ^{
+          PhiApplication *strongSelf = weakSelf;
+          if (strongSelf == nil) {
+              return;
+          }
+          strongSelf.terminationRetryReady = YES;
+          [strongSelf terminate:sender];
+        });
+        return;
+    }
+
+    [super terminate:sender];
 }
 
 - (void)cancelTerminate:(id)sender {
-    if ( [[ChromiumLauncher sharedInstance].bridge respondsToSelector:@selector(stopTryingToTerminateApplication:)]) {
-        [[ChromiumLauncher sharedInstance].bridge stopTryingToTerminateApplication:self];
-    }
+    (void)sender;
 }
 
 - (NSString *)descriptionForNSEvent:(NSEvent *)event {

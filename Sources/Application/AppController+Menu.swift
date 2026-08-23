@@ -318,6 +318,8 @@ extension AppController {
             return
         }
 
+        ensureNativeMainMenuBaselineIfNeeded(in: mainMenu)
+
         var hasBookmarksMenu = false
         for menuItem in mainMenu.items {
             let menuRole = ChromiumMainMenuRole.resolve(menuItem, helpMenu: NSApp.helpMenu)
@@ -468,7 +470,7 @@ extension AppController {
 
                 for (index, item) in subMenu.items.enumerated() {
                     if item.tag == CommandWrapper.IDC_OPTIONS.rawValue {
-                        let checkForUpdateItem = NSMenuItem(title: NSLocalizedString("app.phiMenu.checkForUpdatesMenuItem", value: "Check for Update...", comment: "Phi menu - Menu item to check for app updates"),
+                        let checkForUpdateItem = NSMenuItem(title: NSLocalizedString("app.phiMenu.checkForUpdatesMenuItem", value: "Check for Update...", comment: "Astra Browser menu - Menu item to check for app updates"),
                                                            action: #selector(checkForUpdate(_:)),
                                                            keyEquivalent: "")
                         checkForUpdateItem.tag = AppController.checkForUpdateItemTag
@@ -560,7 +562,7 @@ extension AppController {
                 extensionInfoItem.isHidden = true
                 extensionInfoItem.target = self
 
-                let exportLogsItem = NSMenuItem(title: NSLocalizedString("app.helpMenu.exportLogs", value: "Export Logs...", comment: "Help menu - Menu item to export Phi and Sentinel logs as a zip archive; visible only when holding Option key"),
+                let exportLogsItem = NSMenuItem(title: NSLocalizedString("app.helpMenu.exportLogs", value: "Export Logs...", comment: "Help menu - Menu item to export Astra Browser and Sentinel logs as a zip archive; visible only when holding Option key"),
                                                 action: #selector(exportLogs(_:)),
                                                 keyEquivalent: "")
                 exportLogsItem.tag = AppController.exportLogsItemTag
@@ -591,7 +593,7 @@ extension AppController {
                 let improveTranslationsItem = NSMenuItem(
                     title: NSLocalizedString(
                         "app.helpMenu.improveTranslations",
-                        value: "Improve Translations for Phi Browser",
+                        value: "Improve Translations for Astra Browser",
                         comment: "Help menu - Menu item below What's New that opens Phi's translation contribution website"
                     ),
                     action: #selector(showImproveTranslations(_:)),
@@ -613,18 +615,18 @@ extension AppController {
 
                 subMenu.addItem(makeTimeMachineBackupsMenuItem())
 
-                let manageUserDataTitle = NSLocalizedString("app.helpMenu.manageUserData", value: "Manage User Data", comment: "Help menu - Parent menu item for exporting and importing Phi user data backup")
+                let manageUserDataTitle = NSLocalizedString("app.helpMenu.manageUserData", value: "Manage User Data", comment: "Help menu - Parent menu item for exporting and importing Astra Browser user data backup")
                 let manageUserDataItem = NSMenuItem(title: manageUserDataTitle, action: nil, keyEquivalent: "")
                 manageUserDataItem.tag = AppController.manageUserDataParentItemTag
                 let userDataSubmenu = NSMenu(title: manageUserDataTitle)
                 let exportUserDataItem = NSMenuItem(
-                    title: NSLocalizedString("app.helpMenu.exportUserData", value: "Export User Data...", comment: "Help menu - Submenu item to save Phi user data folder as a zip backup"),
+                    title: NSLocalizedString("app.helpMenu.exportUserData", value: "Export User Data...", comment: "Help menu - Submenu item to save Astra Browser user data folder as a zip backup"),
                     action: #selector(exportUserData(_:)),
                     keyEquivalent: ""
                 )
                 exportUserDataItem.target = self
                 let importUserDataItem = NSMenuItem(
-                    title: NSLocalizedString("app.helpMenu.importUserData", value: "Import User Data...", comment: "Help menu - Submenu item to replace Phi user data from a zip backup and relaunch the app"),
+                    title: NSLocalizedString("app.helpMenu.importUserData", value: "Import User Data...", comment: "Help menu - Submenu item to replace Astra Browser user data from a zip backup and relaunch the app"),
                     action: #selector(importUserDataFromBackup(_:)),
                     keyEquivalent: ""
                 )
@@ -637,7 +639,7 @@ extension AppController {
                 let uninstallItem = NSMenuItem(
                     title: NSLocalizedString(
                         "app.helpMenu.uninstallPhi",
-                        value: "Uninstall Phi...",
+                        value: "Uninstall Astra Browser...",
                         comment: "Help menu - Menu item below Manage User Data that opens the critical confirmation for uninstalling Phi and its local data"
                     ),
                     action: #selector(uninstallPhi(_:)),
@@ -667,6 +669,192 @@ extension AppController {
             }
             #endif // DEBUG || NIGHTLY_BUILD
         }
+    }
+
+    /// CefSwift's Chrome runtime does not currently install Chromium's native
+    /// macOS menu hierarchy. Keep the existing Chromium-provided menu when it
+    /// is available, and provide the standard AppKit baseline only when the
+    /// core File/Edit/View roles are all absent.
+    private func ensureNativeMainMenuBaselineIfNeeded(in mainMenu: NSMenu) {
+        let hasChromiumBaseline = ChromiumMainMenuRole.file.item(in: mainMenu) != nil
+            || ChromiumMainMenuRole.edit.item(in: mainMenu) != nil
+            || ChromiumMainMenuRole.view.item(in: mainMenu) != nil
+        guard !hasChromiumBaseline else { return }
+
+        let appItem = ChromiumMainMenuRole.app.item(in: mainMenu) ?? mainMenu.items.first
+        if let appItem {
+            appItem.tag = ChromiumMainMenuRole.app.rawValue
+            appItem.title = Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
+                ?? "Astra Browser"
+            let appMenu = appItem.submenu ?? NSMenu(title: appItem.title)
+            if appMenu.items.isEmpty {
+                let about = NSMenuItem(
+                    title: String(format: NSLocalizedString("About %@", comment: "Application menu - About"), appItem.title),
+                    action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
+                    keyEquivalent: ""
+                )
+                about.target = NSApp
+                appMenu.addItem(about)
+
+                let settings = NSMenuItem(
+                    title: NSLocalizedString("Settings…", comment: "Application menu - Settings"),
+                    action: #selector(showPreferences(_:)),
+                    keyEquivalent: ","
+                )
+                settings.target = self
+                appMenu.addItem(settings)
+                appMenu.addItem(.separator())
+
+                let services = NSMenuItem(
+                    title: NSLocalizedString("Services", comment: "Application menu - Services"),
+                    action: nil,
+                    keyEquivalent: ""
+                )
+                let servicesMenu = NSMenu(title: services.title)
+                services.submenu = servicesMenu
+                NSApp.servicesMenu = servicesMenu
+                appMenu.addItem(services)
+                appMenu.addItem(.separator())
+
+                let hide = NSMenuItem(
+                    title: String(format: NSLocalizedString("Hide %@", comment: "Application menu - Hide"), appItem.title),
+                    action: #selector(NSApplication.hide(_:)),
+                    keyEquivalent: "h"
+                )
+                hide.target = NSApp
+                appMenu.addItem(hide)
+
+                let hideOthers = NSMenuItem(
+                    title: NSLocalizedString("Hide Others", comment: "Application menu - Hide Others"),
+                    action: #selector(NSApplication.hideOtherApplications(_:)),
+                    keyEquivalent: "h"
+                )
+                hideOthers.keyEquivalentModifierMask = [.command, .option]
+                hideOthers.target = NSApp
+                appMenu.addItem(hideOthers)
+
+                let showAll = NSMenuItem(
+                    title: NSLocalizedString("Show All", comment: "Application menu - Show All"),
+                    action: #selector(NSApplication.unhideAllApplications(_:)),
+                    keyEquivalent: ""
+                )
+                showAll.target = NSApp
+                appMenu.addItem(showAll)
+                appMenu.addItem(.separator())
+
+                let quit = NSMenuItem(
+                    title: String(format: NSLocalizedString("Quit %@", comment: "Application menu - Quit"), appItem.title),
+                    action: #selector(NSApplication.terminate(_:)),
+                    keyEquivalent: "q"
+                )
+                quit.target = NSApp
+                appMenu.addItem(quit)
+            }
+            appItem.submenu = appMenu
+        }
+
+        let fileMenu = makeFallbackMenu(title: NSLocalizedString("File", comment: "Main menu - File"), role: .file)
+        addChromiumCommand(
+            to: fileMenu,
+            title: NSLocalizedString("New Tab", comment: "File menu - New Tab"),
+            tag: CommandWrapper.IDC_NEW_TAB.rawValue,
+            keyEquivalent: "t"
+        )
+        addChromiumCommand(
+            to: fileMenu,
+            title: NSLocalizedString("New Window", comment: "File menu - New Window"),
+            tag: CommandWrapper.IDC_NEW_WINDOW.rawValue,
+            keyEquivalent: "n"
+        )
+        addChromiumCommand(
+            to: fileMenu,
+            title: NSLocalizedString("New Incognito Window", comment: "File menu - New Incognito Window"),
+            tag: CommandWrapper.IDC_NEW_INCOGNITO_WINDOW.rawValue,
+            keyEquivalent: "n",
+            modifiers: [.command, .shift]
+        )
+        fileMenu.addItem(.separator())
+        addChromiumCommand(
+            to: fileMenu,
+            title: NSLocalizedString("Close Window", comment: "File menu - Close Window"),
+            tag: CommandWrapper.IDC_CLOSE_WINDOW.rawValue,
+            keyEquivalent: "w",
+            modifiers: [.command, .shift]
+        )
+
+        let editMenu = makeFallbackMenu(title: NSLocalizedString("Edit", comment: "Main menu - Edit"), role: .edit)
+        addResponderCommand(to: editMenu, title: NSLocalizedString("Undo", comment: "Edit menu - Undo"), action: Selector(("undo:")), keyEquivalent: "z")
+        addResponderCommand(to: editMenu, title: NSLocalizedString("Redo", comment: "Edit menu - Redo"), action: Selector(("redo:")), keyEquivalent: "z", modifiers: [.command, .shift])
+        editMenu.addItem(.separator())
+        addResponderCommand(to: editMenu, title: NSLocalizedString("Cut", comment: "Edit menu - Cut"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        addResponderCommand(to: editMenu, title: NSLocalizedString("Copy", comment: "Edit menu - Copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        addResponderCommand(to: editMenu, title: NSLocalizedString("Paste", comment: "Edit menu - Paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        addResponderCommand(to: editMenu, title: NSLocalizedString("Select All", comment: "Edit menu - Select All"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+
+        let viewMenu = makeFallbackMenu(title: NSLocalizedString("View", comment: "Main menu - View"), role: .view)
+        addChromiumCommand(
+            to: viewMenu,
+            title: NSLocalizedString("Reload", comment: "View menu - Reload"),
+            tag: CommandWrapper.IDC_RELOAD.rawValue,
+            keyEquivalent: "r"
+        )
+
+        let windowMenu = makeFallbackMenu(title: NSLocalizedString("Window", comment: "Main menu - Window"), role: .window)
+        addResponderCommand(to: windowMenu, title: NSLocalizedString("Minimize", comment: "Window menu - Minimize"), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        addResponderCommand(to: windowMenu, title: NSLocalizedString("Zoom", comment: "Window menu - Zoom"), action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        NSApp.windowsMenu = windowMenu
+
+        let helpMenu = makeFallbackMenu(title: NSLocalizedString("Help", comment: "Main menu - Help"), role: .help)
+        NSApp.helpMenu = helpMenu
+
+        let firstCustomIndex = mainMenu.items.firstIndex { item in
+            item.tag == AppController.bookmarksMenuItemTag
+                || item.tag == AppController.spacesMenuItemTag
+        } ?? mainMenu.items.count
+        for (offset, menu) in [fileMenu, editMenu, viewMenu, windowMenu, helpMenu].enumerated() {
+            let item = NSMenuItem(title: menu.title, action: nil, keyEquivalent: "")
+            item.tag = [
+                ChromiumMainMenuRole.file,
+                .edit,
+                .view,
+                .window,
+                .help,
+            ][offset].rawValue
+            item.submenu = menu
+            mainMenu.insertItem(item, at: min(firstCustomIndex + offset, mainMenu.items.count))
+        }
+    }
+
+    private func makeFallbackMenu(title: String, role: ChromiumMainMenuRole) -> NSMenu {
+        let menu = NSMenu(title: title)
+        menu.identifier = NSUserInterfaceItemIdentifier("astra.fallback.\(role.rawValue)")
+        return menu
+    }
+
+    private func addChromiumCommand(
+        to menu: NSMenu,
+        title: String,
+        tag: Int,
+        keyEquivalent: String,
+        modifiers: NSEvent.ModifierFlags = [.command]
+    ) {
+        let item = NSMenuItem(title: title, action: #selector(commandDispatch(_:)), keyEquivalent: keyEquivalent)
+        item.tag = tag
+        item.target = self
+        item.keyEquivalentModifierMask = modifiers
+        menu.addItem(item)
+    }
+
+    private func addResponderCommand(
+        to menu: NSMenu,
+        title: String,
+        action: Selector,
+        keyEquivalent: String,
+        modifiers: NSEvent.ModifierFlags = [.command]
+    ) {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
+        item.keyEquivalentModifierMask = modifiers
+        menu.addItem(item)
     }
 
     fileprivate func rebuildDeleteProfileSubmenu(_ menu: NSMenu) {
@@ -777,7 +965,7 @@ extension AppController {
     }
 
     private func makeTimeMachineBackupsMenuItem() -> NSMenuItem {
-        let title = NSLocalizedString("app.helpMenu.timeMachineBackups", value: "Time Machine Backups", comment: "Help menu - Parent menu item listing completed Phi Time Machine backups")
+        let title = NSLocalizedString("app.helpMenu.timeMachineBackups", value: "Time Machine Backups", comment: "Help menu - Parent menu item listing completed Astra Browser Time Machine backups")
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.tag = AppController.timeMachineBackupsParentItemTag
 
@@ -929,28 +1117,12 @@ extension AppController {
 
     /// Starts a new AI conversation in the focused tab's sidebar.
     ///
-    /// The actual "new conversation" logic lives inside the Sidecar extension
-    /// (React), so we can't run it natively. Instead we broadcast a message the
-    /// extension listens for. Validation (`validateUserInterfaceItem`) already
-    /// guarantees focus is inside the AI sidebar when this fires, so the sidebar
-    /// is open and visible — no need to open it here.
-    ///
-    /// Each browser tab has its own AI sidebar WebContents (one Sidecar instance
-    /// per tab), and they all share the same `windowId`. So we carry the focused
-    /// tab's `tabId` (its Chromium `guid`, the same value embedded as `?tabId=`
-    /// when the sidebar is created) to let exactly that tab's Sidecar respond.
+    /// The conversation is native and window-scoped; no extension message or
+    /// built-in model fallback participates in this action.
     @MainActor
     @objc func newConversation(_ sender: Any?) {
-        guard let windowController = MainBrowserWindowControllersManager.shared.activeWindowController,
-              let tabId = windowController.browserState.focusingTab?.guid else {
-            return
-        }
-        let payload: [String: Any] = ["tabId": tabId]
-        guard let data = try? JSONSerialization.data(withJSONObject: payload),
-              let json = String(data: data, encoding: .utf8) else {
-            return
-        }
-        ExtensionMessaging.shared.broadcast(type: "newConversation", payload: json)
+        MainBrowserWindowControllersManager.shared.activeWindowController?
+            .browserState.startNewZenMuxConversation()
     }
 
     @objc func toggleBookmarkBar(_ sender: Any?) {
@@ -1143,7 +1315,7 @@ extension AppController {
             let backupTitle = backup.menuTitle()
             let alert = NSAlert()
             alert.messageText = NSLocalizedString("app.timeMachineRestore.confirmation.title", value: "Restore Time Machine Backup?", comment: "Help menu - Time Machine restore confirmation title")
-            let messageTemplate = NSLocalizedString("app.timeMachineRestore.confirmation.message", value: "Phi will quit and restore %@. The current app and selected user data will be replaced.",
+            let messageTemplate = NSLocalizedString("app.timeMachineRestore.confirmation.message", value: "Astra Browser will quit and restore %@. The current app and selected user data will be replaced.",
                 comment: "Help menu - Time Machine restore confirmation body"
             )
             alert.informativeText = String(format: messageTemplate, backupTitle)
@@ -1182,7 +1354,7 @@ extension AppController {
             case .some(.success):
                 NSApp.terminate(nil)
             case .some(.failure(let error)):
-                let messageTemplate = NSLocalizedString("app.timeMachineRestore.launchFailureMessage", value: "Phi could not start Time Machine restore: %@",
+                let messageTemplate = NSLocalizedString("app.timeMachineRestore.launchFailureMessage", value: "Astra Browser could not start Time Machine restore: %@",
                     comment: "Help menu - Time Machine restore launch failure body"
                 )
                 presentTimeMachineRestoreFailure(String(format: messageTemplate, error.localizedDescription))
@@ -1190,7 +1362,7 @@ extension AppController {
                 break
             }
         } catch {
-            let messageTemplate = NSLocalizedString("app.timeMachineRestore.catalogReadFailureMessage", value: "Phi could not read Time Machine backups: %@",
+            let messageTemplate = NSLocalizedString("app.timeMachineRestore.catalogReadFailureMessage", value: "Astra Browser could not read Time Machine backups: %@",
                 comment: "Help menu - Time Machine restore catalog read failure body"
             )
             presentTimeMachineRestoreFailure(String(format: messageTemplate, error.localizedDescription))
@@ -1217,7 +1389,7 @@ extension AppController {
         guard hasPhi || hasSentinel else {
             let alert = NSAlert()
             alert.messageText = NSLocalizedString("app.logExport.noLogsFound.title", value: "Export Logs", comment: "Help menu - Log export alert title when no log folders exist")
-            alert.informativeText = NSLocalizedString("app.logExport.noLogsFound.message", value: "No Phi or Sentinel log folders were found.", comment: "Help menu - Log export alert when both PhiLogs and Sentinel log directory are missing")
+            alert.informativeText = NSLocalizedString("app.logExport.noLogsFound.message", value: "No Astra Browser or Sentinel log folders were found.", comment: "Help menu - Log export alert when both PhiLogs and Sentinel log directory are missing")
             alert.alertStyle = .informational
             alert.addButton(withTitle: NSLocalizedString("app.logExport.noLogsFound.dismissButton", value: "OK", comment: "Log export - No-log-folders alert dismiss button"))
             alert.runModal()
@@ -1930,7 +2102,6 @@ extension AppController {
         guard let menuItem = sender as? NSMenuItem,
               let profileId = menuItem.representedObject as? String,
               let space = currentActiveSpace(),
-              space.spaceId != LocalStore.defaultSpaceId,
               space.profileId != profileId,
               let profile = ProfileManager.shared.profile(for: profileId) else { return }
         // Changing the profile closes and respawns the Space's window (a
@@ -2093,7 +2264,7 @@ extension AppController {
     // MARK: - Chromium Menu Actions
 
     @objc func orderFrontStandardAboutPanel(_ sender: Any?) {
-        if let existingWindow = NSApp.windows.first(where: { $0.identifier?.rawValue ?? "" == "About Phi Browser" }) {
+        if let existingWindow = NSApp.windows.first(where: { $0.identifier?.rawValue ?? "" == "About Astra Browser" }) {
             existingWindow.makeKeyAndOrderFront(nil)
             return
         }
@@ -2107,7 +2278,7 @@ extension AppController {
             backing: .buffered,
             defer: false
         )
-        window.identifier = NSUserInterfaceItemIdentifier("About Phi Browser")
+        window.identifier = NSUserInterfaceItemIdentifier("About Astra Browser")
 
         window.contentViewController = hostingController
         window.setContentSize(NSSize(width: 290, height: 180))
@@ -2373,10 +2544,7 @@ extension AppController {
                 return space.spaceId != LocalStore.defaultSpaceId
             }
             if action == #selector(selectSpaceProfile(_:)) {
-                // The default space's profile can't change — its bookmark
-                // root is shared with the legacy per-profile root.
-                guard let space = currentActiveSpace(),
-                      space.spaceId != LocalStore.defaultSpaceId else { return false }
+                guard let space = currentActiveSpace() else { return false }
                 if let menuItem = item as? NSMenuItem {
                     let representedId = menuItem.representedObject as? String
                     menuItem.state = (representedId == space.profileId) ? .on : .off
@@ -2664,7 +2832,7 @@ private final class TimeMachineRestoreProgressModal {
         case .launchingInstaller:
             return NSLocalizedString("app.timeMachineRestore.progress.startingRestore", value: "Starting restore...", comment: "Time Machine restore progress stage")
         case .readyToQuit:
-            return NSLocalizedString("app.timeMachineRestore.progress.restartingPhi", value: "Restarting Phi...", comment: "Time Machine restore progress stage")
+            return NSLocalizedString("app.timeMachineRestore.progress.restartingPhi", value: "Restarting Astra Browser...", comment: "Time Machine restore progress stage")
         }
     }
 }

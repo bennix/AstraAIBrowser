@@ -55,6 +55,12 @@ extension AuthManager {
         promptIfDue: Bool,
         trigger: String
     ) {
+        guard PhiBuildCapabilities.supportsAuthentication else {
+            reauthenticationState = .normal
+            clearPersistedReauthenticationState()
+            return
+        }
+
         guard reauthenticationState.requiredDetails == nil else {
             return
         }
@@ -79,6 +85,12 @@ extension AuthManager {
 
     @MainActor
     func enterReauthenticationRequiredState(reason: AuthReauthenticationReason) {
+        guard PhiBuildCapabilities.supportsAuthentication else {
+            reauthenticationState = .normal
+            clearPersistedReauthenticationState()
+            return
+        }
+
         let now = Date()
         hydrateAccountForReauthenticationIfNeeded()
         restorePersistedReauthenticationStateIfNeeded(
@@ -114,6 +126,12 @@ extension AuthManager {
 
     @MainActor
     func promptForReauthenticationIfNeeded(trigger: String) {
+        guard PhiBuildCapabilities.supportsAuthentication else {
+            reauthenticationState = .normal
+            clearPersistedReauthenticationState()
+            return
+        }
+
         guard !isPresentingReauthenticationPrompt,
               let details = reauthenticationState.requiredDetails else {
             return
@@ -151,6 +169,12 @@ extension AuthManager {
 
     @MainActor
     func reauthenticateExpiredSession() async -> Bool {
+        guard PhiBuildCapabilities.supportsAuthentication else {
+            reauthenticationState = .normal
+            clearPersistedReauthenticationState()
+            return true
+        }
+
         if case .reauthenticating = reauthenticationState {
             return false
         }

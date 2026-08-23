@@ -53,6 +53,9 @@ enum UserDefaultsRegistration {
         for setting in PhiPreferences.AISettings.allCases {
             defaults[setting.rawValue] = setting.defaultValue
         }
+        defaults[PhiPreferences.AISettings.zenMuxModelKey] = ZenMuxModel.geminiFlash.rawValue
+        defaults[PhiPreferences.AISettings.zenMuxInputLanguageKey] = ZenMuxInputLanguage.automatic.rawValue
+        defaults[PhiPreferences.AISettings.zenMuxResponseLanguageKey] = ZenMuxResponseLanguage.matchInput.rawValue
         return defaults
     }
     

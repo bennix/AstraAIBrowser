@@ -91,6 +91,34 @@ final class LocalStoreDefaultSpaceProfileBindingTests: XCTestCase {
         XCTAssertEqual(defaultSpaces.first?.profileId, "Profile 1")
     }
 
+    func testDefaultSpaceCanChangeProfileWithoutMutatingTheOldProfileRoot() async throws {
+        let store = try makeStore()
+        store.ensureDefaultSpace(profileId: LocalStore.defaultProfileId)
+        await flushWrites(in: store)
+        store.createDefaultRootDir(
+            profileId: LocalStore.defaultProfileId,
+            spaceId: LocalStore.defaultSpaceId
+        )
+        await flushWrites(in: store)
+
+        let context = try XCTUnwrap(store.getMainContext())
+        context.insert(ProfileModel(profileId: "Work"))
+        try context.save()
+
+        store.changeSpaceProfile(
+            spaceId: LocalStore.defaultSpaceId,
+            toProfileId: "Work"
+        )
+        await flushWrites(in: store)
+
+        let defaultSpace = try XCTUnwrap(
+            store.getAllSpaces().first { $0.spaceId == LocalStore.defaultSpaceId }
+        )
+        XCTAssertEqual(defaultSpace.profileId, "Work")
+        XCTAssertEqual(defaultSpace.bookmarkRoot?.profileId, "Work")
+        XCTAssertNil(try store.profile(with: LocalStore.defaultProfileId, createIfNeeded: false)?.bookmarkRoot)
+    }
+
     func testEnsureDefaultSpaceCreatesDefaultOwnerForEmptyStore() async throws {
         let store = try makeStore()
 

@@ -405,7 +405,7 @@ private struct LanguageSectionView: View {
                         Text(
                             NSLocalizedString(
                                 "settings.general.language.relaunchHint",
-                                value: "Restart Phi to apply this language.",
+                                value: "Restart Astra Browser to apply this language.",
                                 comment: "General settings - Hint shown after changing the display language explaining that a restart is required"
                             )
                         )
@@ -418,7 +418,7 @@ private struct LanguageSectionView: View {
                         Button(
                             NSLocalizedString(
                                 "settings.general.language.restartButton",
-                                value: "Restart Phi",
+                                value: "Restart Astra Browser",
                                 comment: "General settings - Button to restart Phi and apply the selected display language"
                             ),
                             action: promptToRestartApplication
@@ -462,12 +462,12 @@ private struct LanguageSectionView: View {
         let configuration = PhiAlertAppKitConfiguration(
             title: NSLocalizedString(
                 "settings.general.language.restartPrompt.title",
-                value: "Restart Phi?",
+                value: "Restart Astra Browser?",
                 comment: "General settings - Confirmation title shown after selecting a display language that differs from the currently applied language"
             ),
             message: NSLocalizedString(
                 "settings.general.language.restartPrompt.message",
-                value: "The selected language will take effect after Phi restarts. Restart now?",
+                value: "The selected language will take effect after Astra Browser restarts. Restart now?",
                 comment: "General settings - Confirmation message explaining that the newly selected display language requires a restart"
             ),
             secondaryAction: PhiAlertAppKitAction(
@@ -481,7 +481,7 @@ private struct LanguageSectionView: View {
             primaryAction: PhiAlertAppKitAction(
                 NSLocalizedString(
                     "settings.general.language.restartButton",
-                    value: "Restart Phi",
+                    value: "Restart Astra Browser",
                     comment: "General settings - Button to restart Phi and apply the selected display language"
                 ),
                 role: .primary,
@@ -517,8 +517,8 @@ private struct BrowsingSectionView: View {
 
     private var restoreLastSessionHint: String {
         restoreLastSessionEnabled
-            ? NSLocalizedString("settings.general.restoreLastSession.enabledHint", value: "Reopen your windows and tabs the next time you open Phi.", comment: "General settings - Hint shown when restore-last-session is on")
-            : NSLocalizedString("settings.general.restoreLastSession.disabledHint", value: "Phi starts with a new window. Closing a window may sign you out of some sites.", comment: "General settings - Hint shown when restore-last-session is off, noting session cookies may be cleared when a window closes")
+            ? NSLocalizedString("settings.general.restoreLastSession.enabledHint", value: "Reopen your windows and tabs the next time you open Astra Browser.", comment: "General settings - Hint shown when restore-last-session is on")
+            : NSLocalizedString("settings.general.restoreLastSession.disabledHint", value: "Astra Browser starts with a new window. Closing a window may sign you out of some sites.", comment: "General settings - Hint shown when restore-last-session is off, noting session cookies may be cleared when a window closes")
     }
 
     private var selectedBehavior: Binding<NewTabBehaviour> {

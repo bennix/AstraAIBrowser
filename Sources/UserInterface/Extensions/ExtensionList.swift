@@ -117,8 +117,9 @@ struct ExtensionList<Manager: ExtensionManagerProtocol>: View {
                     .padding(.horizontal, 12)
 
                 ManageExtensionsButton {
-                    let url = URLProcessor.processUserInput("phi://extensions")
-                    MainBrowserWindowControllersManager.shared.activeWindowController?.browserState.createTab(url)
+                    MainBrowserWindowControllersManager.shared.activeWindowController?
+                        .browserState
+                        .createTab("chrome://extensions")
                     onRequestDismiss?()
                 }
                 .padding(.horizontal, 8)

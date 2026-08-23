@@ -11,7 +11,11 @@ extension AppController {
             guard let section else { return }
             switch section {
             case .account:
-                showSettings(pane: .account)
+                showSettings(
+                    pane: PhiBuildCapabilities.supportsAuthentication
+                        ? .account
+                        : .general
+                )
             case .aisetting:
                 showSettings(pane: .aisettings)
             case .general:

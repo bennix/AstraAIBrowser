@@ -874,11 +874,11 @@ enum PhiSparkleUpdateWindowMode {
     var title: String {
         switch self {
         case .available:
-            return NSLocalizedString("updates.updateWindow.availableTitle", value: "A new version of Phi is available",
+            return NSLocalizedString("updates.updateWindow.availableTitle", value: "A new version of Astra Browser is available",
                 comment: "Update window - Title"
             )
         case .readyToInstall:
-            return NSLocalizedString("updates.updateWindow.readyToInstallTitle", value: "A new version of Phi is ready to install",
+            return NSLocalizedString("updates.updateWindow.readyToInstallTitle", value: "A new version of Astra Browser is ready to install",
                 comment: "Update window - Ready to install title"
             )
         }

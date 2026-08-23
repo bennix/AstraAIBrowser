@@ -150,8 +150,7 @@ final class WebContentAddressBarMenuPresenter {
                 keyEquivalent: ""
             )
             let manageTarget = MenuActionTarget {
-                let url = URLProcessor.processUserInput("phi://extensions")
-                browserState?.createTab(url)
+                browserState?.createTab("chrome://extensions")
             }
             actionTargets.append(manageTarget)
             manageItem.target = manageTarget

@@ -1077,7 +1077,7 @@ enum FeedbackOutbox {
     private static func makeMetadata(jobID: String, draft: FeedbackDraft) -> FeedbackV2Metadata {
         FeedbackV2Metadata(
             browser: .init(
-                name: "Phi Browser",
+                name: "Astra Browser",
                 version: SystemUtils.appVersion,
                 channel: channelName,
                 revision: SystemUtils.buildNumber

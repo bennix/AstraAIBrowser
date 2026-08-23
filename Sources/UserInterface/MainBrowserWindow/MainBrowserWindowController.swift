@@ -122,12 +122,69 @@ class MainBrowserWindowController: NSWindowController {
         multiSelectionEscapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) {
             [weak self] event in
             guard let self, let window = self.window else { return event }
+            if self.handleBrowserShortcut(event, in: window) {
+                return nil
+            }
             return Self.handleMultiSelectionEscape(
                 event,
                 in: window,
                 browserState: self.browserState
             )
         }
+    }
+
+    enum BrowserKeyboardShortcut: Equatable {
+        case newTab
+        case focusLocation
+        case closeTab
+        case reload
+        case goBack
+        case goForward
+    }
+
+    static func browserKeyboardShortcut(
+        character: String?,
+        modifiers: NSEvent.ModifierFlags
+    ) -> BrowserKeyboardShortcut? {
+        guard modifiers.intersection([.command, .option, .shift, .control]) == [.command],
+              let character = character?.lowercased() else { return nil }
+        switch character {
+        case "t": return .newTab
+        case "l": return .focusLocation
+        case "w": return .closeTab
+        case "r": return .reload
+        case "[": return .goBack
+        case "]": return .goForward
+        default: return nil
+        }
+    }
+
+    private func handleBrowserShortcut(_ event: NSEvent, in window: NSWindow) -> Bool {
+        guard event.type == .keyDown,
+              let eventWindow = event.window,
+              eventWindow === window || eventWindow.parent === window || window.childWindows?.contains(eventWindow) == true,
+              let shortcut = Self.browserKeyboardShortcut(
+                character: event.charactersIgnoringModifiers,
+                modifiers: event.modifierFlags
+              ) else { return false }
+
+        switch shortcut {
+        case .newTab:
+            newBrowserTab(nil)
+        case .focusLocation:
+            openLocationBar(nil)
+        case .closeTab:
+            if !handleCloseTab() {
+                browserState.focusingTab?.close()
+            }
+        case .reload:
+            reload(self)
+        case .goBack:
+            goBack(nil)
+        case .goForward:
+            goForward(nil)
+        }
+        return true
     }
 
     private func removeMultiSelectionEscapeMonitor() {

@@ -58,7 +58,7 @@ struct AboutView: View {
         let frameworksURL = Bundle.main.privateFrameworksURL ??
             Bundle.main.bundleURL.appendingPathComponent("Contents/Frameworks")
         let infoPlistURL = frameworksURL.appendingPathComponent(
-            "Phi Framework.framework/Versions/Current/Resources/Info.plist"
+            "Chromium Embedded Framework.framework/Versions/Current/Resources/Info.plist"
         )
 
         guard let info = NSDictionary(contentsOf: infoPlistURL) as? [String: Any],
@@ -74,7 +74,7 @@ struct AboutView: View {
     private var acknowledgementsNSAttributedString: NSAttributedString {
         let format = NSLocalizedString(
             "about.acknowledgements.text",
-            value: "Phi is made possible by the %1$@ open source project, Chromium's %2$@, as well as other %3$@.",
+            value: "Astra Browser is made possible by the %1$@ open source project, Chromium's %2$@, as well as other %3$@.",
             comment: "About window - Acknowledgements sentence; the three placeholders are, in order, the Chromium project name link, Chromium's open source software link, and other open source software link"
         )
         let title = String(

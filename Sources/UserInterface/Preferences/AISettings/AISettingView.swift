@@ -7,37 +7,15 @@ import SwiftUI
 import PostHog
 
 struct AISettingView: View {
-    @State private var connectorViewModel: AISettingsConnectorViewModel
     @State private var showDisableAIAlert = false
-    @State private var isGuest = ApplicationState.shared.isGuest
 
     @AppStorage(PhiPreferences.AISettings.phiAIEnabled.rawValue)
     private var phiAIEnabled: Bool = PhiPreferences.AISettings.phiAIEnabled.defaultValue
 
-    init(connectorViewModel: AISettingsConnectorViewModel) {
-        _connectorViewModel = State(initialValue: connectorViewModel)
-    }
-
-    private var aiFeaturesAvailable: Bool {
-        PhiBuildCapabilities.supportsAI && phiAIEnabled && !isGuest
-    }
-
-    private var canToggleAI: Bool {
-        PhiBuildCapabilities.supportsAI && !isGuest
-    }
-
-    private var shouldShowGuestLoginPrompt: Bool {
-        PhiBuildCapabilities.supportsAI && isGuest
-    }
-
     private var aiEnabledBinding: Binding<Bool> {
         Binding(
-            get: { PhiBuildCapabilities.supportsAI && phiAIEnabled },
+            get: { phiAIEnabled },
             set: { newValue in
-                guard PhiBuildCapabilities.supportsAI else {
-                    phiAIEnabled = false
-                    return
-                }
                 if newValue {
                     phiAIEnabled = true
                 } else {
@@ -52,21 +30,11 @@ struct AISettingView: View {
             VStack(alignment: .leading, spacing: 24) {
                 AIMasterControlSection(
                     isOn: aiEnabledBinding,
-                    enabled: canToggleAI,
-                    showsLoginPrompt: shouldShowGuestLoginPrompt,
-                    loginAction: logInToEnableAI
+                    enabled: true,
+                    showsLoginPrompt: false,
+                    loginAction: {}
                 )
-                BrowserMemorySectionView(enabled: aiFeaturesAvailable)
-                PhiSentinelSectionView(enabled: aiFeaturesAvailable)
-                NewTabPageSectionView(enabled: aiFeaturesAvailable)
-                AISidebarSectionView(enabled: aiFeaturesAvailable)
-                ExternalConnectorsSectionView(
-                    connectorViewModel: connectorViewModel,
-                    enabled: aiFeaturesAvailable
-                )
-                PhiLinkSettingsSectionView(
-                    enabled: PhiBuildCapabilities.supportsAI && phiAIEnabled
-                )
+                ZenMuxConfigurationSectionView()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 36)
@@ -74,32 +42,11 @@ struct AISettingView: View {
         }
         .themedBackground(PhiPreferences.fixedWindowBackground)
         .frame(width: 680, height: 561)
-        .onChange(of: phiAIEnabled) { oldValue, newValue in
-            guard PhiBuildCapabilities.supportsAI else {
-                if newValue {
-                    phiAIEnabled = false
-                }
-                return
-            }
-            if newValue == false {
-                connectorViewModel.disconnectAll()
-            }
-            notifyNativeSettingsChanged()
+        .onChange(of: phiAIEnabled) { _, newValue in
             // PostHog: Capture AI features toggled event
             PostHogSDK.shared.capture("ai_features_toggled", properties: [
                 "enabled": newValue,
             ])
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(for: .browserAccessStateDidChange)
-                .receive(on: DispatchQueue.main)
-        ) { _ in
-            isGuest = ApplicationState.shared.isGuest
-            if ApplicationState.shared.isAuthenticated {
-                connectorViewModel.loadConnectionsIfNeeded()
-            } else {
-                connectorViewModel.suspendForUnauthenticatedAccess()
-            }
         }
         .alert(
             NSLocalizedString("settings.ai.disableFeatures.title", value: "Turn Off AI Features?",
@@ -115,13 +62,270 @@ struct AISettingView: View {
                                      comment: "AI settings - Cancel button in disable-AI confirmation alert"),
                    role: .cancel) {}
         } message: {
-            Text(NSLocalizedString("settings.ai.disableFeatures.message", value: "AI conversations will be closed and all connected Connectors will be disconnected.",
-                                   comment: "AI settings - Alert message explaining consequences of disabling AI features"))
+            Text(NSLocalizedString("settings.ai.disableFeatures.message", value: "ZenMux conversations will be closed.",
+                                   comment: "AI settings - Alert message explaining that disabling AI closes ZenMux conversations"))
+        }
+    }
+}
+
+// MARK: - ZenMux
+
+private struct ZenMuxConfigurationSectionView: View {
+    private enum Status {
+        case saved
+        case testing
+        case success
+        case failure(String)
+    }
+
+    @State private var apiKey: String = (try? ZenMuxCredentialStore.shared.loadAPIKey()) ?? ""
+    @State private var revealsAPIKey = false
+    @State private var status: Status?
+
+    @AppStorage(PhiPreferences.AISettings.zenMuxModelKey)
+    private var modelRawValue = ZenMuxModel.geminiFlash.rawValue
+
+    @AppStorage(PhiPreferences.AISettings.zenMuxInputLanguageKey)
+    private var inputLanguageRawValue = ZenMuxInputLanguage.automatic.rawValue
+
+    @AppStorage(PhiPreferences.AISettings.zenMuxResponseLanguageKey)
+    private var responseLanguageRawValue = ZenMuxResponseLanguage.matchInput.rawValue
+
+    private var selectedModel: ZenMuxModel {
+        ZenMuxModel(rawValue: modelRawValue) ?? .geminiFlash
+    }
+
+    private var isTesting: Bool {
+        if case .testing = status { return true }
+        return false
+    }
+
+    var body: some View {
+        AISectionView(
+            title: NSLocalizedString(
+                "settings.ai.zenMux.sectionTitle",
+                value: "ZenMux models",
+                comment: "AI settings - Section title for configuring the ZenMux model provider"
+            ),
+            subtitle: NSLocalizedString(
+                "settings.ai.zenMux.description",
+                value: "Use your own ZenMux key for multilingual AI chat. The key is encrypted on this Mac.",
+                comment: "AI settings - Description of the ZenMux provider and local credential protection"
+            )
+        ) {
+            AIContainerView {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(NSLocalizedString(
+                        "settings.ai.zenMux.apiKeyLabel",
+                        value: "API key",
+                        comment: "ZenMux AI settings - Label above the API key field"
+                    ))
+                    .font(.system(size: 11))
+                    .themedForeground(.textSecondary)
+
+                    HStack(spacing: 8) {
+                        Group {
+                            if revealsAPIKey {
+                                TextField("", text: $apiKey)
+                            } else {
+                                SecureField("", text: $apiKey)
+                            }
+                        }
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel(NSLocalizedString(
+                            "settings.ai.zenMux.apiKeyAccessibilityLabel",
+                            value: "ZenMux API key",
+                            comment: "ZenMux AI settings - Accessibility label for the API key field"
+                        ))
+
+                        Button {
+                            revealsAPIKey.toggle()
+                        } label: {
+                            Image(systemName: revealsAPIKey ? "eye.slash" : "eye")
+                        }
+                        .buttonStyle(.borderless)
+                        .help(revealsAPIKey
+                              ? NSLocalizedString(
+                                "settings.ai.zenMux.hideAPIKeyTooltip",
+                                value: "Hide API key",
+                                comment: "ZenMux AI settings - Tooltip for hiding the API key"
+                              )
+                              : NSLocalizedString(
+                                "settings.ai.zenMux.showAPIKeyTooltip",
+                                value: "Show API key",
+                                comment: "ZenMux AI settings - Tooltip for revealing the API key"
+                              ))
+                    }
+
+                    HStack(spacing: 8) {
+                        Button(NSLocalizedString(
+                            "settings.ai.zenMux.saveButton",
+                            value: "Save",
+                            comment: "ZenMux AI settings - Button that encrypts and saves the API key"
+                        ), action: saveAPIKey)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        Button(NSLocalizedString(
+                            "settings.ai.zenMux.testButton",
+                            value: "Test API key",
+                            comment: "ZenMux AI settings - Button that verifies the API key with ZenMux"
+                        ), action: testAPIKey)
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isTesting)
+
+                        Spacer(minLength: 8)
+                        statusView
+                    }
+                }
+                .padding(.vertical, 12)
+
+                Divider()
+
+                zenMuxPickerRow(
+                    title: NSLocalizedString(
+                        "settings.ai.zenMux.modelTitle",
+                        value: "Model",
+                        comment: "ZenMux AI settings - Label for the model picker"
+                    ),
+                    selection: $modelRawValue
+                ) {
+                    ForEach(ZenMuxModel.allCases) { model in
+                        Text("\(model.displayName) — \(model.rawValue)")
+                            .tag(model.rawValue)
+                    }
+                }
+
+                Divider()
+
+                zenMuxPickerRow(
+                    title: NSLocalizedString(
+                        "settings.ai.zenMux.inputLanguageTitle",
+                        value: "Input language",
+                        comment: "ZenMux AI settings - Label for the language used to interpret user messages"
+                    ),
+                    selection: $inputLanguageRawValue
+                ) {
+                    ForEach(ZenMuxInputLanguage.allCases) { language in
+                        Text(language.displayName).tag(language.rawValue)
+                    }
+                }
+
+                Divider()
+
+                zenMuxPickerRow(
+                    title: NSLocalizedString(
+                        "settings.ai.zenMux.responseLanguageTitle",
+                        value: "Response language",
+                        comment: "ZenMux AI settings - Label for the preferred model response language"
+                    ),
+                    selection: $responseLanguageRawValue
+                ) {
+                    ForEach(ZenMuxResponseLanguage.allCases) { language in
+                        Text(language.displayName).tag(language.rawValue)
+                    }
+                }
+
+                Divider()
+
+                HStack(spacing: 8) {
+                    Text(NSLocalizedString(
+                        "settings.ai.zenMux.noAccountPrompt",
+                        value: "Need a ZenMux account or API key?",
+                        comment: "ZenMux AI settings - Prompt shown before the ZenMux invitation link"
+                    ))
+                    .font(.system(size: 12))
+                    .themedForeground(.textSecondary)
+
+                    Link(
+                        NSLocalizedString(
+                            "settings.ai.zenMux.invitationLink",
+                            value: "Open invitation link",
+                            comment: "ZenMux AI settings - Link that opens the ZenMux invitation page"
+                        ),
+                        destination: URL(string: "https://zenmux.ai/invite/GBQMC5")!
+                    )
+                    .font(.system(size: 12))
+                    Spacer()
+                }
+                .padding(.vertical, 12)
+            }
         }
     }
 
-    private func logInToEnableAI() {
-        LoginController.shared.showLoginWindowToEnableAI()
+    @ViewBuilder
+    private var statusView: some View {
+        switch status {
+        case .saved:
+            Label(
+                NSLocalizedString(
+                    "settings.ai.zenMux.savedStatus",
+                    value: "Saved securely",
+                    comment: "ZenMux AI settings - Status shown after the encrypted API key is saved"
+                ),
+                systemImage: "lock.fill"
+            )
+            .foregroundStyle(.secondary)
+        case .testing:
+            ProgressView().controlSize(.small)
+        case .success:
+            Label(
+                NSLocalizedString(
+                    "settings.ai.zenMux.testSuccessStatus",
+                    value: "Connection successful",
+                    comment: "ZenMux AI settings - Status shown after a successful API key test"
+                ),
+                systemImage: "checkmark.circle.fill"
+            )
+            .foregroundStyle(.green)
+        case .failure(let message):
+            Text(message).foregroundStyle(.red).lineLimit(2)
+        case nil:
+            EmptyView()
+        }
+    }
+
+    private func zenMuxPickerRow<Content: View>(
+        title: String,
+        selection: Binding<String>,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .font(.system(size: 13))
+                .themedForeground(.textPrimary)
+            Spacer(minLength: 12)
+            Picker("", selection: selection, content: content)
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(maxWidth: 310, alignment: .trailing)
+        }
+        .padding(.vertical, 12)
+    }
+
+    private func saveAPIKey() {
+        do {
+            try ZenMuxCredentialStore.shared.saveAPIKey(apiKey)
+            status = .saved
+        } catch {
+            status = .failure(error.localizedDescription)
+        }
+    }
+
+    private func testAPIKey() {
+        status = .testing
+        let candidate = apiKey
+        let model = selectedModel
+        Task { @MainActor in
+            do {
+                try await APIClient.shared.testZenMuxAPIKey(candidate, model: model)
+                status = .success
+            } catch {
+                status = .failure(error.localizedDescription)
+            }
+        }
     }
 }
 
@@ -193,7 +397,7 @@ private struct AIEnableToggleRow: View {
 
     var body: some View {
         HStack {
-            Text(NSLocalizedString("settings.ai.features.enableToggle", value: "Enable AI features in Phi Browser", comment: "AI settings - Master toggle to enable or disable all AI features in Phi Browser"))
+            Text(NSLocalizedString("settings.ai.features.enableToggle", value: "Enable AI features in Astra Browser", comment: "AI settings - Master toggle to enable or disable all AI features in Astra Browser"))
                 .font(.system(size: 13))
                 .themedForeground(.textPrimary)
                 .opacity(enabled ? 1.0 : 0.4)
@@ -249,12 +453,12 @@ private struct PhiSentinelSectionView: View {
 
     var body: some View {
         AISectionView(
-            title: NSLocalizedString("settings.ai.phiSentinel.sectionTitle", value: "Phi Sentinel", comment: "AI settings - Section title for Phi Sentinel background helper"),
-            subtitle: NSLocalizedString("settings.ai.phiSentinel.description", value: "Phi Sentinel is a lightweight background helper that allows Phi to complete scheduled AI tasks", comment: "AI settings - Description explaining what Phi Sentinel does")
+            title: NSLocalizedString("settings.ai.phiSentinel.sectionTitle", value: "Astra Browser Sentinel", comment: "AI settings - Section title for Astra Browser Sentinel background helper"),
+            subtitle: NSLocalizedString("settings.ai.phiSentinel.description", value: "Astra Browser Sentinel is a lightweight background helper that allows Astra Browser to complete scheduled AI tasks", comment: "AI settings - Description explaining what Astra Browser Sentinel does")
         ) {
             AIContainerView {
                 AIToggleRow(
-                    title: NSLocalizedString("settings.ai.phiSentinel.autoLaunchToggle", value: "Launch Phi Sentinel when you sign in to your Mac", comment: "AI settings - Toggle to auto-launch Phi Sentinel when signing in to the Mac"),
+                    title: NSLocalizedString("settings.ai.phiSentinel.autoLaunchToggle", value: "Launch Astra Browser Sentinel when you sign in to your Mac", comment: "AI settings - Toggle to auto-launch Astra Browser Sentinel when signing in to the Mac"),
                     isOn: $launchSentinelOnLogin,
                     enabled: enabled
                 )
@@ -262,7 +466,7 @@ private struct PhiSentinelSectionView: View {
                 Divider()
 
                 AINavigationRow(
-                    title: NSLocalizedString("settings.ai.privateAI.title", value: "Private AI", comment: "AI settings - Row that opens Phi Sentinel's Private AI page"),
+                    title: NSLocalizedString("settings.ai.privateAI.title", value: "Private AI", comment: "AI settings - Row that opens Astra Browser Sentinel's Private AI page"),
                     enabled: enabled,
                     action: openPrivateAI
                 )
@@ -686,5 +890,5 @@ private func notifyNativeSettingsChanged() {
 }
 
 #Preview {
-    AISettingView(connectorViewModel: AISettingsConnectorViewModel())
+    AISettingView()
 }

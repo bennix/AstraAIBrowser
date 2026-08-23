@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080b15">
+  <meta name="description" content="Astra is a native AI browser for Apple Silicon Macs, combining a Chromium engine with a focused AI workspace.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Astra AI Browser for macOS">
+  <meta property="og:description" content="A native Mac browser with an AI co-pilot built in. Download the Apple-notarized build 12 DMG.">
+  <meta property="og:url" content="https://bennix.github.io/AstraAIBrowser/">
+  <meta property="og:image" content="https://raw.githubusercontent.com/bennix/AstraAIBrowser/main/Resources/Assets.xcassets/AstraIcon.appiconset/512%402x.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Astra AI Browser for macOS">
+  <meta name="twitter:description" content="A native Mac browser with an AI co-pilot built in.">
+  <meta name="twitter:image" content="https://raw.githubusercontent.com/bennix/AstraAIBrowser/main/Resources/Assets.xcassets/AstraIcon.appiconset/512%402x.png">
+  <link rel="canonical" href="https://bennix.github.io/AstraAIBrowser/">
+  <link rel="preconnect" href="https://raw.githubusercontent.com">
+  <title>Astra AI Browser — Native AI browsing for macOS</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080b15;
+      --surface: #121625;
+      --line: rgba(255, 255, 255, 0.10);
+      --text: #f7f8fc;
+      --muted: #a3a9bb;
+      --purple: #8d7cff;
+      --cyan: #54ddd4;
+      --max: 1180px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 16% 0%, rgba(110, 89, 238, 0.24), transparent 32rem),
+        radial-gradient(circle at 92% 28%, rgba(45, 190, 203, 0.15), transparent 29rem),
+        var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: inherit; }
+    .shell { width: min(calc(100% - 40px), var(--max)); margin: 0 auto; }
+
+    .nav {
+      display: flex;
+      min-height: 76px;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 11px;
+      font-size: 17px;
+      font-weight: 730;
+      letter-spacing: -0.02em;
+      text-decoration: none;
+    }
+
+    .brand img { width: 36px; height: 36px; border-radius: 10px; box-shadow: 0 8px 25px rgba(90, 76, 216, 0.4); }
+    .nav-links { display: flex; gap: 26px; color: var(--muted); font-size: 14px; }
+    .nav-links a { text-decoration: none; }
+    .nav-links a:hover, .nav-links a:focus-visible { color: white; }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(450px, 1.1fr);
+      gap: clamp(48px, 7vw, 90px);
+      align-items: center;
+      min-height: 690px;
+      padding: 70px 0 88px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 22px;
+      color: #c6c0ff;
+      font-size: 13px;
+      font-weight: 720;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 0 5px rgba(84, 221, 212, 0.1);
+      content: "";
+    }
+
+    h1 {
+      max-width: 680px;
+      margin: 0;
+      font-size: clamp(50px, 6vw, 82px);
+      font-weight: 760;
+      line-height: 0.99;
+      letter-spacing: -0.064em;
+    }
+
+    .gradient-text {
+      color: transparent;
+      background: linear-gradient(105deg, #fff 5%, #aea4ff 52%, #61e0d6 96%);
+      background-clip: text;
+      -webkit-background-clip: text;
+    }
+
+    .hero-copy { max-width: 570px; margin: 28px 0 0; color: var(--muted); font-size: 20px; line-height: 1.58; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+
+    .button {
+      display: inline-flex;
+      min-height: 52px;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 0 20px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.045);
+      font-size: 15px;
+      font-weight: 700;
+      text-decoration: none;
+      transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+    }
+
+    .button:hover, .button:focus-visible { transform: translateY(-2px); border-color: rgba(255,255,255,0.24); background: rgba(255,255,255,0.08); }
+    .button.primary { border-color: #9b8dff; background: linear-gradient(135deg, #8d7cff, #6154d5); box-shadow: 0 15px 38px rgba(90, 73, 207, 0.34); }
+    .trust { display: flex; flex-wrap: wrap; gap: 10px 19px; margin-top: 24px; color: #858b9b; font-size: 12px; }
+    .trust span::before { margin-right: 7px; color: var(--cyan); content: "✓"; }
+
+    .browser {
+      position: relative;
+      overflow: hidden;
+      min-height: 488px;
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 24px;
+      background: rgba(13, 16, 27, 0.94);
+      box-shadow: 0 35px 100px rgba(0,0,0,0.5);
+      transform: perspective(1300px) rotateY(-3deg) rotateX(1deg);
+    }
+
+    .titlebar { display: flex; height: 58px; align-items: center; gap: 18px; padding: 0 18px; border-bottom: 1px solid var(--line); background: #151928; }
+    .traffic { display: flex; gap: 7px; }
+    .traffic i { width: 11px; height: 11px; border-radius: 50%; background: #424858; }
+    .traffic i:first-child { background: #ff6c66; }
+    .traffic i:nth-child(2) { background: #f4bf50; }
+    .traffic i:nth-child(3) { background: #61c655; }
+    .omnibox { flex: 1; overflow: hidden; padding: 9px 14px; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; color: #8d93a4; background: #0d111b; font-size: 12px; white-space: nowrap; }
+    .browser-body { display: grid; grid-template-columns: 148px 1fr; min-height: 430px; }
+    .sidebar { padding: 20px 14px; border-right: 1px solid var(--line); background: rgba(18,22,35,0.82); }
+    .side-label { margin: 0 8px 12px; color: #6f7586; font-size: 10px; font-weight: 720; letter-spacing: 0.1em; text-transform: uppercase; }
+    .side-item { display: flex; align-items: center; gap: 9px; margin-bottom: 5px; padding: 9px 10px; border-radius: 9px; color: #949aac; font-size: 12px; }
+    .side-item.active { color: white; background: rgba(141,124,255,0.15); }
+    .side-dot { width: 7px; height: 7px; border-radius: 50%; background: #6c7282; }
+    .side-item.active .side-dot { background: var(--purple); box-shadow: 0 0 12px var(--purple); }
+
+    .workspace {
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      padding: 36px;
+      background: radial-gradient(circle at 50% 37%, rgba(141,124,255,0.12), transparent 18rem), #0c0f19;
+    }
+
+    .workspace img { width: 58px; height: 58px; border-radius: 16px; box-shadow: 0 14px 36px rgba(80,67,196,0.4); }
+    .workspace h2 { margin: 19px 0 8px; font-size: 24px; letter-spacing: -0.035em; }
+    .workspace p { max-width: 330px; margin: 0; color: #858b9c; font-size: 13px; line-height: 1.55; text-align: center; }
+    .prompt { display: flex; width: min(100%, 390px); align-items: center; justify-content: space-between; gap: 12px; margin-top: 24px; padding: 14px 15px; border: 1px solid rgba(255,255,255,0.11); border-radius: 14px; color: #9ca2b2; background: rgba(24,28,43,0.9); font-size: 12px; }
+    .send { display: grid; flex: 0 0 auto; width: 28px; height: 28px; place-items: center; border-radius: 8px; color: white; background: var(--purple); }
+
+    .section { padding: 108px 0; border-top: 1px solid var(--line); }
+    .section-heading { max-width: 700px; margin-bottom: 52px; }
+    .kicker { color: #bbb3ff; font-size: 13px; font-weight: 720; letter-spacing: 0.09em; text-transform: uppercase; }
+    .section-heading h2 { margin: 13px 0 16px; font-size: clamp(36px, 4.5vw, 56px); line-height: 1.03; letter-spacing: -0.05em; }
+    .section-heading p { margin: 0; color: var(--muted); font-size: 18px; line-height: 1.6; }
+    .feature-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .feature { min-height: 220px; padding: 28px; border: 1px solid var(--line); border-radius: 20px; background: linear-gradient(145deg, rgba(25,29,44,0.75), rgba(13,16,27,0.72)); }
+    .feature-number { color: #777e90; font-size: 12px; font-weight: 720; letter-spacing: 0.09em; }
+    .feature h3 { margin: 44px 0 10px; font-size: 23px; letter-spacing: -0.035em; }
+    .feature p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.62; }
+
+    .download-card {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 40px;
+      align-items: center;
+      padding: clamp(32px, 5vw, 58px);
+      border: 1px solid rgba(160,146,255,0.28);
+      border-radius: 28px;
+      background: radial-gradient(circle at 88% 10%, rgba(84,221,212,0.14), transparent 20rem), linear-gradient(145deg, rgba(52,46,93,0.5), rgba(18,21,33,0.88));
+      box-shadow: 0 30px 90px rgba(0,0,0,0.4);
+    }
+
+    .download-card h2 { margin: 0 0 12px; font-size: clamp(34px, 4vw, 50px); letter-spacing: -0.05em; }
+    .download-card p { max-width: 650px; margin: 0; color: var(--muted); font-size: 17px; line-height: 1.6; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 42px; }
+    .step { padding: 22px 0; border-top: 1px solid var(--line); }
+    .step strong { display: block; margin-bottom: 8px; font-size: 14px; }
+    .step span { color: var(--muted); font-size: 14px; line-height: 1.55; }
+
+    footer { display: flex; justify-content: space-between; gap: 24px; padding: 36px 0 52px; border-top: 1px solid var(--line); color: #777d8e; font-size: 13px; }
+    footer a { color: #acb2c2; text-decoration: none; }
+    footer a:hover, footer a:focus-visible { color: white; }
+
+    @media (max-width: 900px) {
+      .hero { grid-template-columns: 1fr; min-height: auto; }
+      .browser { width: 100%; transform: none; }
+      .download-card { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 640px) {
+      .shell { width: min(calc(100% - 28px), var(--max)); }
+      .nav-links a:first-child { display: none; }
+      .hero { padding: 58px 0 72px; }
+      h1 { font-size: clamp(48px, 15vw, 68px); }
+      .browser { min-height: 430px; border-radius: 18px; }
+      .browser-body { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .workspace { min-height: 370px; padding: 28px 20px; }
+      .feature-grid, .steps { grid-template-columns: 1fr; }
+      .feature { min-height: 190px; }
+      .section { padding: 82px 0; }
+      footer { flex-direction: column; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .button { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="shell nav">
+    <a class="brand" href="#top" aria-label="Astra home">
+      <img src="https://raw.githubusercontent.com/bennix/AstraAIBrowser/main/Resources/Assets.xcassets/AstraIcon.appiconset/128.png" alt="">
+      Astra AI Browser
+    </a>
+    <nav class="nav-links" aria-label="Primary navigation">
+      <a href="#features">Features</a>
+      <a href="https://github.com/bennix/AstraAIBrowser">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="shell hero" aria-labelledby="hero-title">
+      <div>
+        <div class="eyebrow">Build 12 is available</div>
+        <h1 id="hero-title">Browse with <span class="gradient-text">an AI co-pilot.</span></h1>
+        <p class="hero-copy">Astra brings a native Mac interface, a capable Chromium engine, and an AI workspace into one focused browser.</p>
+        <div class="actions">
+          <a class="button primary" href="https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.12/Astra-Browser-build12.dmg">Download for Mac <span aria-hidden="true">↓</span></a>
+          <a class="button" href="https://github.com/bennix/AstraAIBrowser">View source</a>
+        </div>
+        <div class="trust" aria-label="Release details">
+          <span>Apple notarized</span><span>Apple Silicon</span><span>macOS 14+</span>
+        </div>
+      </div>
+
+      <div class="browser" aria-label="Stylized preview of Astra Browser">
+        <div class="titlebar">
+          <div class="traffic" aria-hidden="true"><i></i><i></i><i></i></div>
+          <div class="omnibox">Search or enter an address</div>
+        </div>
+        <div class="browser-body">
+          <aside class="sidebar" aria-label="Browser spaces preview">
+            <div class="side-label">Spaces</div>
+            <div class="side-item active"><span class="side-dot"></span>Focus</div>
+            <div class="side-item"><span class="side-dot"></span>Research</div>
+            <div class="side-item"><span class="side-dot"></span>Personal</div>
+          </aside>
+          <div class="workspace">
+            <img src="https://raw.githubusercontent.com/bennix/AstraAIBrowser/main/Resources/Assets.xcassets/AstraIcon.appiconset/128.png" alt="">
+            <h2>What are we working on?</h2>
+            <p>Ask about the page, continue your research, or turn a browsing task into an action.</p>
+            <div class="prompt">Summarize the key decisions on this page <span class="send" aria-hidden="true">↑</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="features">
+      <div class="shell">
+        <div class="section-heading">
+          <div class="kicker">Built for the Mac</div>
+          <h2>Fast browsing, thoughtful assistance.</h2>
+          <p>Astra keeps the familiar browser workflow while placing useful AI and power-user controls close at hand.</p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature"><div class="feature-number">01</div><h3>Native macOS experience</h3><p>An AppKit-based interface with spaces, profiles, tab management, downloads, and keyboard-first navigation.</p></article>
+          <article class="feature"><div class="feature-number">02</div><h3>AI in your browsing flow</h3><p>Work with an integrated assistant without leaving the context of the pages and tasks already in front of you.</p></article>
+          <article class="feature"><div class="feature-number">03</div><h3>Chromium compatibility</h3><p>A modern embedded Chromium engine provides the compatibility expected from an everyday desktop browser.</p></article>
+          <article class="feature"><div class="feature-number">04</div><h3>Less waiting on YouTube</h3><p>When YouTube marks playback as an ad, Astra temporarily uses 8× speed and restores your content speed afterward.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="download">
+      <div class="shell">
+        <div class="download-card">
+          <div><h2>Meet Astra build 12.</h2><p>The DMG is signed with an Apple Developer ID, accepted by Apple's notarization service, and ready for Apple Silicon Macs.</p></div>
+          <a class="button primary" href="https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.12/Astra-Browser-build12.dmg">Download DMG <span aria-hidden="true">↓</span></a>
+        </div>
+        <div class="steps" aria-label="Installation steps">
+          <div class="step"><strong>1. Download</strong><span>Get the notarized build 12 DMG from GitHub Releases.</span></div>
+          <div class="step"><strong>2. Install</strong><span>Open the DMG and drag Astra Browser into Applications.</span></div>
+          <div class="step"><strong>3. Browse</strong><span>Launch Astra from Applications and make it your own.</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="shell">
+    <span>Astra AI Browser · Independent open-source distribution</span>
+    <span><a href="https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.12">Release notes</a> · <a href="https://github.com/bennix/AstraAIBrowser/blob/main/LICENSE">Apache 2.0</a></span>
+  </footer>
+</body>
+</html>

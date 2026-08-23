@@ -37,3 +37,8 @@ Sparkle-bin
 # Coverage counters dropped by an instrumented build in the repo root.
 default.profraw
 *.profraw
+
+# Local release artifacts and downloaded CEF distributions are published
+# separately and must not be committed to the source repository.
+/dist/
+/Vendor/CefSwift/

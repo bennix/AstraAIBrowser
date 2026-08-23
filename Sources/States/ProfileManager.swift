@@ -44,6 +44,100 @@ struct ProfileExtensionInfo: Identifiable, Hashable {
     let icon: NSImage?
 }
 
+/// Persistent profile metadata for the CEF runtime. The previous Chromium
+/// bridge owned this catalog; CEF owns the actual cookies and storage under
+/// `CEF/Profiles/<profileId>`, while this small index preserves display names.
+private enum CEFProfileCatalog {
+    private static let storageKey = "Astra.CEF.ProfileDisplayNames"
+
+    static func list() -> [PhiBrowserProfile] {
+        var names = UserDefaults.standard.dictionary(forKey: storageKey) as? [String: String] ?? [:]
+        names[LocalStore.defaultProfileId] = names[LocalStore.defaultProfileId] ?? "Default"
+
+        if let entries = try? FileManager.default.contentsOfDirectory(
+            at: profilesDirectory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) {
+            for entry in entries where (try? entry.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+                names[entry.lastPathComponent] = names[entry.lastPathComponent] ?? entry.lastPathComponent
+            }
+        }
+        persist(names)
+        return names.map { profileId, displayName in
+            PhiBrowserProfile(
+                profileId: profileId,
+                displayName: displayName,
+                isLoaded: false,
+                isInUse: false
+            )
+        }.sorted {
+            if $0.profileId == LocalStore.defaultProfileId { return true }
+            if $1.profileId == LocalStore.defaultProfileId { return false }
+            return $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+        }
+    }
+
+    static func create(displayName: String) -> String? {
+        var names = UserDefaults.standard.dictionary(forKey: storageKey) as? [String: String] ?? [:]
+        let profileId = "Profile-\(UUID().uuidString.lowercased())"
+        let directory = profilesDirectory.appendingPathComponent(profileId, isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            names[profileId] = displayName
+            persist(names)
+            return profileId
+        } catch {
+            AppLogError("Could not create CEF profile directory: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    static func rename(_ profileId: String, displayName: String) -> Bool {
+        var names = UserDefaults.standard.dictionary(forKey: storageKey) as? [String: String] ?? [:]
+        guard profileId == LocalStore.defaultProfileId || names[profileId] != nil
+            || FileManager.default.fileExists(
+                atPath: profilesDirectory.appendingPathComponent(profileId).path
+            ) else { return false }
+        names[profileId] = displayName
+        persist(names)
+        return true
+    }
+
+    static func delete(_ profileId: String) -> (Bool, String?) {
+        guard profileId != LocalStore.defaultProfileId else {
+            return (false, "The default profile cannot be deleted.")
+        }
+        let directory = profilesDirectory.appendingPathComponent(profileId, isDirectory: true)
+            .standardizedFileURL
+        guard directory.deletingLastPathComponent() == profilesDirectory.standardizedFileURL else {
+            return (false, "The profile identifier is invalid.")
+        }
+        do {
+            if FileManager.default.fileExists(atPath: directory.path) {
+                try FileManager.default.removeItem(at: directory)
+            }
+            var names = UserDefaults.standard.dictionary(forKey: storageKey) as? [String: String] ?? [:]
+            names.removeValue(forKey: profileId)
+            persist(names)
+            return (true, nil)
+        } catch {
+            return (false, error.localizedDescription)
+        }
+    }
+
+    private static var profilesDirectory: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(Bundle.main.bundleIdentifier ?? "com.phibrowser.Mac", isDirectory: true)
+            .appendingPathComponent("CEF", isDirectory: true)
+            .appendingPathComponent("Profiles", isDirectory: true)
+    }
+
+    private static func persist(_ names: [String: String]) {
+        UserDefaults.standard.set(names, forKey: storageKey)
+    }
+}
+
 /// App-scoped owner of the Chromium profile list. The actual profile data
 /// lives in Chromium's `ProfileAttributesStorage`; this class is a thin Swift
 /// projection plus a publisher so views can observe changes.
@@ -79,16 +173,17 @@ final class ProfileManager: ObservableObject {
     /// cheap (Chromium-side just reads from in-memory ProfileAttributesStorage).
     /// Safe to call repeatedly on the main thread.
     func refresh() {
-        guard let bridge = ChromiumLauncher.sharedInstance().bridge else {
-            // Bridge not up yet at very early launch; `profiles` stays empty
-            // and the first post-launch `refresh()` (driven by any UI that
-            // needs profiles) will populate it.
-            return
+        if let bridge = ChromiumLauncher.sharedInstance().bridge {
+            let decodedProfiles = bridge.listProfiles().compactMap(Self.decode(_:))
+            if !decodedProfiles.isEmpty {
+                profiles = decodedProfiles
+                persistDisplayNamesToLocalStore(decodedProfiles)
+                return
+            }
         }
-        let raw = bridge.listProfiles()
-        let decodedProfiles = raw.compactMap(Self.decode(_:))
-        profiles = decodedProfiles
-        persistDisplayNamesToLocalStore(decodedProfiles)
+        let cefProfiles = CEFProfileCatalog.list()
+        profiles = cefProfiles
+        persistDisplayNamesToLocalStore(cefProfiles)
     }
 
     /// Convenience lookup — nil if the basename isn't known. Most callers
@@ -140,7 +235,14 @@ final class ProfileManager: ObservableObject {
             return
         }
         guard let bridge = ChromiumLauncher.sharedInstance().bridge else {
-            completion(nil)
+            let newId = CEFProfileCatalog.create(displayName: trimmed)
+            refresh()
+            if let newId {
+                PostHogSDK.shared.capture("profile_created", properties: [
+                    "total_profiles": userAssignableProfiles.count,
+                ])
+            }
+            completion(newId)
             return
         }
         bridge.createProfile(withDisplayName: trimmed) { [weak self] newId in
@@ -187,7 +289,9 @@ final class ProfileManager: ObservableObject {
     func deleteProfile(_ profileId: String,
                        completion: @escaping (Bool, String?) -> Void) {
         guard let bridge = ChromiumLauncher.sharedInstance().bridge else {
-            completion(false, "bridge unavailable")
+            let result = CEFProfileCatalog.delete(profileId)
+            refresh()
+            completion(result.0, result.1)
             return
         }
         bridge.deleteProfile(profileId) { [weak self] success, error in
@@ -215,7 +319,9 @@ final class ProfileManager: ObservableObject {
             return
         }
         guard let bridge = ChromiumLauncher.sharedInstance().bridge else {
-            completion(false, "bridge unavailable")
+            let success = CEFProfileCatalog.rename(profileId, displayName: trimmed)
+            refresh()
+            completion(success, success ? nil : "The profile does not exist.")
             return
         }
         bridge.renameProfile(profileId, toDisplayName: trimmed) { [weak self] success, error in

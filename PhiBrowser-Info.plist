@@ -46,7 +46,7 @@
 		</dict>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>Phi</string>
+			<string>Astra Browser</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>phi</string>
@@ -55,9 +55,14 @@
 		</dict>
 	</array>
 	<key>Chromium version</key>
-	<string>144.0.7559.102</string>
+	<string>148.0.7778.218</string>
 	<key>CrProductDirName</key>
 	<string>$(CR_PRODUCT_DIR_NAME)</string>
+	<key>LSEnvironment</key>
+	<dict>
+		<key>MallocNanoZone</key>
+		<string>0</string>
+	</dict>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSRequiresNativeExecution</key>

@@ -30,10 +30,22 @@ class WebContentContainerViewController: NSViewController {
     /// Currently displayed WebContentViewController
     private weak var currentWebContentController: WebContentViewController?
 
+    /// CEF Chrome-runtime pages render in child windows above the AppKit view
+    /// tree. Native modal surfaces temporarily suppress that child window so
+    /// their controls remain visible and interactive.
+    private var nativeOverlaySuppressesCurrentContent = false
+
     /// The visible tab's web-content panel size, or nil when nothing is
     /// mounted (placeholder mode, window still restoring). See
     /// `WebContentViewController.webPanelSize`.
     var currentWebPanelSize: CGSize? { currentWebContentController?.webPanelSize }
+
+    func setCurrentContentSuppressedByNativeOverlay(_ suppressed: Bool) {
+        nativeOverlaySuppressesCurrentContent = suppressed
+        guard let controller = currentWebContentController,
+              controller.associatedTab?.usesNativeNTP != true else { return }
+        controller.view.isHidden = suppressed
+    }
 
     /// Owned by this controller while in placeholder mode; released on exit.
     /// Mutually exclusive with the active tab's WCVC (only one is visible
@@ -1137,7 +1149,13 @@ class WebContentContainerViewController: NSViewController {
         } ?? false
         let enteringSplit = state.splitGroup(forTabId: tab.guid) != nil
 
-        if tab.hasFirstPaint {
+        if tab.usesNativeNTP {
+            // Native new-tab content is ready synchronously and never emits a
+            // Chromium first-paint callback. Waiting for that callback leaves
+            // the outgoing CEF child window visible above the native entry page.
+            switchToWebContentController(controller)
+            currentTabIdentifier = identifier
+        } else if tab.hasFirstPaint {
             // Scenario 1: Tab has already painted, switch immediately (bring to front)
             // AppLogDebug("[FlickerFix][Mac] Tab has first paint, using immediate switch (scenario 1)")
             switchToWebContentController(controller)
@@ -1755,6 +1773,11 @@ class WebContentContainerViewController: NSViewController {
         // Save old controller/view for later cleanup.
         if let current = currentWebContentController, current !== controller {
             pendingViewCleanup = (controller: current, view: current.view)
+            // CEF's Chrome-runtime surface is a child NSWindow, so AppKit view
+            // ordering alone cannot cover it with the incoming native NTP.
+            // Hiding the outgoing controller immediately orders that child
+            // window out while retaining the view for deferred cleanup.
+            current.view.isHidden = true
             // Outgoing focused VC no longer owns the split host — drop its
             // partner-crash subscription (its own observers won't re-run).
             current.cancelPartnerCrashSubscription()
@@ -1770,6 +1793,7 @@ class WebContentContainerViewController: NSViewController {
         }
 
         let controllerView = controller.view
+        controllerView.isHidden = nativeOverlaySuppressesCurrentContent
         prepareSharedBookmarkBarSlot(for: controller)
 
         // Add new view on top (old view stays underneath until cleanup)
@@ -1844,6 +1868,9 @@ class WebContentContainerViewController: NSViewController {
         }
 
         let controllerView = controller.view
+        // A CEF surface is an independent child window and ignores NSView
+        // sibling order. Keep it hidden until first-paint promotion.
+        controllerView.isHidden = true
         prepareSharedBookmarkBarSlot(for: controller)
 
         // Add new view BELOW the current view (old view stays on top and visible)
@@ -2081,13 +2108,16 @@ class WebContentContainerViewController: NSViewController {
         // Save old view for cleanup (scenario 1 logic)
         if let current = currentWebContentController, current !== pending.controller {
             pendingViewCleanup = (controller: current, view: current.view)
+            current.view.isHidden = true
             current.cancelPartnerCrashSubscription()
             // Same as switchToWebContentController: a chat ghost snapped
             // from the outgoing pane must not slide over the promoted tab.
             dropClosingAIChatGhost()
         }
 
-        // Bring new view to front
+        // Bring new view to front. Unhiding also orders a CEF child window in
+        // front when the incoming tab is web content.
+        pending.controller.view.isHidden = nativeOverlaySuppressesCurrentContent
         contentContainer.addSubview(pending.controller.view, positioned: .above, relativeTo: nil)
 
         attachSharedBookmarkBar(to: pending.controller)

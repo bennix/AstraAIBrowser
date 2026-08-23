@@ -189,7 +189,7 @@ final class GuestPrivacyConfirmationViewController: OnboardingBaseViewController
     private lazy var metricsConsentRow = OnboardingCheckboxRow(
         title: NSLocalizedString(
             "oobe.guestPrivacy.metricsConsent",
-            value: "Help make Phi better by sharing usage metrics and crash reports",
+            value: "Help make Astra Browser better by sharing usage metrics and crash reports",
             comment: "Guest privacy confirmation - Optional checkbox for sharing usage metrics and crash reports"
         ),
         isChecked: consentState.sharesUsageMetrics

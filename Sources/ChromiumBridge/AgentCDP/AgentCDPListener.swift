@@ -811,7 +811,7 @@ final class AgentCDPListener {
     /// Writes a short 403 so the skill's HTTP discovery gets a clear status,
     /// then closes. The fd is blocking-drained best-effort; denial is rare.
     private static func denyAndClose(_ fd: Int32) {
-        let body = "Phi Browser denied agent access.\n"
+        let body = "Astra Browser denied agent access.\n"
         let response = "HTTP/1.1 403 Forbidden\r\n"
             + "Content-Type: text/plain\r\n"
             + "Content-Length: \(body.utf8.count)\r\n"

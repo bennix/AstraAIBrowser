@@ -10,9 +10,6 @@ NS_ASSUME_NONNULL_BEGIN
 @interface ChromiumLauncher : NSObject
 @property (nonatomic, strong, nullable) id<PhiChromiumBridgeProtocol> bridge;
 +(instancetype)sharedInstance;
-
-- (void)launchChromiumWithArgc:(int)argc argv:(const char **)argv;
-
 @end
 
 NS_ASSUME_NONNULL_END

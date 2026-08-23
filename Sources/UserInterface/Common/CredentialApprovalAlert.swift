@@ -214,9 +214,9 @@ struct CredentialApprovalAlert: View {
             return (
                 "checkmark.shield.fill",
                 Color(nsColor: .systemGreen),
-                NSLocalizedString("common.credentialApproval.autofillRequest.headline", value: "Autofill only — the secret stays in Phi",
+                NSLocalizedString("common.credentialApproval.autofillRequest.headline", value: "Autofill only — the secret stays in Astra Browser",
                                   comment: "Credential approval - fill headline"),
-                NSLocalizedString("common.credentialApproval.autofillRequest.explanation", value: "Phi fills the saved login into the page itself. The agent triggers the fill but never receives the username or password.",
+                NSLocalizedString("common.credentialApproval.autofillRequest.explanation", value: "Astra Browser fills the saved login into the page itself. The agent triggers the fill but never receives the username or password.",
                     comment: "Credential approval - fill body")
             )
         case .run:
@@ -225,7 +225,7 @@ struct CredentialApprovalAlert: View {
                 Color(nsColor: .systemOrange),
                 NSLocalizedString("common.credentialApproval.commandUseRequest.headline", value: "Released into a command",
                                   comment: "Credential approval - run headline"),
-                NSLocalizedString("common.credentialApproval.valueRequest.loginExplanation", value: "Phi releases the saved value to the agent so the command it runs can use it. Phi can’t stop the agent from keeping the value — only approve for agents and sites you trust.",
+                NSLocalizedString("common.credentialApproval.valueRequest.loginExplanation", value: "Astra Browser releases the saved value to the agent so the command it runs can use it. Astra Browser can’t stop the agent from keeping the value — only approve for agents and sites you trust.",
                     comment: "Credential approval - run body")
             )
         case .reveal:

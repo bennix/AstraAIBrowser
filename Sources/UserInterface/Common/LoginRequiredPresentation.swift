@@ -18,9 +18,10 @@ enum LoginRequiredPresentationPolicy {
     static func shouldPresent(
         for surface: LoginRequiredSurface,
         isGuest: Bool,
-        isPhiAIEnabled: Bool
+        isPhiAIEnabled: Bool,
+        supportsAuthentication: Bool = PhiBuildCapabilities.supportsAuthentication
     ) -> Bool {
-        guard isGuest else { return false }
+        guard supportsAuthentication, isGuest else { return false }
 
         switch surface {
         case .newTabPage, .aiChat:
@@ -71,7 +72,7 @@ struct LoginRequiredPresentationView: View {
 
             Text(NSLocalizedString(
                 "accountRequired.phiAI.title",
-                value: "Sign in to use Phi AI",
+                value: "Sign in to use Astra Browser AI",
                 comment: "Account-required presentation - Title shown when a Guest opens a Phi AI feature"
             ))
             .font(.system(size: 16, weight: .semibold))
@@ -79,7 +80,7 @@ struct LoginRequiredPresentationView: View {
 
             Text(NSLocalizedString(
                 "accountRequired.phiAI.detail",
-                value: "This feature requires a Phi account.",
+                value: "This feature requires a Astra Browser account.",
                 comment: "Account-required presentation - Detail shown when a Guest opens a Phi AI feature"
             ))
             .font(.system(size: 12))

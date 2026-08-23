@@ -6,6 +6,10 @@ PRODUCT_MODULE_NAME = Phi
 // Product Directory Name
 CR_PRODUCT_DIR_NAME = ${PRODUCT_BUNDLE_IDENTIFIER}
 
+// Astra uses ZenMux without the legacy Phi account authentication flow.
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) ASTRA_ZENMUX_BUILD
+GCC_PREPROCESSOR_DEFINITIONS = $(inherited) ASTRA_ZENMUX_BUILD=1
+
 // Sparkle Update Feed
 // Note: URL_SCHEME is used to prevent '//' from being treated as a comment in xcconfig
 URL_SCHEME = https:/

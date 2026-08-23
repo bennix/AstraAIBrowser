@@ -31,7 +31,7 @@ struct PasswordManagerSectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(NSLocalizedString("settings.developer.passwordManager.sectionTitle", value: "Agent Password Manager", comment: "Phi & AI settings - Agent Password Manager section title"))
+            Text(NSLocalizedString("settings.developer.passwordManager.sectionTitle", value: "Agent Password Manager", comment: "Astra Browser & AI settings - Agent Password Manager section title"))
                 .font(.system(size: 12))
                 .themedForeground(.textSecondary)
 
@@ -75,15 +75,15 @@ struct PasswordManagerSectionView: View {
             }
         }
         .alert(
-            NSLocalizedString("settings.developer.passwordManager.extensionInstallPrompt.title", value: "Install Bitwarden Extension?", comment: "Phi & AI settings - Alert title suggesting the Bitwarden browser extension install"),
+            NSLocalizedString("settings.developer.passwordManager.extensionInstallPrompt.title", value: "Install Bitwarden Extension?", comment: "Astra Browser & AI settings - Alert title suggesting the Bitwarden browser extension install"),
             isPresented: $showInstallExtensionPrompt
         ) {
-            Button(NSLocalizedString("settings.developer.passwordManager.extensionInstallPrompt.installButton", value: "Install", comment: "Phi & AI settings - Button that installs the Bitwarden browser extension")) {
+            Button(NSLocalizedString("settings.developer.passwordManager.extensionInstallPrompt.installButton", value: "Install", comment: "Astra Browser & AI settings - Button that installs the Bitwarden browser extension")) {
                 installBitwardenExtension()
             }
-            Button(NSLocalizedString("settings.developer.passwordManager.extensionInstallPrompt.notNowButton", value: "Not Now", comment: "Phi & AI settings - Button that dismisses the Bitwarden extension install suggestion"), role: .cancel) {}
+            Button(NSLocalizedString("settings.developer.passwordManager.extensionInstallPrompt.notNowButton", value: "Not Now", comment: "Astra Browser & AI settings - Button that dismisses the Bitwarden extension install suggestion"), role: .cancel) {}
         } message: {
-            Text(NSLocalizedString("settings.developer.passwordManager.extensionInstallPrompt.message", value: "The Bitwarden browser extension autofills your vault logins on web pages. Phi can install it from the Chrome Web Store now.", comment: "Phi & AI settings - Alert message explaining the suggested Bitwarden extension install"))
+            Text(NSLocalizedString("settings.developer.passwordManager.extensionInstallPrompt.message", value: "The Bitwarden browser extension autofills your vault logins on web pages. Astra Browser can install it from the Chrome Web Store now.", comment: "Astra Browser & AI settings - Alert message explaining the suggested Bitwarden extension install"))
         }
     }
 
@@ -95,10 +95,10 @@ struct PasswordManagerSectionView: View {
                 .resizable()
                 .frame(width: 24, height: 24)
             VStack(alignment: .leading, spacing: 3) {
-                Text(NSLocalizedString("settings.developer.passwordManager.bitwarden.toggleTitle", value: "Bitwarden password manager", comment: "Phi & AI settings - Bitwarden toggle title"))
+                Text(NSLocalizedString("settings.developer.passwordManager.bitwarden.toggleTitle", value: "Bitwarden password manager", comment: "Astra Browser & AI settings - Bitwarden toggle title"))
                     .font(.system(size: 13))
                     .themedForeground(.textPrimary)
-                Text(NSLocalizedString("settings.developer.passwordManager.bitwarden.toggleDescription", value: "Logins for Phi and agent requests, held by a separate helper — passwords never touch the browser process.", comment: "Phi & AI settings - Bitwarden toggle explanation"))
+                Text(NSLocalizedString("settings.developer.passwordManager.bitwarden.toggleDescription", value: "Logins for Astra Browser and agent requests, held by a separate helper — passwords never touch the browser process.", comment: "Astra Browser & AI settings - Bitwarden toggle explanation"))
                     .font(.system(size: 11))
                     .themedForeground(.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -147,7 +147,7 @@ struct PasswordManagerSectionView: View {
             HStack(spacing: 12) {
                 SettingsIconChip(systemName: "key.fill", color: .indigo)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(NSLocalizedString("settings.developer.passwordManager.approvals.title", value: "Agent Credential Approvals\u{2026}", comment: "Phi & AI settings - approvals row title"))
+                    Text(NSLocalizedString("settings.developer.passwordManager.approvals.title", value: "Agent Credential Approvals\u{2026}", comment: "Astra Browser & AI settings - approvals row title"))
                         .font(.system(size: 13))
                         .themedForeground(.textPrimary)
                     approvalsSubtitle
@@ -169,7 +169,7 @@ struct PasswordManagerSectionView: View {
     @ViewBuilder
     private var approvalsSubtitle: some View {
         if grantStore.hasUniversalGrant {
-            Text(NSLocalizedString("settings.developer.passwordManager.approvals.allPasswordsEnabledStatus", value: "Access to all passwords is on", comment: "Phi & AI settings - approvals subtitle when the master grant is on"))
+            Text(NSLocalizedString("settings.developer.passwordManager.approvals.allPasswordsEnabledStatus", value: "Access to all passwords is on", comment: "Astra Browser & AI settings - approvals subtitle when the master grant is on"))
                 .font(.system(size: 11))
                 .foregroundStyle(Color(nsColor: .systemRed))
         } else {
@@ -177,8 +177,8 @@ struct PasswordManagerSectionView: View {
                 !$0.isUniversal && ($0.expires.map { $0 > Date() } ?? true)
             }.count
             Text(count == 0
-                ? NSLocalizedString("settings.developer.passwordManager.approvals.noStandingApprovalsStatus", value: "No standing approvals", comment: "Phi & AI settings - approvals subtitle with no grants")
-                : String(format: NSLocalizedString("settings.developer.passwordManager.approvals.standingApprovalCount", value: "%d standing approvals", comment: "Phi & AI settings - approvals subtitle grant count"), count))
+                ? NSLocalizedString("settings.developer.passwordManager.approvals.noStandingApprovalsStatus", value: "No standing approvals", comment: "Astra Browser & AI settings - approvals subtitle with no grants")
+                : String(format: NSLocalizedString("settings.developer.passwordManager.approvals.standingApprovalCount", value: "%d standing approvals", comment: "Astra Browser & AI settings - approvals subtitle grant count"), count))
                 .font(.system(size: 11))
                 .themedForeground(.textTertiary)
         }
@@ -208,15 +208,15 @@ struct PasswordManagerSectionView: View {
         switch bitwarden.currentStatus {
         case .ready(let account):
             if let account, !account.isEmpty {
-                return String(format: NSLocalizedString("settings.developer.passwordManager.bitwarden.signedInAccountStatus", value: "Signed in as %@", comment: "Phi & AI settings - Bitwarden ready status with account"), account)
+                return String(format: NSLocalizedString("settings.developer.passwordManager.bitwarden.signedInAccountStatus", value: "Signed in as %@", comment: "Astra Browser & AI settings - Bitwarden ready status with account"), account)
             }
-            return NSLocalizedString("settings.developer.passwordManager.bitwarden.signedInStatus", value: "Signed in", comment: "Phi & AI settings - Bitwarden ready status")
+            return NSLocalizedString("settings.developer.passwordManager.bitwarden.signedInStatus", value: "Signed in", comment: "Astra Browser & AI settings - Bitwarden ready status")
         case .locked:
-            return NSLocalizedString("settings.developer.passwordManager.bitwarden.lockedStatus", value: "Locked", comment: "Phi & AI settings - Bitwarden locked status")
+            return NSLocalizedString("settings.developer.passwordManager.bitwarden.lockedStatus", value: "Locked", comment: "Astra Browser & AI settings - Bitwarden locked status")
         case .loggedOut:
-            return NSLocalizedString("settings.developer.passwordManager.bitwarden.notSignedInStatus", value: "Not signed in", comment: "Phi & AI settings - Bitwarden signed-out status")
+            return NSLocalizedString("settings.developer.passwordManager.bitwarden.notSignedInStatus", value: "Not signed in", comment: "Astra Browser & AI settings - Bitwarden signed-out status")
         case .notInstalled:
-            return NSLocalizedString("settings.developer.passwordManager.bitwarden.helperUnavailableStatus", value: "Bitwarden helper not available", comment: "Phi & AI settings - Bitwarden helper missing status")
+            return NSLocalizedString("settings.developer.passwordManager.bitwarden.helperUnavailableStatus", value: "Bitwarden helper not available", comment: "Astra Browser & AI settings - Bitwarden helper missing status")
         case .unavailable(let reason):
             return reason
         }
@@ -242,21 +242,21 @@ struct PasswordManagerSectionView: View {
     }
 
     private var logInButton: some View {
-        Button(NSLocalizedString("settings.developer.passwordManager.bitwarden.loginAction", value: "Sign in\u{2026}", comment: "Phi & AI settings - Bitwarden sign-in action")) {
+        Button(NSLocalizedString("settings.developer.passwordManager.bitwarden.loginAction", value: "Sign in\u{2026}", comment: "Astra Browser & AI settings - Bitwarden sign-in action")) {
             loginSheetMode = .login
         }
         .controlSize(.small)
     }
 
     private var unlockButton: some View {
-        Button(NSLocalizedString("settings.developer.passwordManager.bitwarden.unlockAction", value: "Unlock\u{2026}", comment: "Phi & AI settings - Bitwarden unlock action")) {
+        Button(NSLocalizedString("settings.developer.passwordManager.bitwarden.unlockAction", value: "Unlock\u{2026}", comment: "Astra Browser & AI settings - Bitwarden unlock action")) {
             loginSheetMode = .unlock
         }
         .controlSize(.small)
     }
 
     private var logOutButton: some View {
-        Button(NSLocalizedString("settings.developer.passwordManager.bitwarden.logoutAction", value: "Sign out", comment: "Phi & AI settings - Bitwarden sign-out action")) {
+        Button(NSLocalizedString("settings.developer.passwordManager.bitwarden.logoutAction", value: "Sign out", comment: "Astra Browser & AI settings - Bitwarden sign-out action")) {
             Task {
                 try? await BitwardenService.shared.logout()
                 await bitwarden.refreshStatus()

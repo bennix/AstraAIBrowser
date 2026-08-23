@@ -273,6 +273,11 @@ class BrowserState {
     /// AI Chat tabs keyed by the associated tab identifier.
     @Published var aiChatTabs: [String: Tab] = [:]
 
+    /// Native ZenMux conversations keyed by the same window-scoped identifier
+    /// used by the chat sidebar. Sessions are deliberately owned here rather
+    /// than by `AppState` so every browser window keeps an independent history.
+    private var zenMuxChatSessions: [String: ZenMuxChatSession] = [:]
+
     /// Identifiers whose AI Chat tab creation has been dispatched to Chromium
     /// but hasn't been mirrored back via `handleNewTabFromChromium` yet. Used
     /// to dedupe parallel `createAIChatTab(for:chromeTabId:)` requests from
@@ -437,14 +442,33 @@ class BrowserState {
         }
         let primaryId = getTabIdentifier(for: primary)
         let secondaryId = getTabIdentifier(for: secondary)
-        if aiChatTabs[primaryId] != nil { return primaryId }
-        if aiChatTabs[secondaryId] != nil { return secondaryId }
+        if aiChatTabs[primaryId] != nil || zenMuxChatSessions[primaryId] != nil { return primaryId }
+        if aiChatTabs[secondaryId] != nil || zenMuxChatSessions[secondaryId] != nil { return secondaryId }
         // Neither pane has a chat yet: bind to the caller's tab so the chat
         // follows the pane the user invoked from, not whichever pane happens
         // to be focused at split-creation time. Keyed by tab.guid, so
         // reversing the split's primary/secondary roles does not move the
         // binding.
         return getTabIdentifier(for: tab)
+    }
+
+    func zenMuxChatSession(for tab: Tab) -> ZenMuxChatSession {
+        let identifier = chatIdentifier(for: tab)
+        if let existing = zenMuxChatSessions[identifier] {
+            return existing
+        }
+        let session = ZenMuxChatSession()
+        zenMuxChatSessions[identifier] = session
+        return session
+    }
+
+    func removeAllZenMuxChatSessions() {
+        zenMuxChatSessions.removeAll()
+    }
+
+    func startNewZenMuxConversation() {
+        guard let focusingTab else { return }
+        zenMuxChatSession(for: focusingTab).clear()
     }
 
     // MARK: - Native NTP (Incognito)
@@ -471,14 +495,22 @@ class BrowserState {
             aiChatTabs[targetIdentifier] = aiChatTab
             AppLogInfo("🔄 [AIChat] Migrated AI Chat tab from '\(oldIdentifier)' to '\(targetIdentifier)'")
         }
+        if let session = zenMuxChatSessions.removeValue(forKey: oldIdentifier) {
+            zenMuxChatSessions[targetIdentifier] = session
+        }
     }
 
     /// Move the shared chat tab from one identifier to another (e.g. when a split
     /// pane closes and the chat tab must follow the surviving pane).
     func migrateAIChatTab(fromIdentifier oldId: String, toIdentifier newId: String) {
-        guard oldId != newId, let aiChatTab = aiChatTabs.removeValue(forKey: oldId) else { return }
-        aiChatTabs[newId] = aiChatTab
-        AppLogInfo("🔄 [AIChat] Migrated split chat tab from '\(oldId)' to '\(newId)'")
+        guard oldId != newId else { return }
+        if let aiChatTab = aiChatTabs.removeValue(forKey: oldId) {
+            aiChatTabs[newId] = aiChatTab
+            AppLogInfo("🔄 [AIChat] Migrated split chat tab from '\(oldId)' to '\(newId)'")
+        }
+        if let session = zenMuxChatSessions.removeValue(forKey: oldId) {
+            zenMuxChatSessions[newId] = session
+        }
     }
     
     private var cancellables = Set<AnyCancellable>()
@@ -2941,6 +2973,7 @@ class BrowserState {
     /// is not necessarily the AI tab — especially with `UnclosableTabMarker` skewing
     /// Chromium's selection logic).
     func closeAIChatTab(for identifier: String) {
+        zenMuxChatSessions.removeValue(forKey: identifier)
         guard let aiTab = aiChatTabs.removeValue(forKey: identifier) else { return }
         // Restore transaction: this can be reached from split replay
         // (`handleSplitCreated` → `reconcileSplitChatBinding`) while the
@@ -3007,6 +3040,7 @@ class BrowserState {
         }
 
         if consumePendingNativeNTP() {
+            tab.nativeNTPIsIncognito = true
             tab.usesNativeNTP = true
         }
 
@@ -3256,6 +3290,7 @@ class BrowserState {
         // creations, and restored payloads carry `.restore`.
         for (tab, _) in batch {
             if consumePendingNativeNTP() {
+                tab.nativeNTPIsIncognito = true
                 tab.usesNativeNTP = true
             }
             if let stashedFavicon = Self.consumeCrossWindowFavicon(for: tab.guid) {
@@ -3562,13 +3597,14 @@ class BrowserState {
         if let group = splitGroup(forTabId: closedTab.guid),
            let partnerId = group.partnerTabId(of: closedTab.guid),
            let survivor = tabs.first(where: { $0.guid == partnerId }),
-           aiChatTabs[identifier] != nil {
+           (aiChatTabs[identifier] != nil || zenMuxChatSessions[identifier] != nil) {
             // Closing pane owns the split's shared chat tab → hand it to the
             // surviving pane instead of closing it (follow survivor).
             migrateAIChatTab(fromIdentifier: identifier,
                              toIdentifier: getTabIdentifier(for: survivor))
         } else {
             closeAIChatTab(for: identifier)
+            zenMuxChatSessions.removeValue(forKey: identifier)
         }
         
         // Remove the tab from pinned state if it was mirrored there.
@@ -3987,10 +4023,14 @@ class BrowserState {
             "windowId=\(windowId) url=\(url ?? "") focusAfterCreate=\(focusAfterCreate) " +
             "focusingTab=\(focusingTabText) normalOrder=\(normalTabOrder)"
         )
-        ChromiumLauncher.sharedInstance().bridge?.createNewTab(withUrl: url ?? "",
-                                                               windowId: windowId.int64Value,
-                                                               customGuid: customGuid,
-                                                               focusAfterCreate: focusAfterCreate)
+        MainActor.assumeIsolated {
+            CefBrowserRuntime.shared.createTab(
+                in: self,
+                urlString: url ?? "chrome://newtab",
+                customGuid: customGuid,
+                focusAfterCreate: focusAfterCreate
+            )
+        }
     }
 
     func createQuickLookupTab(customGuid: String? = nil) {
@@ -3999,12 +4039,18 @@ class BrowserState {
             "[NativeTab] mac createQuickLookupTab " +
             "windowId=\(windowId) focusingTab=\(focusingTabText) normalOrder=\(normalTabOrder)"
         )
-        ChromiumLauncher.sharedInstance().bridge?.createQuickLookupTab(withWindowId: windowId.int64Value,
-                                                                       customGuid: customGuid)
+        MainActor.assumeIsolated {
+            CefBrowserRuntime.shared.createTab(
+                in: self,
+                urlString: "chrome://newtab",
+                customGuid: customGuid,
+                focusAfterCreate: true
+            )
+        }
     }
     
     func openTab(_ url: String?) {
-        ChromiumLauncher.sharedInstance().bridge?.openTab(withUrl: url ?? "", windowId: windowId.int64Value)
+        createTab(url, focusAfterCreate: true)
     }
     
     func updateTabTitle(tabId: Int, newTitle: String) {

@@ -8,7 +8,14 @@ import Combine
 import SnapKit
 
 final class NewTabViewController: NSViewController {
+    private enum InputMode: Int {
+        case ai
+        case google
+        case url
+    }
+
     private let browserState: BrowserState
+    private weak var currentTab: Tab?
     private var cancellables = Set<AnyCancellable>()
 
     private let iconSize = NSSize(width: 64, height: 64)
@@ -39,11 +46,7 @@ final class NewTabViewController: NSViewController {
 
     private lazy var iconImageView: NSImageView = {
         let imageView = NSImageView()
-        if browserState.isIncognito {
-            imageView.image = .nativeNTPIncognito
-        } else {
-            imageView.image = .nativeNTPIcon
-        }
+        imageView.image = NSApp.applicationIconImage
         imageView.imageScaling = .scaleProportionallyUpOrDown
         imageView.imageAlignment = .alignCenter
         return imageView
@@ -63,6 +66,35 @@ final class NewTabViewController: NSViewController {
         tf.textColor = .primaryLabel
         tf.allowsDefaultTighteningForTruncation = false
         return tf
+    }()
+
+    private lazy var inputModeControl: NSSegmentedControl = {
+        let control = NSSegmentedControl(
+            labels: [
+                NSLocalizedString(
+                    "browser.newTabPage.inputMode.ai",
+                    value: "AI",
+                    comment: "New tab page - Unified input mode that sends the text to ZenMux"
+                ),
+                NSLocalizedString(
+                    "browser.newTabPage.inputMode.google",
+                    value: "Google",
+                    comment: "New tab page - Unified input mode that searches with Google"
+                ),
+                NSLocalizedString(
+                    "browser.newTabPage.inputMode.url",
+                    value: "URL",
+                    comment: "New tab page - Unified input mode that opens a website address"
+                ),
+            ],
+            trackingMode: .selectOne,
+            target: self,
+            action: #selector(inputModeDidChange(_:))
+        )
+        control.controlSize = .small
+        control.selectedSegment = InputMode.google.rawValue
+        control.setEnabled(!browserState.isIncognito, forSegment: InputMode.ai.rawValue)
+        return control
     }()
 
     init(state: BrowserState) {
@@ -88,6 +120,7 @@ final class NewTabViewController: NSViewController {
         super.viewDidLoad()
         setupViews()
         setupObservers()
+        applySelectedInputMode()
         updateContentLayout()
     }
 
@@ -108,6 +141,7 @@ final class NewTabViewController: NSViewController {
     }
 
     func updateForTab(_ tab: Tab?) {
+        currentTab = tab
         setNativeControlsHidden(false)
         omniBoxController.setCurrentTabForNavigation(tab)
     }
@@ -132,7 +166,8 @@ final class NewTabViewController: NSViewController {
         areControlsHidden = hidden
         iconImageView.isHidden = hidden
         omniBoxController.view.isHidden = hidden
-        incognitoLabel.isHidden = hidden
+        incognitoLabel.isHidden = hidden || !browserState.isIncognito
+        inputModeControl.isHidden = hidden
     }
 
     private func setupViews() {
@@ -146,7 +181,10 @@ final class NewTabViewController: NSViewController {
         addChild(omniBoxController)
         contentView.addSubview(iconImageView)
         contentView.addSubview(incognitoLabel)
+        contentView.addSubview(inputModeControl)
         contentView.addSubview(omniBoxController.view)
+
+        incognitoLabel.isHidden = !browserState.isIncognito
 
         omniBoxController.view.translatesAutoresizingMaskIntoConstraints = true
         omniBoxController.view.autoresizingMask = []
@@ -159,6 +197,91 @@ final class NewTabViewController: NSViewController {
                 self?.updateContentLayout()
             }
             .store(in: &cancellables)
+    }
+
+    @objc private func inputModeDidChange(_ sender: NSSegmentedControl) {
+        applySelectedInputMode()
+        omniBoxController.focusTextField()
+    }
+
+    private func applySelectedInputMode() {
+        guard let mode = InputMode(rawValue: inputModeControl.selectedSegment) else { return }
+        let placeholder: String
+        switch mode {
+        case .ai:
+            placeholder = NSLocalizedString(
+                "browser.newTabPage.inputPlaceholder.ai",
+                value: "Ask ZenMux",
+                comment: "New tab page - Placeholder shown when the unified input sends a question to ZenMux"
+            )
+        case .google:
+            placeholder = NSLocalizedString(
+                "browser.newTabPage.inputPlaceholder.google",
+                value: "Search Google",
+                comment: "New tab page - Placeholder shown when the unified input searches with Google"
+            )
+        case .url:
+            placeholder = NSLocalizedString(
+                "browser.newTabPage.inputPlaceholder.url",
+                value: "Enter URL",
+                comment: "New tab page - Placeholder shown when the unified input opens a website address"
+            )
+        }
+
+        omniBoxController.configureSubmission(placeholder: placeholder) { [weak self] input, commandKeyPressed in
+            self?.submit(input, mode: mode, commandKeyPressed: commandKeyPressed) ?? true
+        }
+    }
+
+    private func submit(
+        _ input: String,
+        mode: InputMode,
+        commandKeyPressed: Bool
+    ) -> Bool {
+        switch mode {
+        case .ai:
+            submitToZenMux(input)
+            return true
+        case .google:
+            if !omniBoxController.submitGoogleSearch(commandKeyPressed: commandKeyPressed) {
+                NSSound.beep()
+            }
+            return true
+        case .url:
+            if !omniBoxController.submitURL(commandKeyPressed: commandKeyPressed) {
+                NSSound.beep()
+            }
+            return true
+        }
+    }
+
+    private func submitToZenMux(_ input: String) {
+        let question = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !question.isEmpty, let tab = currentTab else {
+            NSSound.beep()
+            return
+        }
+
+        let session = browserState.zenMuxChatSession(for: tab)
+        session.draft = question
+        tab.updateFocusTarget(.aiChat)
+        if tab.aiChatCollapsed {
+            browserState.prepareAIChatSidebarOpen(trigger: .button)
+            browserState.setAIChatCollapsed(for: tab, collapsed: false)
+        }
+        session.requestFocus()
+        omniBoxController.reset()
+
+        guard ((try? ZenMuxCredentialStore.shared.loadAPIKey()) ?? nil) != nil else {
+            return
+        }
+
+        Task { @MainActor in
+            await session.send(
+                pageContext: ZenMuxPageContext(title: tab.title, url: tab.url)
+            )
+            session.requestFocus()
+        }
     }
 
     private func startKeyboardMonitoring() {
@@ -214,22 +337,22 @@ final class NewTabViewController: NSViewController {
                                   max(clipSize.width - omniHorizontalInset * 2, 240))
         let omniSize = NSSize(width: fittedOmniWidth, height: omniNatural.height)
         
-        // Measure incognito label size using the cell to include internal padding
-        var labelSize: NSSize
-        if let cell = incognitoLabel.cell {
-            labelSize = cell.cellSize
-        } else {
-            labelSize = incognitoLabel.attributedStringValue.size()
+        var labelSize = NSSize.zero
+        if browserState.isIncognito {
+            labelSize = incognitoLabel.cell?.cellSize ?? incognitoLabel.attributedStringValue.size()
+            labelSize.width = ceil(labelSize.width) + 2
+            labelSize.height = ceil(labelSize.height)
         }
-        // Ceil to whole pixels and add 2pt padding to avoid last character clipping
-        labelSize.width = ceil(labelSize.width) + 2
-        labelSize.height = ceil(labelSize.height)
-        let labelHeight = labelSize.height
+        let labelSpacing: CGFloat = browserState.isIncognito ? 6 : 0
+        let modeSize = inputModeControl.fittingSize
+        let modeTopSpacing: CGFloat = 14
+        let omniTopSpacing: CGFloat = 18
 
-        // Content size includes icon, label (6pt below icon), and omni (48pt below label)
-        let contentWidth = max(omniSize.width, iconSize.width, labelSize.width)
-        let contentHeight = iconSize.height + 6 + labelHeight + 48 + omniSize.height
-        let collapsedContentHeight = iconSize.height + 6 + labelHeight + 48 + collapsedOmniBoxHeight
+        let contentWidth = max(omniSize.width, iconSize.width, labelSize.width, modeSize.width)
+        let contentHeight = iconSize.height + labelSpacing + labelSize.height
+            + modeTopSpacing + modeSize.height + omniTopSpacing + omniSize.height
+        let collapsedContentHeight = iconSize.height + labelSpacing + labelSize.height
+            + modeTopSpacing + modeSize.height + omniTopSpacing + collapsedOmniBoxHeight
 
         let documentWidth = max(contentWidth, clipSize.width)
         let documentHeight = max(contentHeight, clipSize.height)
@@ -246,17 +369,20 @@ final class NewTabViewController: NSViewController {
 
         // Position icon at the top of our content column
         let iconX = originX + (contentWidth - iconSize.width) / 2
-        let iconY = originY + (iconSize.height + 6 + labelHeight + 48 + omniSize.height) - iconSize.height
+        let iconY = originY + contentHeight - iconSize.height
         iconImageView.frame = NSRect(x: iconX, y: iconY, width: iconSize.width, height: iconSize.height)
 
-        // Position label 6pt below the icon, centered horizontally
+        // Incognito keeps its explicit privacy label; regular windows omit it.
         let labelX = originX + (contentWidth - labelSize.width) / 2
-        let labelY = iconImageView.frame.minY - 6 - labelHeight
-        incognitoLabel.frame = NSRect(x: labelX, y: labelY, width: labelSize.width, height: labelHeight)
+        let labelY = iconImageView.frame.minY - labelSpacing - labelSize.height
+        incognitoLabel.frame = NSRect(x: labelX, y: labelY, width: labelSize.width, height: labelSize.height)
 
-        // Position omnibox 48pt below the label
+        let modeX = originX + (contentWidth - modeSize.width) / 2
+        let modeY = labelY - modeTopSpacing - modeSize.height
+        inputModeControl.frame = NSRect(x: modeX, y: modeY, width: modeSize.width, height: modeSize.height)
+
         let omniX = originX + (contentWidth - omniSize.width) / 2
-        let omniY = incognitoLabel.frame.minY - 48 - omniSize.height
+        let omniY = inputModeControl.frame.minY - omniTopSpacing - omniSize.height
         omniBoxController.view.frame = NSRect(x: omniX, y: omniY, width: omniSize.width, height: omniSize.height)
 
         scrollView.reflectScrolledClipView(scrollView.contentView)

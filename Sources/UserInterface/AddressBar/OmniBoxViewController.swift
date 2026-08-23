@@ -12,6 +12,7 @@ class OmniBoxViewController: NSViewController {
     private var cancellables = Set<AnyCancellable>()
     
     weak var actionDelegate: OmniBoxActionDelegate?
+    private var submissionHandler: ((String, Bool) -> Bool)?
     
     // Published property for content size changes
     @Published var contentSize: NSSize = NSSize(width: boxWidth, height: 57)
@@ -256,6 +257,24 @@ class OmniBoxViewController: NSViewController {
     func focusTextField() {
         view.window?.makeFirstResponder(textField)
     }
+
+    func configureSubmission(
+        placeholder: String,
+        handler: ((String, Bool) -> Bool)?
+    ) {
+        submissionHandler = handler
+        textField.updatePlaceholder(placeholder)
+    }
+
+    @discardableResult
+    func submitGoogleSearch(commandKeyPressed: Bool = false) -> Bool {
+        viewModel.handleGoogleSearchSubmission(commandKeyPressed: commandKeyPressed)
+    }
+
+    @discardableResult
+    func submitURL(commandKeyPressed: Bool = false) -> Bool {
+        viewModel.handleURLSubmission(commandKeyPressed: commandKeyPressed)
+    }
     
     func reset() {
         viewModel.reset()
@@ -369,6 +388,10 @@ extension OmniBoxViewController: OmniBoxTextFieldDelegate {
     }
     
     func omniBoxTextFieldDidReceiveEnterEvent(_ textField: OmniBoxTextField, commandKeyPressed: Bool) -> Bool {
+        if let submissionHandler,
+           submissionHandler(viewModel.currentInputText, commandKeyPressed) {
+            return true
+        }
         viewModel.handleEnterPressed(commandKeyPressed: commandKeyPressed)
         return true
     }

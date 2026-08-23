@@ -19,11 +19,19 @@ class EventBlockBgView: NSView {
     }
     
     var mouseDown: ((NSEvent) -> Void)?
+    var shouldPassThroughHitTest: ((NSPoint) -> Bool)?
 
     // Transparent but intercepts events
     override var isOpaque: Bool { false }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override var acceptsFirstResponder: Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        if shouldPassThroughHitTest?(point) == true {
+            return nil
+        }
+        return super.hitTest(point)
+    }
+
     override func mouseDown(with event: NSEvent) {
         mouseDown?(event)
         super.mouseDown(with: event)

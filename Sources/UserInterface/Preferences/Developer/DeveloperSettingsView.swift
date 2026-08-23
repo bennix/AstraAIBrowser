@@ -133,10 +133,10 @@ private struct AgentControlSectionView: View {
         HStack(alignment: .top, spacing: 12) {
             SettingsIconChip(systemName: "sparkles", color: .indigo)
             VStack(alignment: .leading, spacing: 4) {
-                Text(NSLocalizedString("settings.developer.agentControl.enableToggle", value: "Allow agents to control Phi (CDP)", comment: "Developer settings - Toggle title for the Chrome DevTools Protocol endpoint"))
+                Text(NSLocalizedString("settings.developer.agentControl.enableToggle", value: "Allow agents to control Astra Browser (CDP)", comment: "Developer settings - Toggle title for the Chrome DevTools Protocol endpoint"))
                     .font(.system(size: 13))
                     .themedForeground(.textPrimary)
-                Text(NSLocalizedString("settings.developer.agentControl.enableDescription", value: "Lets agent tools (Claude Code, Codex) drive Phi over the DevTools Protocol through a private socket only this Mac’s processes can reach. Each agent asks for your approval the first time it connects. Turning this off disconnects them right away; the next agent that connects asks you to turn it back on. Applies immediately.", comment: "Developer settings - Security note for the agent CDP toggle"))
+                Text(NSLocalizedString("settings.developer.agentControl.enableDescription", value: "Lets agent tools (Claude Code, Codex) drive Astra Browser over the DevTools Protocol through a private socket only this Mac’s processes can reach. Each agent asks for your approval the first time it connects. Turning this off disconnects them right away; the next agent that connects asks you to turn it back on. Applies immediately.", comment: "Developer settings - Security note for the agent CDP toggle"))
                     .font(.system(size: 11))
                     .themedForeground(.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -174,7 +174,7 @@ private struct AgentControlSectionView: View {
                     Text(NSLocalizedString("settings.developer.agentControl.allowedAgents.title", value: "Allowed agents", comment: "Developer settings - Title for the allowed CDP agent list"))
                         .font(.system(size: 13))
                         .themedForeground(.textPrimary)
-                    Text(NSLocalizedString("settings.developer.agentControl.allowedAgents.description", value: "Processes you’ve approved to control Phi. Removing one makes it ask again next time it connects.", comment: "Developer settings - Explanation for the allowed CDP agent list"))
+                    Text(NSLocalizedString("settings.developer.agentControl.allowedAgents.description", value: "Processes you’ve approved to control Astra Browser. Removing one makes it ask again next time it connects.", comment: "Developer settings - Explanation for the allowed CDP agent list"))
                         .font(.system(size: 11))
                         .themedForeground(.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -219,7 +219,7 @@ private struct AgentControlSectionView: View {
                         grantScopePill(remembered: false)
                     }
                 }
-                Text(NSLocalizedString("settings.developer.agentControl.allowAllAgents.description", value: "Lets every agent connect without asking you, including ones Phi has never seen. The approval prompt stops appearing while this is on, and turning it on lifts any standing refusal. Applies immediately.", comment: "Developer settings - Security note for the blanket all-agents grant toggle"))
+                Text(NSLocalizedString("settings.developer.agentControl.allowAllAgents.description", value: "Lets every agent connect without asking you, including ones Astra Browser has never seen. The approval prompt stops appearing while this is on, and turning it on lifts any standing refusal. Applies immediately.", comment: "Developer settings - Security note for the blanket all-agents grant toggle"))
                     .font(.system(size: 11))
                     .themedForeground(.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -253,7 +253,7 @@ private struct AgentControlSectionView: View {
                 .themedForeground(.textTertiary)
             Text(allAgentsAllowed
                  ? NSLocalizedString("settings.developer.agentControl.allowedAgents.allAllowedMessage", value: "Every agent is allowed, so none is approved individually.", comment: "Developer settings - Empty state for the allowed CDP agent list while the blanket all-agents grant is on")
-                 : NSLocalizedString("settings.developer.agentControl.allowedAgents.emptyMessage", value: "No agents approved yet. The first time one connects, Phi asks for your approval.", comment: "Developer settings - Empty state for the allowed CDP agent list"))
+                 : NSLocalizedString("settings.developer.agentControl.allowedAgents.emptyMessage", value: "No agents approved yet. The first time one connects, Astra Browser asks for your approval.", comment: "Developer settings - Empty state for the allowed CDP agent list"))
                 .font(.system(size: 11))
                 .themedForeground(.textTertiary)
                 .multilineTextAlignment(.center)
@@ -636,7 +636,7 @@ private struct SkillInstallRowView: View {
                 Text(NSLocalizedString("settings.developer.skillInstall.sectionTitle", value: "Install the phi-browser skill", comment: "Developer settings - Title for installing the phi-browser agent skill"))
                     .font(.system(size: 13))
                     .themedForeground(.textPrimary)
-                Text(NSLocalizedString("settings.developer.skillInstall.description", value: "Links the skill bundled in this app into an AI coding agent’s skills folder so it can drive Phi over the DevTools Protocol. Pi also gets a companion extension that wakes idle sessions from Agent Transcript commands. Requires Node 22+.", comment: "Developer settings - Explanation for the phi-browser skill installer"))
+                Text(NSLocalizedString("settings.developer.skillInstall.description", value: "Links the skill bundled in this app into an AI coding agent’s skills folder so it can drive Astra Browser over the DevTools Protocol. Pi also gets a companion extension that wakes idle sessions from Agent Transcript commands. Requires Node 22+.", comment: "Developer settings - Explanation for the phi-browser skill installer"))
                     .font(.system(size: 11))
                     .themedForeground(.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -746,14 +746,14 @@ private struct SkillInstallRowView: View {
         let fm = FileManager.default
         guard let bundled = Self.bundledSkillURL,
               fm.fileExists(atPath: bundled.path) else {
-            return .failure(NSLocalizedString("settings.developer.skillInstall.missingResourcesError", value: "This build doesn’t include the phi-browser skill resources. Rebuild Phi Browser and try again.", comment: "Developer settings - Skill install failure body when the resource is missing"))
+            return .failure(NSLocalizedString("settings.developer.skillInstall.missingResourcesError", value: "This build doesn’t include the phi-browser skill resources. Rebuild Astra Browser and try again.", comment: "Developer settings - Skill install failure body when the resource is missing"))
         }
 
         var installs: [(link: URL, source: URL)] = [(target.linkURL, bundled)]
         if let companionLink = target.companionExtensionLinkURL {
             guard let companion = Self.bundledPiExtensionURL,
                   fm.fileExists(atPath: companion.path) else {
-                return .failure(NSLocalizedString("settings.developer.skillInstall.missingCompanionError", value: "This build doesn’t include the Pi companion extension. Rebuild Phi Browser and try again.",
+                return .failure(NSLocalizedString("settings.developer.skillInstall.missingCompanionError", value: "This build doesn’t include the Pi companion extension. Rebuild Astra Browser and try again.",
                     comment: "Developer settings - Pi companion extension missing"))
             }
             installs.append((companionLink, companion))
@@ -810,7 +810,7 @@ private struct SkillInstallRowView: View {
         let response = NSApp.runPhiAlert(PhiAlertAppKitConfiguration(
             title: NSLocalizedString("settings.developer.skillInstall.overwriteConfirmation.title", value: "Replace the existing skill?", comment: "Developer settings - Skill overwrite prompt title"),
             message: String(
-                format: NSLocalizedString("settings.developer.skillInstall.overwriteConfirmation.message", value: "“%@” already exists and isn’t a link created by Phi Browser. Replace it with a link to this app’s bundled skill?", comment: "Developer settings - Skill overwrite prompt body"),
+                format: NSLocalizedString("settings.developer.skillInstall.overwriteConfirmation.message", value: "“%@” already exists and isn’t a link created by Astra Browser. Replace it with a link to this app’s bundled skill?", comment: "Developer settings - Skill overwrite prompt body"),
                 path),
             secondaryAction: PhiAlertAppKitAction(
                 NSLocalizedString("settings.developer.skillInstall.overwriteConfirmation.cancelButton", value: "Cancel", comment: "Developer settings - Skill overwrite cancel button"),

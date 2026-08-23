@@ -213,7 +213,6 @@ struct SpacesSettingsView: View {
             .lineLimit(1)
             .frame(maxWidth: 100, alignment: .trailing)
             .fixedSize(horizontal: false, vertical: true)
-            .disabled(isDefault)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -742,7 +741,6 @@ struct SpacesSettingsView: View {
 
     private func changeSpaceProfile(spaceId: String, to profile: PhiBrowserProfile) {
         guard let space = spaceManager.spaces.first(where: { $0.spaceId == spaceId }),
-              spaceId != LocalStore.defaultSpaceId,
               space.profileId != profile.profileId else { return }
         let alert = NSAlert()
         alert.alertStyle = .warning

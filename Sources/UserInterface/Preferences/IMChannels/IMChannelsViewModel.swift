@@ -54,7 +54,7 @@ final class IMChannelsViewModel {
             return customBotErrorMessage
         }
         if hasLoaded && !isImServerConnected {
-            return NSLocalizedString("settings.phiLink.serviceUnavailableMessage", value: "The local IM service is unavailable. Check whether Phi Sentinel started normally and the IM service is running.",
+            return NSLocalizedString("settings.phiLink.serviceUnavailableMessage", value: "The local IM service is unavailable. Check whether Astra Browser Sentinel started normally and the IM service is running.",
                 comment: "IM Channels - Message shown when im-server is not connected"
             )
         }
@@ -431,7 +431,7 @@ final class IMChannelsViewModel {
     private func officialBotServiceErrorMessage(for error: Error) -> String {
         serviceErrorMessage(
             for: error,
-            fallback: NSLocalizedString("settings.phiLink.officialBot.serviceUnavailableMessage", value: "Phi Sentinel service is unavailable. Check whether it started normally.",
+            fallback: NSLocalizedString("settings.phiLink.officialBot.serviceUnavailableMessage", value: "Astra Browser Sentinel service is unavailable. Check whether it started normally.",
                 comment: "IM Channels - Official bot service unavailable message"
             )
         )
@@ -440,7 +440,7 @@ final class IMChannelsViewModel {
     private func customBotServiceErrorMessage(for error: Error) -> String {
         serviceErrorMessage(
             for: error,
-            fallback: NSLocalizedString("settings.phiLink.customBot.serviceUnavailableMessage", value: "Phi Sentinel service is unavailable. Check whether it started normally.",
+            fallback: NSLocalizedString("settings.phiLink.customBot.serviceUnavailableMessage", value: "Astra Browser Sentinel service is unavailable. Check whether it started normally.",
                 comment: "IM Channels - Custom bot service unavailable message"
             )
         )
@@ -461,7 +461,7 @@ final class IMChannelsViewModel {
             case .invalidResponse:
                 return fallback
             case .unauthorized:
-                return NSLocalizedString("settings.phiLink.sessionExpiredMessage", value: "Your Phi session has expired. Please sign in again, then retry Phi Link.",
+                return NSLocalizedString("settings.phiLink.sessionExpiredMessage", value: "Your Astra Browser session has expired. Please sign in again, then retry Astra Browser Link.",
                     comment: "Phi Link - Message shown when phi-agent returns 401 unauthorized"
                 )
             case .httpError(let statusCode):

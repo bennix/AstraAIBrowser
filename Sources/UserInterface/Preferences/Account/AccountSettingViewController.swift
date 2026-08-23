@@ -369,7 +369,7 @@ class AccountSettingViewController: NSViewController, SettingsPane {
 
 class DefaultBrowserViewModel: ObservableObject {
     @Published var isDefaultBrowser: Bool = false
-    @Published var statusText: String = NSLocalizedString("settings.account.defaultBrowser.initialNotDefaultStatus", value: "Phi is not your default browser", comment: "Account settings - Initial status text before the current default-browser state is refreshed")
+    @Published var statusText: String = NSLocalizedString("settings.account.defaultBrowser.initialNotDefaultStatus", value: "Astra Browser is not your default browser", comment: "Account settings - Initial status text before the current default-browser state is refreshed")
     @Published var isLoading: Bool = true
 
     init() {
@@ -424,7 +424,7 @@ class DefaultBrowserViewModel: ObservableObject {
     }
 
     private func updateStatusText() {
-        statusText = isDefaultBrowser ? NSLocalizedString("settings.account.defaultBrowser.defaultStatus", value: "Phi is your default browser", comment: "Account settings - Status text when Phi is the default browser") : NSLocalizedString("settings.account.defaultBrowser.notDefaultStatus", value: "Phi is not your default browser", comment: "Account settings - Status text when Phi is not the default browser")
+        statusText = isDefaultBrowser ? NSLocalizedString("settings.account.defaultBrowser.defaultStatus", value: "Astra Browser is your default browser", comment: "Account settings - Status text when Astra Browser is the default browser") : NSLocalizedString("settings.account.defaultBrowser.notDefaultStatus", value: "Astra Browser is not your default browser", comment: "Account settings - Status text when Astra Browser is not the default browser")
     }
 }
 
@@ -532,7 +532,7 @@ class AccountViewModel: ObservableObject {
     @MainActor
     private func showLogoutConfirmation() -> Bool {
         let alert = NSAlert()
-        alert.messageText = NSLocalizedString("settings.account.logoutConfirmation.title", value: "Sign out of Phi?", comment: "Account settings - Sign-out confirmation dialog title")
+        alert.messageText = NSLocalizedString("settings.account.logoutConfirmation.title", value: "Sign out of Astra Browser?", comment: "Account settings - Sign-out confirmation dialog title")
         alert.informativeText = NSLocalizedString("settings.account.logoutConfirmation.message", value: "You’ll return to the sign-in screen.", comment: "Account settings - Sign-out confirmation dialog message")
         alert.addButton(withTitle: NSLocalizedString("settings.account.logoutConfirmation.cancelButton", value: "Cancel", comment: "Account settings - Cancel button in sign-out confirmation dialog"))
         alert.addButton(withTitle: NSLocalizedString("settings.account.logoutConfirmation.logoutButton", value: "Sign out", comment: "Account settings - Sign-out button in sign-out confirmation dialog"))
@@ -1006,7 +1006,7 @@ class DefaultBrowserSectionView: SettingItemBackgroundView {
             make.width.height.equalTo(16)
         }
 
-        let title = NSLocalizedString("settings.account.defaultBrowser.setDefaultButton", value: "Set as default", comment: "Account settings - Button to set Phi as default browser")
+        let title = NSLocalizedString("settings.account.defaultBrowser.setDefaultButton", value: "Set as default", comment: "Account settings - Button to set Astra Browser as default browser")
         setDefaultButton.cell = WrappingButtonCell(textCell: title)
         setDefaultButton.title = title
         setDefaultButton.toolTip = title
@@ -1538,7 +1538,7 @@ class AccountCardView: SettingItemBackgroundView {
             reauthenticationWarningLabel.isHidden = true
             nameLabel.stringValue = NSLocalizedString(
                 "settings.account.guest.title",
-                value: "You’re using Phi without signing in",
+                value: "You’re using Astra Browser without signing in",
                 comment: "Account settings - Title of the Guest account card"
             )
             avatarImageView.image = NSImage(

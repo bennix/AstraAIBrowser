@@ -139,9 +139,11 @@ class Tab: WebContentRepresentable {
         isReaderOfferable = true
     }
 
-    /// Use native NTP rendering when the tab URL is an NTP URL.
-    /// Only ever set for off-the-record tabs (see
-    /// `BrowserState.consumePendingNativeNTP`). The flag is set after the
+    /// Whether the native NTP should use incognito presentation and naming.
+    /// This must be assigned before `usesNativeNTP` is enabled.
+    var nativeNTPIsIncognito = false
+
+    /// Use native NTP rendering when the tab URL is an NTP URL. The flag is set after the
     /// title binding's initial emission, so re-derive the placeholder title
     /// on the flip — without this the sidebar keeps the raw
     /// "chrome://newtab/" Chromium reported before the mark arrived.
@@ -391,12 +393,7 @@ class Tab: WebContentRepresentable {
                 } else if BookmarkManagerRoute.matches(self.url) {
                     self.title = BookmarkManagerRoute.tabTitle
                 } else if self.usesNativeNTP, Self.isUntitledNTPTitle(title, url: self.url) {
-                    // A blank off-the-record chrome://newtab has no page
-                    // title, so Chromium reports the raw URL — e.g. in an
-                    // Incognito Space's dedicated OTR profile, whose NTP
-                    // WebUI does not load. Show the incognito NTP name the
-                    // primary OTR profile's real NTP would carry.
-                    self.title = Self.incognitoNewTabTitle
+                    self.title = self.nativeNTPPlaceholderTitle
                 } else {
                     self.title = title
                 }
@@ -424,6 +421,11 @@ class Tab: WebContentRepresentable {
                 guard let urlStr else {
                     return false
                 }
+                #if ASTRA_ZENMUX_BUILD
+                if urlStr.isNTP {
+                    return true
+                }
+                #endif
                 return !urlStr.isLocalUrlString
             }
             .assign(to: \.aiChatEnabled, on: self)
@@ -530,6 +532,16 @@ class Tab: WebContentRepresentable {
     static let incognitoNewTabTitle = NSLocalizedString("common.newTabPage.incognitoTitle", value: "New Incognito Tab",
         comment: "Tab title shown for an incognito new-tab page rendered by the native NTP")
 
+    static let newTabTitle = NSLocalizedString(
+        "common.newTabPage.title",
+        value: "New Tab",
+        comment: "Tab title shown for a regular new-tab page rendered by the native new-tab view"
+    )
+
+    private var nativeNTPPlaceholderTitle: String {
+        nativeNTPIsIncognito ? Self.incognitoNewTabTitle : Self.newTabTitle
+    }
+
     /// Replace an untitled newtab title with the incognito NTP placeholder.
     /// Called when `usesNativeNTP` flips on, catching titles that arrived
     /// before the mark; later Chromium title updates go through the same
@@ -537,7 +549,7 @@ class Tab: WebContentRepresentable {
     private func applyIncognitoNTPTitleIfUntitled() {
         guard storedTitle?.isEmpty != false,
               Self.isUntitledNTPTitle(title, url: url) else { return }
-        title = Self.incognitoNewTabTitle
+        title = nativeNTPPlaceholderTitle
     }
 
     /// True when Chromium supplied no real page title for a new-tab page:
@@ -559,6 +571,10 @@ class Tab: WebContentRepresentable {
     }
     
     @objc func close() {
+        if webContentWrapper is CefWebContentWrapper {
+            webContentWrapper?.close()
+            return
+        }
         // While the agent controls its Space, the watching user cannot close
         // its tabs (the ✕ button, split close, ⌘W all funnel here) — the agent
         // drives tab lifecycle over CDP. Taking control re-enables it.

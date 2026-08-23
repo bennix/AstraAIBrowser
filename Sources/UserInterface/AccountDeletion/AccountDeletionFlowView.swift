@@ -126,7 +126,7 @@ struct AccountDeletionFlowView: View {
 
     var body: some View {
         PhiAlert(
-            title: NSLocalizedString("accountDeletion.window.title", value: "Delete Phi Account",
+            title: NSLocalizedString("accountDeletion.window.title", value: "Delete Astra Browser Account",
                 comment: "Account deletion - Title of the deletion flow dialog"
             )
         ) {
@@ -397,7 +397,7 @@ struct AccountDeletionFlowView: View {
         comment: "Account deletion - Text shown once the deletion request is queued server-side; the deletion itself has not finished yet, and the finalize confirmation comes next"
     )
 
-    private static let finalizingText = NSLocalizedString("accountDeletion.finalizingProgress", value: "Signing you out and removing Phi's data from this Mac…",
+    private static let finalizingText = NSLocalizedString("accountDeletion.finalizingProgress", value: "Signing you out and removing Astra Browser's data from this Mac…",
         comment: "Account deletion - Progress text while the finalize clears local data, right before the app quits"
     )
 

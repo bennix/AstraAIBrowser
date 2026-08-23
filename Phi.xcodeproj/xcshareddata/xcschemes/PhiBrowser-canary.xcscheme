@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "B0C469472E3B10E1007F0C7A"
-               BuildableName = "Phi.app"
+               BuildableName = "Astra Browser.app"
                BlueprintName = "PhiBrowser"
                ReferencedContainer = "container:Phi.xcodeproj">
             </BuildableReference>
@@ -60,7 +60,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "B0C469472E3B10E1007F0C7A"
-            BuildableName = "Phi.app"
+            BuildableName = "Astra Browser.app"
             BlueprintName = "PhiBrowser"
             ReferencedContainer = "container:Phi.xcodeproj">
          </BuildableReference>
@@ -84,7 +84,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "B0C469472E3B10E1007F0C7A"
-            BuildableName = "Phi.app"
+            BuildableName = "Astra Browser.app"
             BlueprintName = "PhiBrowser"
             ReferencedContainer = "container:Phi.xcodeproj">
          </BuildableReference>

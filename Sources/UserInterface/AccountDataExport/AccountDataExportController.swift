@@ -191,7 +191,7 @@ final class AccountDataExportController {
     private func confirmationConfiguration(email: String) -> PhiAlertAppKitConfiguration {
         let messageFormat = NSLocalizedString(
             "accountDataExport.confirmation.message",
-            value: "We'll send a verification code to %@. Once verified, we'll prepare a copy of the personal data associated with your Phi Browser account and email you a download link. The link will be available for seven days.",
+            value: "We'll send a verification code to %@. Once verified, we'll prepare a copy of the personal data associated with your Astra Browser account and email you a download link. The link will be available for seven days.",
             comment: "Account data export - Confirmation message before requesting a code. %@ is the account email"
         )
 

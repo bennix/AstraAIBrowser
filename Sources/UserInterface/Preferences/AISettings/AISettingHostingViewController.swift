@@ -8,7 +8,6 @@ import SwiftUI
 
 final class AISettingHostingViewController: NSViewController {
     private var hostingController: ThemedHostingController<AISettingView>?
-    private let connectorViewModel = AISettingsConnectorViewModel()
 
     override func loadView() {
         view = NSView()
@@ -22,7 +21,7 @@ final class AISettingHostingViewController: NSViewController {
     }
 
     private func setupSwiftUIView() {
-        let hostingController = ThemedHostingController(rootView: AISettingView(connectorViewModel: connectorViewModel))
+        let hostingController = ThemedHostingController(rootView: AISettingView())
 
         hostingController.view.translatesAutoresizingMaskIntoConstraints = false
         addChild(hostingController)
@@ -41,11 +40,6 @@ final class AISettingHostingViewController: NSViewController {
     override func viewWillAppear() {
         super.viewWillAppear()
         hostingController?.view.needsLayout = true
-        if PhiBuildCapabilities.supportsAI {
-            connectorViewModel.loadConnectionsIfNeeded()
-        } else {
-            connectorViewModel.suspendForUnauthenticatedAccess()
-        }
     }
 
 }

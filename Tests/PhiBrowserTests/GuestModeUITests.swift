@@ -23,35 +23,43 @@ final class GuestModeUITests: XCTestCase {
         super.tearDown()
     }
 
-    func testGuestModeDisablesAIWhilePreservingNewTabBehavior() {
+    func testGuestModeDisablesBuiltInAIWhilePreservingZenMuxAndNewTabBehavior() {
         let newTabPageKey = PhiPreferences.GeneralSettings.openNewTabPageOnCmdT.rawValue
 
         for openNewTabPage in [false, true] {
             defaults.set(true, forKey: GuestModePreferences.aiEnabledKey)
+            for key in GuestModePreferences.builtInAIKeys {
+                defaults.set(true, forKey: key)
+            }
             defaults.set(openNewTabPage, forKey: newTabPageKey)
 
-            let didApply = GuestModePreferences.disableAI(defaults: defaults)
+            GuestModePreferences.disableBuiltInAI(defaults: defaults)
 
-            XCTAssertTrue(didApply)
-            XCTAssertFalse(defaults.bool(forKey: GuestModePreferences.aiEnabledKey))
+            XCTAssertTrue(defaults.bool(forKey: GuestModePreferences.aiEnabledKey))
+            for key in GuestModePreferences.builtInAIKeys {
+                XCTAssertFalse(defaults.bool(forKey: key))
+            }
             XCTAssertEqual(defaults.bool(forKey: newTabPageKey), openNewTabPage)
         }
     }
 
-    func testGuestModePersistsDisabledAIWithoutCreatingNewTabPreference() {
+    func testGuestModeDoesNotCreateZenMuxOrNewTabPreferences() {
         let newTabPageKey = PhiPreferences.GeneralSettings.openNewTabPageOnCmdT.rawValue
 
-        GuestModePreferences.disableAI(defaults: defaults)
+        GuestModePreferences.disableBuiltInAI(defaults: defaults)
 
         let domain = defaults.persistentDomain(forName: defaultsSuiteName)
-        XCTAssertEqual(domain?[GuestModePreferences.aiEnabledKey] as? Bool, false)
+        XCTAssertNil(domain?[GuestModePreferences.aiEnabledKey])
         XCTAssertNil(domain?[newTabPageKey])
     }
 
-    func testDisablingGuestAIIsIdempotent() {
-        GuestModePreferences.disableAI(defaults: defaults)
+    func testDisablingBuiltInGuestAIIsIdempotent() {
+        GuestModePreferences.disableBuiltInAI(defaults: defaults)
+        GuestModePreferences.disableBuiltInAI(defaults: defaults)
 
-        XCTAssertFalse(GuestModePreferences.disableAI(defaults: defaults))
+        for key in GuestModePreferences.builtInAIKeys {
+            XCTAssertFalse(defaults.bool(forKey: key))
+        }
     }
 
     func testPostLoginAIEnableIntentIsConsumedOnce() {
@@ -152,21 +160,24 @@ final class GuestModeUITests: XCTestCase {
                 LoginRequiredPresentationPolicy.shouldPresent(
                     for: surface,
                     isGuest: true,
-                    isPhiAIEnabled: true
+                    isPhiAIEnabled: true,
+                    supportsAuthentication: true
                 )
             )
             XCTAssertFalse(
                 LoginRequiredPresentationPolicy.shouldPresent(
                     for: surface,
                     isGuest: true,
-                    isPhiAIEnabled: false
+                    isPhiAIEnabled: false,
+                    supportsAuthentication: true
                 )
             )
             XCTAssertFalse(
                 LoginRequiredPresentationPolicy.shouldPresent(
                     for: surface,
                     isGuest: false,
-                    isPhiAIEnabled: true
+                    isPhiAIEnabled: true,
+                    supportsAuthentication: true
                 )
             )
         }
@@ -182,17 +193,88 @@ final class GuestModeUITests: XCTestCase {
                 LoginRequiredPresentationPolicy.shouldPresent(
                     for: surface,
                     isGuest: true,
-                    isPhiAIEnabled: false
+                    isPhiAIEnabled: false,
+                    supportsAuthentication: true
                 )
             )
             XCTAssertFalse(
                 LoginRequiredPresentationPolicy.shouldPresent(
                     for: surface,
                     isGuest: false,
-                    isPhiAIEnabled: true
+                    isPhiAIEnabled: true,
+                    supportsAuthentication: true
                 )
             )
         }
+    }
+
+    func testLoginRequiredPolicyIsDisabledWhenBuildHasNoAuthentication() {
+        for surface in [
+            LoginRequiredSurface.newTabPage,
+            .aiChat,
+            .browserMemory,
+            .connectors,
+            .imChannels,
+        ] {
+            XCTAssertFalse(
+                LoginRequiredPresentationPolicy.shouldPresent(
+                    for: surface,
+                    isGuest: true,
+                    isPhiAIEnabled: true,
+                    supportsAuthentication: false
+                )
+            )
+        }
+    }
+
+    func testZenMuxMarkdownParserPreservesInlineFormattingInsideOrderedLists() {
+        let blocks = ZenMuxMarkdownParser.blocks(from: """
+        Summary with **bold text**.
+
+        1. **First item**: details
+        2. Second item
+        """)
+
+        XCTAssertEqual(
+            blocks,
+            [
+                .paragraph("Summary with **bold text**."),
+                .orderedList([
+                    .init(marker: 1, content: "**First item**: details"),
+                    .init(marker: 2, content: "Second item"),
+                ]),
+            ]
+        )
+    }
+
+    func testZenMuxMarkdownParserHandlesHeadingsQuotesAndCodeBlocks() {
+        let blocks = ZenMuxMarkdownParser.blocks(from: """
+        ## Details
+        > Important context
+        ```swift
+        let answer = 42
+        ```
+        """)
+
+        XCTAssertEqual(
+            blocks,
+            [
+                .heading(level: 2, content: "Details"),
+                .quote("Important context"),
+                .code("let answer = 42"),
+            ]
+        )
+    }
+
+    @MainActor
+    func testEventBlockingBackgroundCanPassClicksToUnderlyingWebContent() {
+        let view = EventBlockBgView(frame: NSRect(x: 0, y: 0, width: 300, height: 200))
+        view.shouldPassThroughHitTest = { point in
+            point.x > 100
+        }
+
+        XCTAssertNotNil(view.hitTest(NSPoint(x: 50, y: 50)))
+        XCTAssertNil(view.hitTest(NSPoint(x: 150, y: 50)))
     }
 
     func testBrowserMemoryURLClassificationAcceptsInternalAliasesOnly() {
@@ -262,5 +344,28 @@ final class GuestModeUITests: XCTestCase {
         controller.continueAsGuestAction()
 
         XCTAssertEqual(callbackCount, 0)
+    }
+
+    func testBrowserKeyboardShortcutsRemainAvailableToCEFChildWindows() {
+        XCTAssertEqual(
+            MainBrowserWindowController.browserKeyboardShortcut(
+                character: "t",
+                modifiers: .command
+            ),
+            .newTab
+        )
+        XCTAssertEqual(
+            MainBrowserWindowController.browserKeyboardShortcut(
+                character: "L",
+                modifiers: .command
+            ),
+            .focusLocation
+        )
+        XCTAssertNil(
+            MainBrowserWindowController.browserKeyboardShortcut(
+                character: "t",
+                modifiers: [.command, .shift]
+            )
+        )
     }
 }

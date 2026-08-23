@@ -158,7 +158,7 @@ final class AccountDeletionController {
     }
 
     private func warningConfiguration(email: String) -> PhiAlertAppKitConfiguration {
-        let messageFormat = NSLocalizedString("accountDeletion.confirmation.message", value: "This deletes the Phi account %@ and everything Phi has stored on this Mac — browsing history, cookies, passwords, bookmarks, and Spaces. None of it can be recovered.\n\nOnce the deletion request is submitted, Phi signs you out and quits.",
+        let messageFormat = NSLocalizedString("accountDeletion.confirmation.message", value: "This deletes the Astra Browser account %@ and everything Astra Browser has stored on this Mac — browsing history, cookies, passwords, bookmarks, and Spaces. None of it can be recovered.\n\nOnce the deletion request is submitted, Astra Browser signs you out and quits.",
             comment: "Account deletion - Warning explaining what deleting the Phi account destroys. %@ is the account's email address"
         )
         let exportWarning = NSLocalizedString(
@@ -168,7 +168,7 @@ final class AccountDeletionController {
         )
 
         return PhiAlertAppKitConfiguration(
-            title: NSLocalizedString("accountDeletion.confirmation.title", value: "Delete your Phi account?",
+            title: NSLocalizedString("accountDeletion.confirmation.title", value: "Delete your Astra Browser account?",
                 comment: "Account deletion - Title of the warning shown before deleting the Phi account"
             ),
             message: String(format: messageFormat, email) + "\n\n" + exportWarning,

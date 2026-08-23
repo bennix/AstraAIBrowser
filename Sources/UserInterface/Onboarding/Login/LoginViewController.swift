@@ -99,7 +99,7 @@ class LoginViewController: NSViewController {
     private lazy var continueAsGuestButton: NSButton = {
         let title = NSLocalizedString(
             "oobe.login.continueAsGuestButton",
-            value: "Explore Phi without signing in",
+            value: "Explore Astra Browser without signing in",
             comment: "Onboarding sign-in - Tertiary button that enters persistent Guest Mode"
         )
         let button = NSButton(title: title, target: self, action: #selector(continueAsGuestAction))

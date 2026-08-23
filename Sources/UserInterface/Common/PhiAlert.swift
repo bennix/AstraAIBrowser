@@ -1056,7 +1056,7 @@ extension PhiAlert where Icon == EmptyView, AlertContent == EmptyView, Actions =
     /// user confirmed termination.
     static func runQuitAlert(relativeTo sourceWindow: NSWindow? = nil) -> Bool {
         let configuration = PhiAlertAppKitConfiguration(
-            title:  NSLocalizedString("common.quitConfirmation.title", value: "Are you sure you want to quit Phi?",
+            title:  NSLocalizedString("common.quitConfirmation.title", value: "Are you sure you want to quit Astra Browser?",
                 comment: "Quit confirmation title"
             ),
             message: NSLocalizedString("common.quitConfirmation.message", value: "Any unsaved changes may be lost.",

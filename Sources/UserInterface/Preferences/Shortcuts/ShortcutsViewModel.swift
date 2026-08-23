@@ -162,7 +162,7 @@ private extension CommandWrapper {
     var localizedShortcutTitle: String {
         switch self {
         case .IDC_OPTIONS:
-            return NSLocalizedString("settings.shortcuts.command.openSettings", value: "Settings", comment: "Shortcuts settings - Command title for opening Phi settings")
+            return NSLocalizedString("settings.shortcuts.command.openSettings", value: "Settings", comment: "Shortcuts settings - Command title for opening Astra Browser settings")
         case .IDC_NEW_TAB:
             return NSLocalizedString("settings.shortcuts.command.newTab", value: "New Tab", comment: "Shortcuts settings - Command title for opening a new tab")
         case .IDC_NEW_WINDOW:

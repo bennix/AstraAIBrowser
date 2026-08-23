@@ -67,8 +67,8 @@ extension AppController {
     @MainActor
     @objc func importUserDataFromBackup(_ sender: Any?) {
         let confirm = NSAlert()
-        confirm.messageText = NSLocalizedString("app.userDataImport.confirmation.title", value: "Import Phi User Data?", comment: "User data import - Confirmation alert title before replacing Phi user data from zip")
-        confirm.informativeText = NSLocalizedString("app.userDataImport.confirmation.message", value: "This replaces the Phi user data folder with the archive and restarts Phi. Save your work first.", comment: "User data import - Confirmation alert body warning data replacement and relaunch")
+        confirm.messageText = NSLocalizedString("app.userDataImport.confirmation.title", value: "Import Astra Browser User Data?", comment: "User data import - Confirmation alert title before replacing Astra Browser user data from zip")
+        confirm.informativeText = NSLocalizedString("app.userDataImport.confirmation.message", value: "This replaces the Astra Browser user data folder with the archive and restarts Astra Browser. Save your work first.", comment: "User data import - Confirmation alert body warning data replacement and relaunch")
         confirm.alertStyle = .warning
         confirm.addButton(withTitle: NSLocalizedString("app.userDataImport.confirmation.importButton", value: "Import...", comment: "User data import - Alert button to open file picker for zip backup"))
         confirm.addButton(withTitle: NSLocalizedString("app.userDataImport.confirmation.cancelButton", value: "Cancel", comment: "User data import - Alert button to cancel importing user data"))
@@ -81,7 +81,7 @@ extension AppController {
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.zip]
-        panel.title = NSLocalizedString("app.userDataImport.filePicker.title", value: "Select Phi User Data Backup", comment: "User data import - NSOpenPanel title for choosing a Phi user data zip")
+        panel.title = NSLocalizedString("app.userDataImport.filePicker.title", value: "Select Astra Browser User Data Backup", comment: "User data import - NSOpenPanel title for choosing a Astra Browser user data zip")
 
         guard panel.runModal() == .OK, let zipURL = panel.url else {
             return
@@ -243,8 +243,8 @@ extension AppController {
         panel.canCreateDirectories = true
         panel.allowedContentTypes = [.zip]
         panel.nameFieldStringValue = defaultPhiUserDataBackupFileName()
-        panel.title = NSLocalizedString("app.userDataExport.savePanel.title", value: "Back Up Phi User Data", comment: "User data export - NSSavePanel title for saving Phi user data directory as zip")
-        panel.prompt = NSLocalizedString("app.userDataExport.savePanel.saveButton", value: "Save", comment: "User data export - NSSavePanel confirm button title when saving Phi user data backup zip")
+        panel.title = NSLocalizedString("app.userDataExport.savePanel.title", value: "Back Up Astra Browser User Data", comment: "User data export - NSSavePanel title for saving Astra Browser user data directory as zip")
+        panel.prompt = NSLocalizedString("app.userDataExport.savePanel.saveButton", value: "Save", comment: "User data export - NSSavePanel confirm button title when saving Astra Browser user data backup zip")
 
         let selectionBox = PhiUserDataExportSelectionBox(
             browserDataAvailable: browserDataAvailable
@@ -303,7 +303,7 @@ extension AppController {
                         userInfo: [
                             NSLocalizedDescriptionKey: NSLocalizedString(
                                 "app.userDataExport.browserDataUnavailable.message",
-                                value: "The Phi browser data folder is no longer available.",
+                                value: "The Astra Browser browser data folder is no longer available.",
                                 comment: "User data export - Error when browser data disappears before the backup starts"
                             )
                         ]
@@ -814,7 +814,7 @@ extension AppController {
             throw NSError(
                 domain: "PhiUserDataImport",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: NSLocalizedString("app.userDataImport.invalidArchive.missingTopLevelFolder", value: "The archive does not contain a top-level Phi folder.", comment: "User data import - Error message when zip does not include the expected Phi directory at archive root")]
+                userInfo: [NSLocalizedDescriptionKey: NSLocalizedString("app.userDataImport.invalidArchive.missingTopLevelFolder", value: "The archive does not contain a top-level Astra Browser folder.", comment: "User data import - Error message when zip does not include the expected Astra Browser directory at archive root")]
             )
         }
 
@@ -841,7 +841,7 @@ extension AppController {
             throw NSError(
                 domain: "PhiUserDataImport",
                 code: 4,
-                userInfo: [NSLocalizedDescriptionKey: NSLocalizedString("app.userDataImport.invalidArchive.restoredItemNotDirectory", value: "The restored Phi user data is not a directory.", comment: "User data import - Error message when extracted Phi item is not a directory")]
+                userInfo: [NSLocalizedDescriptionKey: NSLocalizedString("app.userDataImport.invalidArchive.restoredItemNotDirectory", value: "The restored Astra Browser user data is not a directory.", comment: "User data import - Error message when extracted Astra Browser item is not a directory")]
             )
         }
 

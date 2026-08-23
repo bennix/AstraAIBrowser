@@ -3,7 +3,8 @@
 // Use of this source code is governed by an Apache license that can be
 // found in the LICENSE file.
 
-import Foundation
+import AppKit
+import CefKit
 import Combine
 
 /// Download item state enumeration matching Chromium's DownloadItem::DownloadState
@@ -47,6 +48,10 @@ class DownloadItem: ObservableObject, Identifiable {
     @Published var isInsecure: Bool
     @Published var insecureDownloadStatus: Int
     @Published var targetFilePath: String
+
+    var isCEFDownload: Bool {
+        id.hasPrefix("cef-")
+    }
 
     // MARK: - Safety State (delegates to DownloadSafetyComputation)
 
@@ -184,6 +189,66 @@ class DownloadItem: ObservableObject, Identifiable {
         self.targetFilePath = wrapper.targetFilePath
     }
 
+    init(cefDownload: CefDownload, suggestedName: String, destination: URL) {
+        self.id = "cef-\(cefDownload.id)"
+        self.fileName = suggestedName
+        self.url = cefDownload.url?.absoluteString ?? ""
+        self.mimeType = ""
+        self.state = .inProgress
+        self.totalBytes = cefDownload.totalBytes
+        self.receivedBytes = cefDownload.receivedBytes
+        self.percentComplete = Self.percentComplete(for: cefDownload)
+        self.currentSpeed = 0
+        self.startTime = Date()
+        self.endTime = nil
+        self.canShowInFolder = false
+        self.canOpenDownload = false
+        self.canResume = false
+        self.isPaused = false
+        self.isDone = false
+        self.isDangerous = false
+        self.dangerType = 0
+        self.isInsecure = false
+        self.insecureDownloadStatus = 0
+        self.targetFilePath = destination.path
+    }
+
+    func update(from download: CefDownload, currentSpeed: Int64) {
+        totalBytes = download.totalBytes
+        receivedBytes = download.receivedBytes
+        percentComplete = Self.percentComplete(for: download)
+        self.currentSpeed = currentSpeed
+        if let fullPath = download.fullPath {
+            targetFilePath = fullPath.path
+            if fileName.isEmpty {
+                fileName = fullPath.lastPathComponent
+            }
+        }
+
+        if download.isComplete {
+            state = .complete
+            percentComplete = 100
+            endTime = Date()
+            isDone = true
+            canShowInFolder = FileManager.default.fileExists(atPath: targetFilePath)
+            canOpenDownload = canShowInFolder
+        } else if download.isCanceled {
+            state = .interrupted
+            endTime = Date()
+            isDone = true
+            canShowInFolder = false
+            canOpenDownload = false
+        } else {
+            state = .inProgress
+            isDone = false
+        }
+    }
+
+    private static func percentComplete(for download: CefDownload) -> Int {
+        guard download.totalBytes > 0 else { return -1 }
+        return min(100, max(0, Int(download.receivedBytes * 100 / download.totalBytes)))
+    }
+
     #if DEBUG
     /// Mock initializer for preview and testing
     init(id: String, fileName: String, url: String, state: DownloadState = .complete, 
@@ -251,9 +316,77 @@ class DownloadsManager: ObservableObject {
     private var windowId: Int64 {
         Int64(browserState?.windowId ?? 0)
     }
+
+    private var cefProgressSamples: [String: (date: Date, receivedBytes: Int64)] = [:]
     
     init(browserState: BrowserState? = nil) {
         self.browserState = browserState
+    }
+
+    /// Registers a CEF download and returns the collision-free file destination.
+    func beginCEFDownload(_ download: CefDownload, suggestedName: String) -> URL {
+        let destination = uniqueDownloadDestination(suggestedName: suggestedName)
+        let id = "cef-\(download.id)"
+        if downloads.contains(where: { $0.id == id }) == false {
+            let item = DownloadItem(
+                cefDownload: download,
+                suggestedName: destination.lastPathComponent,
+                destination: destination
+            )
+            downloads.insert(item, at: 0)
+            cefProgressSamples[id] = (Date(), download.receivedBytes)
+            updateTotalProgress()
+            downloadEventPublisher.send(DownloadEvent(eventType: .created, downloadItem: item))
+        }
+        return destination
+    }
+
+    /// Applies a CEF progress snapshot to the existing native download manager.
+    func handleCEFDownloadProgress(_ download: CefDownload) {
+        let id = "cef-\(download.id)"
+        guard let item = downloads.first(where: { $0.id == id }) else { return }
+
+        let now = Date()
+        let previous = cefProgressSamples[id]
+        let speed: Int64
+        if let previous {
+            let elapsed = now.timeIntervalSince(previous.date)
+            speed = elapsed > 0 ? max(0, Int64(Double(download.receivedBytes - previous.receivedBytes) / elapsed)) : 0
+        } else {
+            speed = 0
+        }
+        cefProgressSamples[id] = (now, download.receivedBytes)
+        item.update(from: download, currentSpeed: speed)
+        updateTotalProgress()
+
+        let eventType: DownloadEventType
+        if download.isComplete {
+            eventType = .completed
+            cefProgressSamples.removeValue(forKey: id)
+        } else if download.isCanceled {
+            eventType = .interrupted
+            cefProgressSamples.removeValue(forKey: id)
+        } else {
+            eventType = .updated
+        }
+        downloadEventPublisher.send(DownloadEvent(eventType: eventType, downloadItem: item))
+    }
+
+    private func uniqueDownloadDestination(suggestedName: String) -> URL {
+        let directory = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let sanitizedName = (suggestedName as NSString).lastPathComponent
+        let safeName = sanitizedName.isEmpty ? "download" : sanitizedName
+        var destination = directory.appendingPathComponent(safeName)
+        let stem = destination.deletingPathExtension().lastPathComponent
+        let pathExtension = destination.pathExtension
+        var suffix = 2
+        while FileManager.default.fileExists(atPath: destination.path) {
+            let candidate = pathExtension.isEmpty ? "\(stem) \(suffix)" : "\(stem) \(suffix).\(pathExtension)"
+            destination = directory.appendingPathComponent(candidate)
+            suffix += 1
+        }
+        return destination
     }
 
     private func updateTotalProgress() {
@@ -437,14 +570,31 @@ class DownloadsManager: ObservableObject {
     }
     
     func removeDownload(_ item: DownloadItem) {
+        if item.isCEFDownload {
+            downloads.removeAll { $0.id == item.id }
+            cefProgressSamples.removeValue(forKey: item.id)
+            updateTotalProgress()
+            downloadEventPublisher.send(DownloadEvent(eventType: .removed, downloadItem: item))
+            return
+        }
         ChromiumLauncher.sharedInstance().bridge?.removeDownload(withGuid: item.id, windowId: windowId)
     }
     
     func openDownload(_ item: DownloadItem) {
+        if item.isCEFDownload {
+            guard FileManager.default.fileExists(atPath: item.targetFilePath) else { return }
+            NSWorkspace.shared.open(URL(fileURLWithPath: item.targetFilePath))
+            return
+        }
         ChromiumLauncher.sharedInstance().bridge?.openDownload(withGuid: item.id, windowId: windowId)
     }
     
     func showInFinder(_ item: DownloadItem) {
+        if item.isCEFDownload {
+            guard FileManager.default.fileExists(atPath: item.targetFilePath) else { return }
+            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: item.targetFilePath)])
+            return
+        }
         ChromiumLauncher.sharedInstance().bridge?.showDownloadInFinder(withGuid: item.id, windowId: windowId)
     }
     

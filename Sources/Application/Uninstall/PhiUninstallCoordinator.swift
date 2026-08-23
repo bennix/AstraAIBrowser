@@ -183,12 +183,12 @@ final class PhiUninstallCoordinator {
         alert.alertStyle = .critical
         alert.messageText = NSLocalizedString(
             "app.uninstall.confirmation.title",
-            value: "Uninstall Phi?",
+            value: "Uninstall Astra Browser?",
             comment: "Phi uninstall - Critical confirmation alert title before permanently removing the app and local data"
         )
         alert.informativeText = NSLocalizedString(
             "app.uninstall.confirmation.message",
-            value: "Phi and Phi Sentinel will quit. Browsing data, conversations, AI memory, service data, and local AI models for this version of Phi will be permanently deleted. This cannot be undone.",
+            value: "Astra Browser and Astra Browser Sentinel will quit. Browsing data, conversations, AI memory, service data, and local AI models for this version of Astra Browser will be permanently deleted. This cannot be undone.",
             comment: "Phi uninstall - Critical confirmation message describing the channel-scoped data that will be permanently removed"
         )
         let uninstallButton = alert.addButton(withTitle: NSLocalizedString(
@@ -211,13 +211,13 @@ final class PhiUninstallCoordinator {
         alert.alertStyle = .warning
         alert.messageText = NSLocalizedString(
             "app.uninstall.failure.title",
-            value: "Phi Could Not Be Uninstalled",
+            value: "Astra Browser Could Not Be Uninstalled",
             comment: "Phi uninstall - Error alert title when the uninstall helper could not be prepared or launched"
         )
         alert.informativeText = String(
             format: NSLocalizedString(
                 "app.uninstall.failure.message",
-                value: "Phi and its local files were not removed. Some sign-in data may already have been cleared. %@",
+                value: "Astra Browser and its local files were not removed. Some sign-in data may already have been cleared. %@",
                 comment: "Phi uninstall - Error alert message after uninstall preparation fails; the placeholder is the technical reason and sign-in cleanup may have partially completed"
             ),
             error.localizedDescription

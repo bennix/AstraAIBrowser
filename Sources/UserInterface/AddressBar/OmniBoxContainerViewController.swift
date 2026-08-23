@@ -22,6 +22,7 @@ private final class OmniBoxContainerRootView: NSView {
 }
 
 final class OmniBoxContainerViewController: NSViewController {
+    var onVisibilityChanged: ((Bool) -> Void)?
     private(set) var omniBoxController: OmniBoxViewController?
     private var cancellables = Set<AnyCancellable>()
     
@@ -46,6 +47,14 @@ final class OmniBoxContainerViewController: NSViewController {
         
         superView?.mouseDown = { [weak self] event in
             self?.handleBackgroundMouseDown(event)
+        }
+        superView?.shouldPassThroughHitTest = { [weak self, weak superView] point in
+            guard let self, let superView, self.hasShown,
+                  let omniBoxView = self.omniBoxController?.view else { return false }
+            let pointInRoot = self.view.convert(point, from: superView)
+            guard !omniBoxView.frame.contains(pointInRoot) else { return false }
+            self.hideOmniBox()
+            return true
         }
     }
     
@@ -175,6 +184,7 @@ final class OmniBoxContainerViewController: NSViewController {
     
     
     func showOmniBox(fromAddressBar: Bool, addressView: NSView? = nil) {
+        onVisibilityChanged?(true)
         self.addressView = addressView
         showFromAddressBar = fromAddressBar && addressView != nil
         needsShowAnimation = true
@@ -229,6 +239,7 @@ final class OmniBoxContainerViewController: NSViewController {
                 self?.view.superview?.removeFromSuperview()
                 omniBoxView.alphaValue = 0
                 omniBoxView.layer?.removeAllAnimations()
+                self?.onVisibilityChanged?(false)
             }
             
             omniBoxView.layer?.add(animationGroup, forKey: "hideAnimation")
@@ -405,6 +416,7 @@ final class OmniBoxContainerViewController: NSViewController {
         hasShown = false
         showFromAddressBar = false
         omniBoxController?.reset()
+        onVisibilityChanged?(false)
     }
     
     private func hideOmniBoxFromAddressbarWithAnimation() {
@@ -471,6 +483,7 @@ final class OmniBoxContainerViewController: NSViewController {
             self.parentView?.removeFromSuperview()
             self.hasShown = false
             self.showFromAddressBar = false
+            self.onVisibilityChanged?(false)
         }
 
         layer.add(animationGroup, forKey: "collapseAnimation")

@@ -162,10 +162,10 @@ class LocalStore {
     private static func runRequiresNewerAppAlert() {
         Task { @MainActor in
             let alert = NSAlert()
-            alert.messageText = NSLocalizedString("localData.compatibilityAlert.updateRequiredTitle", value: "Update Phi to Open Local Data",
+            alert.messageText = NSLocalizedString("localData.compatibilityAlert.updateRequiredTitle", value: "Update Astra Browser to Open Local Data",
                 comment: "Local store compatibility alert - title when the local database was opened by a newer app version"
             )
-            alert.informativeText = NSLocalizedString("localData.compatibilityAlert.newerVersionMessage", value: "This version of Phi cannot open local browser data that was updated by a newer version. Install the latest Phi version and try again.",
+            alert.informativeText = NSLocalizedString("localData.compatibilityAlert.newerVersionMessage", value: "This version of Astra Browser cannot open local browser data that was updated by a newer version. Install the latest Astra Browser version and try again.",
                 comment: "Local store compatibility alert - body when a newer app is required to read local data"
             )
             alert.alertStyle = .warning
