@@ -1365,6 +1365,58 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             return
         }
 
+        if arguments.contains("--cef-webrtc-privacy-smoke") {
+            guard !isLoading, browser != nil else { return }
+            didStartSmokeCheck = true
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let operation = """
+                const connection = new RTCPeerConnection({
+                  iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun.cloudflare.com:3478' }
+                  ]
+                });
+                const candidates = [];
+                connection.createDataChannel('privacy-probe');
+                const gatheringComplete = new Promise((resolve) => {
+                  const timeout = setTimeout(resolve, 8000);
+                  connection.addEventListener('icecandidate', (event) => {
+                    if (event.candidate) {
+                      candidates.push({
+                        address: event.candidate.address || '',
+                        protocol: event.candidate.protocol || '',
+                        type: event.candidate.type || '',
+                        candidate: event.candidate.candidate
+                      });
+                    } else {
+                      clearTimeout(timeout);
+                      resolve();
+                    }
+                  });
+                });
+                await connection.setLocalDescription(await connection.createOffer());
+                await gatheringComplete;
+                connection.close();
+                const unsafeUDPCandidates = candidates.filter(
+                  (candidate) => candidate.protocol.toLowerCase() === 'udp' && candidate.type !== 'relay'
+                );
+                return JSON.stringify({
+                  ok: unsafeUDPCandidates.length === 0,
+                  candidates,
+                  unsafeUDPCandidates
+                });
+                """
+                let result = await evaluateJavaScriptResult(operation: operation, timeout: 12) ?? "unavailable"
+                let status = result.contains("\"ok\":true") ? "passed" : "failed"
+                FileHandle.standardOutput.write(
+                    Data("[cef-smoke] WebRTC privacy \(status): \(result)\n".utf8)
+                )
+                NSApp.terminate(nil)
+            }
+            return
+        }
+
         if arguments.contains("--cef-image-compatibility-smoke") {
             guard !isLoading, browser != nil else { return }
             didStartSmokeCheck = true

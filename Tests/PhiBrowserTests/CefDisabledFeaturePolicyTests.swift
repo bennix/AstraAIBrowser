@@ -33,3 +33,16 @@ final class CefDisabledFeaturePolicyTests: XCTestCase {
         )
     }
 }
+
+final class CefWebRTCPrivacyPolicyTests: XCTestCase {
+    func testPolicyDisablesNonProxiedUDP() {
+        XCTAssertEqual(
+            CefWebRTCPrivacyPolicy.commandLineSwitch,
+            "webrtc-ip-handling-policy"
+        )
+        XCTAssertEqual(
+            CefWebRTCPrivacyPolicy.requiredValue,
+            "disable_non_proxied_udp"
+        )
+    }
+}

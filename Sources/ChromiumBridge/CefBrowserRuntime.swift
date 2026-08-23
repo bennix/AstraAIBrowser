@@ -65,6 +65,18 @@ enum CefDisabledFeaturePolicy {
     }
 }
 
+enum CefWebRTCPrivacyPolicy {
+    static let commandLineSwitch = "webrtc-ip-handling-policy"
+    static let requiredValue = "disable_non_proxied_udp"
+
+    static func apply(to commandLine: CefCommandLine) {
+        // Keep WebRTC available while preventing it from bypassing a configured
+        // proxy or VPN with direct UDP candidates. Appending here overrides any
+        // weaker value supplied on the process command line.
+        commandLine.appendSwitch(commandLineSwitch, value: requiredValue)
+    }
+}
+
 struct BrowserAutomationPoint: Equatable {
     static let normalizedMaximum = 1_000
 
@@ -306,6 +318,7 @@ private final class CefBrowserWindow: NSWindow {
                     commandLine.switchValue("disable-features")
                 )
                 commandLine.appendSwitch("disable-features", value: disabledFeatures)
+                CefWebRTCPrivacyPolicy.apply(to: commandLine)
             }
             // Some CDN edges reset multiplexed image streams while still serving
             // the same resources correctly over HTTP/1.1. Prefer the reliable
