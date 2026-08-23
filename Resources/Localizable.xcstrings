@@ -186,13 +186,13 @@
       }
     },
     "chat.zenMux.youtubeContextNotice" : {
-      "comment" : "ZenMux chat - Privacy note explaining current-page and YouTube caption context sharing",
+      "comment" : "ZenMux chat - Privacy notice explaining current-page, caption, and public-video context sharing",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Astra Browser shares this page's readable content and available YouTube captions with ZenMux."
+            "value" : "Astra Browser shares this page's readable content, available captions, and public YouTube video when captions are unavailable with ZenMux."
           }
         }
       }
@@ -229,6 +229,30 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "YouTube captions unavailable"
+          }
+        }
+      }
+    },
+    "chat.zenMux.youtubeVideoAnalysisIncluded" : {
+      "comment" : "ZenMux chat - Status confirming public YouTube video analysis is included when captions are unavailable",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "YouTube audio and visual analysis included"
+          }
+        }
+      }
+    },
+    "chat.zenMux.youtubeVideoAnalysisLoading" : {
+      "comment" : "ZenMux chat - Status while the selected model analyzes a public YouTube video without captions",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Analyzing YouTube video audio and visuals…"
           }
         }
       }

@@ -850,11 +850,19 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             installWebResourceCompatibility()
         } else {
             loadProgress = 1
+            installYouTubeAdPlaybackControl()
             installWebCredentialControls()
             installWebResourceCompatibility()
             installAutomaticMediaCompatibilityDetection()
             runSmokeCheckIfReady()
         }
+    }
+
+    private func installYouTubeAdPlaybackControl() {
+        guard let browser,
+              let pageURL = URL(string: urlString ?? pendingURL.absoluteString),
+              YouTubeAdPlaybackPolicy.supports(host: pageURL.host) else { return }
+        browser.executeJavaScript(YouTubeAdPlaybackPolicy.javaScript)
     }
 
     private func installAutomaticMediaCompatibilityDetection() {

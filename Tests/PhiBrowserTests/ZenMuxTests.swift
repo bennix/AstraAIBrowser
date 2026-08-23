@@ -135,6 +135,37 @@ final class ZenMuxTests: XCTestCase {
             pageURL: "https://www.youtube.com/shorts/dQw4w9WgXcQ",
             transcriptAvailable: true
         ))
+        XCTAssertNil(ZenMuxChatSession.youtubeEvidenceInstruction(
+            pageURL: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            transcriptAvailable: false,
+            videoAnalysisAvailable: true
+        ))
+    }
+
+    func testYouTubeVideoAnalysisRequestUsesExplicitVertexFileData() throws {
+        let videoURL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        let data = try APIClient.makeZenMuxYouTubeVideoAnalysisRequest(videoURL: videoURL)
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        let contents = try XCTUnwrap(object["contents"] as? [[String: Any]])
+        let parts = try XCTUnwrap(contents.first?["parts"] as? [[String: Any]])
+        let fileData = try XCTUnwrap(parts.last?["fileData"] as? [String: Any])
+
+        XCTAssertEqual(fileData["fileUri"] as? String, videoURL)
+        XCTAssertEqual(fileData["mimeType"] as? String, "video/mp4")
+        XCTAssertEqual(
+            (object["generationConfig"] as? [String: Any])?["temperature"] as? Int,
+            0
+        )
+    }
+
+    func testYouTubeVideoAnalysisRejectsNonYouTubeURLs() {
+        XCTAssertThrowsError(
+            try APIClient.makeZenMuxYouTubeVideoAnalysisRequest(
+                videoURL: "https://example.com/video.mp4"
+            )
+        )
     }
 
     func testFailedYouTubeTranscriptCanRetryAfterCooldown() {
