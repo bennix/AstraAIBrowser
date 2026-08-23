@@ -306,6 +306,18 @@ import PostHog
         // session quitting does and a Dock reopen restores it.
         return false
     }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        let canUseBrowser = !PhiBuildCapabilities.supportsAuthentication
+            || ApplicationState.shared.canUseBrowser
+        guard canUseBrowser else { return }
+
+        // Cmd-Tab and an ordinary Dock activation do not reliably call
+        // applicationShouldHandleReopen while a browser window still exists.
+        // Re-run the slot visibility reconcile so an active window that was
+        // ordered out while the app was inactive is surfaced again.
+        SpaceManager.shared.reconcileSlotVisibilityAfterReopen()
+    }
     
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
         let canUseBrowser = !PhiBuildCapabilities.supportsAuthentication

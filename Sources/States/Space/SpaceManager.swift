@@ -928,8 +928,8 @@ final class SpaceManager: ObservableObject {
     }
 
     /// Re-asserts every slot's one-visible-window invariant after an app
-    /// reopen (Dock-icon click). Chromium's reopen handler surfaces every
-    /// browser window it owns — including a slot's hidden sibling Space
+    /// activation or reopen (Cmd-Tab / Dock-icon click). Chromium's reopen
+    /// handler surfaces every browser window it owns — including a slot's hidden sibling Space
     /// windows — so all Spaces in a slot momentarily appear on screen. This is
     /// the same symptom the cold-launch session-restore burst produces, so the
     /// fix reuses each slot's coalesced restore reconcile to drop the siblings
@@ -9663,10 +9663,25 @@ final class SpaceWindowSlot: ObservableObject {
         // A miniaturized active window is a valid zero-visible-window state for
         // the slot. Keep sweeping surfaced siblings, but do not re-front the
         // active window and undo the user's minimize action.
-        if !activeWindow.isMiniaturized && (hidCount > 0 || !activeWindow.isVisible) {
+        if Self.shouldFrontActiveWindowDuringVisibilityReconcile(
+            isVisible: activeWindow.isVisible,
+            isMiniaturized: activeWindow.isMiniaturized,
+            hidSiblingCount: hidCount,
+            tabSelectionNeedsCorrection: false
+        ) {
             makeKeyAndOrderFrontHidingSlotTabBar(activeWindow)
         }
         visibleController = activeController
+    }
+
+    static func shouldFrontActiveWindowDuringVisibilityReconcile(
+        isVisible: Bool,
+        isMiniaturized: Bool,
+        hidSiblingCount: Int,
+        tabSelectionNeedsCorrection: Bool
+    ) -> Bool {
+        !isMiniaturized
+            && (hidSiblingCount > 0 || !isVisible || tabSelectionNeedsCorrection)
     }
 
     /// Removes any `SidebarSwapOverlay` in a window's view tree except the one
@@ -10013,10 +10028,16 @@ final class SpaceWindowSlot: ObservableObject {
         // The active window is never concealed on the claim path, but reveal
         // defensively before fronting it.
         revealConcealedWindow(activeWindow)
-        // Re-front the active window only when something was actually hidden (or
-        // it isn't the selected tab yet), so settled passes don't repeatedly
-        // steal key focus.
-        if hidCount > 0 || activeWindow.tabGroup?.selectedWindow !== activeWindow {
+        // Re-front the active window when something was hidden, it is not the
+        // selected tab, or AppKit left it ordered out while the app was
+        // inactive. A miniaturized window remains a valid user-selected
+        // zero-visible-window state and must not be restored automatically.
+        if Self.shouldFrontActiveWindowDuringVisibilityReconcile(
+            isVisible: activeWindow.isVisible,
+            isMiniaturized: activeWindow.isMiniaturized,
+            hidSiblingCount: hidCount,
+            tabSelectionNeedsCorrection: activeWindow.tabGroup?.selectedWindow !== activeWindow
+        ) {
             makeKeyAndOrderFrontHidingSlotTabBar(activeWindow)
         }
         updateWindowsMenuExclusion()
