@@ -369,18 +369,13 @@ private struct PinnedExtensionButton: View {
                     executePinnedExtensionAction(
                         ext,
                         manager: manager,
-                        windowId: windowId,
                         anchorRect: anchorView.flatMap(ExtensionPopupAnchor.rectOfView)
                     )
                 },
                 secondaryAction: {
                     let point = anchorView.flatMap(ExtensionPopupAnchor.pointBelowView)
                         ?? ExtensionPopupAnchor.mouseFallback()
-                    ChromiumLauncher.sharedInstance().bridge?.triggerExtensionContextMenu(
-                        withId: ext.id,
-                        pointInScreen: point,
-                        windowId: windowId
-                    )
+                    manager.manageExtension(ext, fallbackPoint: point)
                 }
             )
             // Anchor the badge to the centered icon (not the larger button) so
@@ -416,24 +411,15 @@ private struct PinnedExtensionButton: View {
 private func executePinnedExtensionAction(
     _ ext: Extension,
     manager: ExtensionManager,
-    windowId: Int64,
     anchorRect: NSRect?
 ) {
     if manager.badges[ext.id]?.enabled == false {
         let point = anchorRect.map(ExtensionPopupAnchor.legacyAnchorPoint(for:))
             ?? ExtensionPopupAnchor.mouseFallback()
-        ChromiumLauncher.sharedInstance().bridge?.triggerExtensionContextMenu(
-            withId: ext.id,
-            pointInScreen: point,
-            windowId: windowId
-        )
+        manager.manageExtension(ext, fallbackPoint: point)
         return
     }
-    ChromiumLauncher.sharedInstance().bridge?.triggerExtension(
-        withId: ext.id,
-        anchorRect: anchorRect,
-        windowId: windowId
-    )
+    manager.triggerExtension(ext, anchorRect: anchorRect)
 }
 
 /// The drag image content: the action's current dynamic icon with its badge,
@@ -599,7 +585,6 @@ final class HeaderExtensionReorderView: NSView {
             executePinnedExtensionAction(
                 pinnedExtensions[index],
                 manager: manager,
-                windowId: windowId,
                 anchorRect: ExtensionPopupAnchor.rectOfRect(
                     slotButtonRect(at: index), in: self)
             )

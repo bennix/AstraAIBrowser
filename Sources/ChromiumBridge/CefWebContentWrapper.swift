@@ -204,19 +204,38 @@ enum WebContentEnginePolicy {
         allowsCredentialStorage: Bool,
         forceSystemMediaEngine: Bool = false
     ) -> Bool {
-        if forceSystemMediaEngine || !allowsCredentialStorage {
-            return true
-        }
-        if profileId != LocalStore.defaultProfileId {
-            return true
-        }
-        switch url.scheme?.lowercased() {
-        case "http", "https":
-            return true
-        default:
-            return SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(for: url)
-        }
+        _ = profileId
+        _ = allowsCredentialStorage
+        return forceSystemMediaEngine
+            || SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(for: url)
     }
+}
+
+enum WebKitWebRTCPrivacyPolicy {
+    /// WebKit does not expose Chromium's IP handling policy. Compatibility
+    /// pages therefore disable peer connections before page scripts run so a
+    /// fallback engine cannot bypass the process-wide CEF privacy boundary.
+    static let javaScript = """
+    (() => {
+      const blockedPeerConnection = function RTCPeerConnection() {
+        throw new DOMException(
+          'WebRTC is unavailable in this compatibility view.',
+          'NotAllowedError'
+        );
+      };
+      for (const name of ['RTCPeerConnection', 'webkitRTCPeerConnection']) {
+        try {
+          Object.defineProperty(window, name, {
+            value: blockedPeerConnection,
+            writable: false,
+            configurable: false
+          });
+        } catch (_) {
+          window[name] = blockedPeerConnection;
+        }
+      }
+    })();
+    """
 }
 
 enum SystemMediaCompatibilityPolicy {
@@ -518,6 +537,13 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         // that the browser does not support fullscreen.
         configuration.preferences.isElementFullscreenEnabled = true
         configuration.applicationNameForUserAgent = SupportedBrowserUserAgent.safariApplicationName
+        configuration.userContentController.addUserScript(
+            WKUserScript(
+                source: WebKitWebRTCPrivacyPolicy.javaScript,
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: false
+            )
+        )
         configuration.userContentController.addUserScript(
             WKUserScript(
                 source: YouTubeAdPlaybackPolicy.javaScript,

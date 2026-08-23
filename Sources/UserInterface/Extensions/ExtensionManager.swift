@@ -305,7 +305,9 @@ class ExtensionManager: ObservableObject {
     init(browserState: BrowserState) {
         self.browserState = browserState
         pinnedExtensionOrdering.onConfirmationTimeout = { [weak self] in
-            self?.refreshExtensions()
+            Task { @MainActor in
+                self?.refreshExtensions()
+            }
         }
     }
     static let phiExtensionIds = ["pjlnhbfabokjejbhmgghmjiaknfhnima",
@@ -364,12 +366,27 @@ class ExtensionManager: ObservableObject {
             installedExtensionIds: mapped.map(\.id))
     }
 
+    @MainActor
     func refreshExtensions() {
-        ChromiumLauncher.sharedInstance().bridge?.getAllExtensions(completion: { infos in
-            if let typedInfos = infos as? [[String: Any]] {
-                self.extensionChanged(typedInfos)
+        guard let browserState else { return }
+        let cefInfos = CefBrowserRuntime.shared.installedExtensionInfo(
+            profileId: browserState.profileId,
+            isIncognito: browserState.isIncognito
+        )
+        extensionChanged(cefInfos)
+
+        // The legacy bridge still reports Astra's bundled internal extensions,
+        // which are needed by diagnostics but should not replace the user's
+        // Chrome-runtime extensions in the native list.
+        ChromiumLauncher.sharedInstance().bridge?.getAllExtensions(completion: { [weak self] infos in
+            guard let self, let typedInfos = infos as? [[String: Any]] else { return }
+            let cefIds = Set(cefInfos.compactMap { $0["id"] as? String })
+            let internalInfos = typedInfos.filter {
+                guard let id = $0["id"] as? String else { return false }
+                return Self.phiExtensionIds.contains(id) && !cefIds.contains(id)
             }
-        }, windowId: browserState?.windowId.int64Value ?? 0)
+            self.extensionChanged(cefInfos + internalInfos)
+        }, windowId: browserState.windowId.int64Value)
     }
     
     // MARK: - Action badge / dynamic icon (pushed from Chromium per window)
@@ -443,12 +460,63 @@ class ExtensionManager: ObservableObject {
         dynamicIcons[extensionId] = image
     }
 
+    @MainActor
     func togglePin(_ model: Extension) {
+        if let browserState,
+           CefBrowserRuntime.shared.containsInstalledExtension(
+                extensionId: model.id,
+                profileId: browserState.profileId,
+                isIncognito: browserState.isIncognito
+           ) {
+            CefBrowserRuntime.shared.setInstalledExtensionPinned(
+                !model.isPinned,
+                extensionId: model.id,
+                profileId: browserState.profileId
+            )
+            refreshExtensions()
+            return
+        }
         if !model.isPinned {
             ChromiumLauncher.sharedInstance().bridge?.pinExtension(withId: model.id, windowId: Int64(browserState?.windowId ?? 0))
         } else {
             ChromiumLauncher.sharedInstance().bridge?.unpinExtension(withId: model.id, windowId: Int64(browserState?.windowId ?? 0))
         }
+    }
+
+    @MainActor
+    func triggerExtension(_ model: Extension, anchorRect: NSRect? = nil) {
+        guard let browserState else { return }
+        if let actionURL = CefBrowserRuntime.shared.installedExtensionActionURL(
+            extensionId: model.id,
+            profileId: browserState.profileId,
+            isIncognito: browserState.isIncognito
+        ) {
+            browserState.createTab(actionURL)
+            return
+        }
+        ChromiumLauncher.sharedInstance().bridge?.triggerExtension(
+            withId: model.id,
+            anchorRect: anchorRect,
+            windowId: browserState.windowId.int64Value
+        )
+    }
+
+    @MainActor
+    func manageExtension(_ model: Extension, fallbackPoint: NSPoint? = nil) {
+        guard let browserState else { return }
+        if CefBrowserRuntime.shared.containsInstalledExtension(
+            extensionId: model.id,
+            profileId: browserState.profileId,
+            isIncognito: browserState.isIncognito
+        ) {
+            browserState.createTab("chrome://extensions/?id=\(model.id)")
+            return
+        }
+        ChromiumLauncher.sharedInstance().bridge?.triggerExtensionContextMenu(
+            withId: model.id,
+            pointInScreen: fallbackPoint ?? ExtensionPopupAnchor.mouseFallback(),
+            windowId: browserState.windowId.int64Value
+        )
     }
 
     /// The pinned list projected through the engine's transient Reorder
@@ -498,12 +566,27 @@ class ExtensionManager: ObservableObject {
     }
 
     @discardableResult
+    @MainActor
     func commitPinnedExtensionReorder(surface: PinnedExtensionSurface) -> Bool {
-        guard let bridge = ChromiumLauncher.sharedInstance().bridge else {
-            cancelPinnedExtensionReorder(surface: surface)
+        guard let move = pinnedExtensionOrdering.commit(surface: surface) else {
             return false
         }
-        guard let move = pinnedExtensionOrdering.commit(surface: surface) else {
+        if let browserState,
+           CefBrowserRuntime.shared.containsInstalledExtension(
+                extensionId: move.extensionId,
+                profileId: browserState.profileId,
+                isIncognito: browserState.isIncognito
+           ),
+           CefBrowserRuntime.shared.moveInstalledExtension(
+                extensionId: move.extensionId,
+                to: move.destinationIndex,
+                profileId: browserState.profileId
+           ) {
+            refreshExtensions()
+            return true
+        }
+        guard let bridge = ChromiumLauncher.sharedInstance().bridge else {
+            cancelPinnedExtensionReorder(surface: surface)
             return false
         }
         bridge.movePinnedExtension(

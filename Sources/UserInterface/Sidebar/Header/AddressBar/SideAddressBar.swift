@@ -373,11 +373,9 @@ class SideAddressBar: NSView {
             let point = ExtensionPopupAnchor.pointBelowView(button)
                 ?? ExtensionPopupAnchor.mouseFallback()
 
-            ChromiumLauncher.sharedInstance().bridge?.triggerExtensionContextMenu(
-                withId: extensionId,
-                pointInScreen: point,
-                windowId: self.unsafeBrowserState?.windowId.int64Value ?? 0
-            )
+            guard let model = self.unsafeBrowserState?.extensionManager.extensions
+                .first(where: { $0.id == extensionId }) else { return }
+            self.unsafeBrowserState?.extensionManager.manageExtension(model, fallbackPoint: point)
         }
 
         button.snp.makeConstraints { make in
@@ -436,18 +434,19 @@ class SideAddressBar: NSView {
         if unsafeBrowserState?.extensionManager.badges[extensionId]?.enabled == false {
             let point = ExtensionPopupAnchor.pointBelowView(sender)
                 ?? ExtensionPopupAnchor.mouseFallback()
-            ChromiumLauncher.sharedInstance().bridge?.triggerExtensionContextMenu(
-                withId: extensionId,
-                pointInScreen: point,
-                windowId: unsafeBrowserState?.windowId.int64Value ?? 0
-            )
+            if let model = unsafeBrowserState?.extensionManager.extensions
+                .first(where: { $0.id == extensionId }) {
+                unsafeBrowserState?.extensionManager.manageExtension(model, fallbackPoint: point)
+            }
             return
         }
-        ChromiumLauncher.sharedInstance().bridge?.triggerExtension(
-            withId: extensionId,
-            anchorRect: ExtensionPopupAnchor.rectOfView(sender),
-            windowId: unsafeBrowserState?.windowId.int64Value ?? 0
-        )
+        if let model = unsafeBrowserState?.extensionManager.extensions
+            .first(where: { $0.id == extensionId }) {
+            unsafeBrowserState?.extensionManager.triggerExtension(
+                model,
+                anchorRect: ExtensionPopupAnchor.rectOfView(sender)
+            )
+        }
     }
    
     override func mouseDown(with event: NSEvent) {

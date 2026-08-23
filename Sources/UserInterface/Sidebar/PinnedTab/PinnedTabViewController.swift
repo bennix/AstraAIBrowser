@@ -960,22 +960,19 @@ class PinnedTabViewController: NSViewController {
             handleExtensionSecondaryClicked(item)
             return
         }
-        let windowId = MainBrowserWindowControllersManager.shared.activeWindowController?.browserState.windowId
-        ChromiumLauncher.sharedInstance().bridge?.triggerExtension(
-            withId: item.id,
-            anchorRect: ExtensionPopupAnchor.rectOfView(view),
-            windowId: windowId?.int64Value ?? 0
+        guard let model = browserState?.extensionManager.extensions
+            .first(where: { $0.id == item.id }) else { return }
+        browserState?.extensionManager.triggerExtension(
+            model,
+            anchorRect: ExtensionPopupAnchor.rectOfView(view)
         )
     }
 
     private func handleExtensionSecondaryClicked(_ item: PinnedTabItemModel) {
         let point = ExtensionPopupAnchor.mouseFallback()
-        let windowId = MainBrowserWindowControllersManager.shared.activeWindowController?.browserState.windowId
-        ChromiumLauncher.sharedInstance().bridge?.triggerExtensionContextMenu(
-            withId: item.id,
-            pointInScreen: point,
-            windowId: windowId?.int64Value ?? 0
-        )
+        guard let model = browserState?.extensionManager.extensions
+            .first(where: { $0.id == item.id }) else { return }
+        browserState?.extensionManager.manageExtension(model, fallbackPoint: point)
     }
 }
 

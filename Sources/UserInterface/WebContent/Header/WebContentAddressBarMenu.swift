@@ -25,6 +25,7 @@ final class WebContentAddressBarMenuPresenter {
         "com.apple.share.System.add-to-safari-reading-list"
     ]
 
+    @MainActor
     static func present(
         browserState: BrowserState?,
         currentTab: Tab?,
@@ -129,11 +130,9 @@ final class WebContentAddressBarMenuPresenter {
                     let item = NSMenuItem(title: ext.name, action: nil, keyEquivalent: "")
                     item.image = normalizedExtensionMenuIcon(from: ext.icon)
                     let target = MenuActionTarget {
-                        let windowId = browserState?.windowId.int64Value ?? 0
-                        ChromiumLauncher.sharedInstance().bridge?.triggerExtension(
-                            withId: ext.id,
-                            anchorRect: ExtensionPopupAnchor.rectOfView(anchorView),
-                            windowId: windowId
+                        extensionManager?.triggerExtension(
+                            ext,
+                            anchorRect: ExtensionPopupAnchor.rectOfView(anchorView)
                         )
                     }
                     actionTargets.append(target)

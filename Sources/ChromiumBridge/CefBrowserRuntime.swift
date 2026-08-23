@@ -79,6 +79,265 @@ enum CefWebRTCPrivacyPolicy {
     }
 }
 
+/// Reads Chrome-runtime extension metadata from the profile directory. CEF's
+/// Chrome runtime owns installation and execution, while this catalog only
+/// adapts its persisted manifests to Astra's existing native extension UI.
+struct CefInstalledExtensionCatalog {
+    private struct Record {
+        let id: String
+        let version: String
+        let directory: URL
+        let manifest: [String: Any]
+    }
+
+    let rootURL: URL
+    var defaults: UserDefaults = .standard
+    var fileManager: FileManager = .default
+
+    func installedInfo(
+        profileId: String,
+        isDefaultProfile: Bool,
+        isIncognito: Bool
+    ) -> [[String: Any]] {
+        guard !isIncognito else { return [] }
+        let records = installedRecords(profileId: profileId, isDefaultProfile: isDefaultProfile)
+        let pinned = pinnedExtensionIds(profileId: profileId)
+        let pinnedIndex = Dictionary(uniqueKeysWithValues: pinned.enumerated().map { ($0.element, $0.offset) })
+
+        return records.map { record in
+            var info: [String: Any] = [
+                "id": record.id,
+                "name": localizedName(for: record),
+                "version": record.version,
+                "isPinned": pinnedIndex[record.id] != nil,
+                "pinnedIndex": pinnedIndex[record.id] ?? -1,
+                "isForcePinned": false,
+            ]
+            if let iconData = iconData(for: record) {
+                info["icon"] = iconData.base64EncodedString()
+            }
+            return info
+        }
+    }
+
+    func contains(
+        extensionId: String,
+        profileId: String,
+        isDefaultProfile: Bool,
+        isIncognito: Bool
+    ) -> Bool {
+        guard !isIncognito else { return false }
+        return record(
+            extensionId: extensionId,
+            profileId: profileId,
+            isDefaultProfile: isDefaultProfile
+        ) != nil
+    }
+
+    func actionURL(
+        extensionId: String,
+        profileId: String,
+        isDefaultProfile: Bool,
+        isIncognito: Bool
+    ) -> String? {
+        guard !isIncognito,
+              let record = record(
+                extensionId: extensionId,
+                profileId: profileId,
+                isDefaultProfile: isDefaultProfile
+              ) else { return nil }
+
+        let action = (record.manifest["action"] as? [String: Any])
+            ?? (record.manifest["browser_action"] as? [String: Any])
+            ?? (record.manifest["page_action"] as? [String: Any])
+        let popup = action?["default_popup"] as? String
+        let optionsUI = (record.manifest["options_ui"] as? [String: Any])?["page"] as? String
+        let optionsPage = record.manifest["options_page"] as? String
+        guard let path = safeExtensionPagePath(popup ?? optionsUI ?? optionsPage) else {
+            return "chrome://extensions/?id=\(extensionId)"
+        }
+        return "chrome-extension://\(extensionId)/\(path)"
+    }
+
+    func setPinned(
+        _ isPinned: Bool,
+        extensionId: String,
+        profileId: String
+    ) {
+        var pinned = pinnedExtensionIds(profileId: profileId)
+        pinned.removeAll(where: { $0 == extensionId })
+        if isPinned {
+            pinned.append(extensionId)
+        }
+        defaults.set(pinned, forKey: pinnedDefaultsKey(profileId: profileId))
+    }
+
+    func movePinned(
+        extensionId: String,
+        to destinationIndex: Int,
+        profileId: String
+    ) -> Bool {
+        var pinned = pinnedExtensionIds(profileId: profileId)
+        guard let sourceIndex = pinned.firstIndex(of: extensionId) else { return false }
+        let item = pinned.remove(at: sourceIndex)
+        pinned.insert(item, at: max(0, min(destinationIndex, pinned.count)))
+        defaults.set(pinned, forKey: pinnedDefaultsKey(profileId: profileId))
+        return true
+    }
+
+    private func installedRecords(profileId: String, isDefaultProfile: Bool) -> [Record] {
+        let roots = extensionRoots(profileId: profileId, isDefaultProfile: isDefaultProfile)
+        var byId: [String: Record] = [:]
+        for root in roots {
+            guard let identifiers = try? fileManager.contentsOfDirectory(
+                at: root,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            ) else { continue }
+            for identifierDirectory in identifiers where isExtensionId(identifierDirectory.lastPathComponent) {
+                guard let record = newestRecord(in: identifierDirectory) else { continue }
+                if let existing = byId[record.id],
+                   existing.version.compare(record.version, options: .numeric) != .orderedAscending {
+                    continue
+                }
+                byId[record.id] = record
+            }
+        }
+        return byId.values.sorted {
+            localizedName(for: $0).localizedCaseInsensitiveCompare(localizedName(for: $1)) == .orderedAscending
+        }
+    }
+
+    private func record(
+        extensionId: String,
+        profileId: String,
+        isDefaultProfile: Bool
+    ) -> Record? {
+        guard isExtensionId(extensionId) else { return nil }
+        return extensionRoots(profileId: profileId, isDefaultProfile: isDefaultProfile)
+            .compactMap { newestRecord(in: $0.appendingPathComponent(extensionId, isDirectory: true)) }
+            .max { $0.version.compare($1.version, options: .numeric) == .orderedAscending }
+    }
+
+    private func newestRecord(in identifierDirectory: URL) -> Record? {
+        guard let versions = try? fileManager.contentsOfDirectory(
+            at: identifierDirectory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else { return nil }
+        let sortedVersions = versions.sorted {
+            $0.lastPathComponent.compare($1.lastPathComponent, options: .numeric) == .orderedDescending
+        }
+        for versionDirectory in sortedVersions {
+            let manifestURL = versionDirectory.appendingPathComponent("manifest.json")
+            guard let data = try? Data(contentsOf: manifestURL),
+                  let manifest = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                continue
+            }
+            return Record(
+                id: identifierDirectory.lastPathComponent,
+                version: manifest["version"] as? String ?? versionDirectory.lastPathComponent,
+                directory: versionDirectory,
+                manifest: manifest
+            )
+        }
+        return nil
+    }
+
+    private func extensionRoots(profileId: String, isDefaultProfile: Bool) -> [URL] {
+        let profileRoot: URL
+        if isDefaultProfile {
+            profileRoot = rootURL
+        } else {
+            profileRoot = rootURL
+                .appendingPathComponent("Profiles", isDirectory: true)
+                .appendingPathComponent(Self.sanitizedProfileName(profileId), isDirectory: true)
+        }
+        // Chrome's global profile uses Default/Extensions. Request-context
+        // profiles have used both layouts across CEF releases, so accept both.
+        return [
+            profileRoot.appendingPathComponent("Default/Extensions", isDirectory: true),
+            profileRoot.appendingPathComponent("Extensions", isDirectory: true),
+        ]
+    }
+
+    private func localizedName(for record: Record) -> String {
+        let rawName = record.manifest["name"] as? String ?? record.id
+        guard rawName.hasPrefix("__MSG_"), rawName.hasSuffix("__"),
+              let locale = record.manifest["default_locale"] as? String else {
+            return rawName
+        }
+        let start = rawName.index(rawName.startIndex, offsetBy: 6)
+        let end = rawName.index(rawName.endIndex, offsetBy: -2)
+        let key = String(rawName[start..<end])
+        let messagesURL = record.directory
+            .appendingPathComponent("_locales", isDirectory: true)
+            .appendingPathComponent(locale, isDirectory: true)
+            .appendingPathComponent("messages.json")
+        guard let data = try? Data(contentsOf: messagesURL),
+              let messages = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let entry = messages[key] as? [String: Any],
+              let message = entry["message"] as? String,
+              !message.isEmpty else {
+            return rawName
+        }
+        return message
+    }
+
+    private func iconData(for record: Record) -> Data? {
+        let action = (record.manifest["action"] as? [String: Any])
+            ?? (record.manifest["browser_action"] as? [String: Any])
+            ?? (record.manifest["page_action"] as? [String: Any])
+        let iconValue = action?["default_icon"] ?? record.manifest["icons"]
+        guard let path = iconPath(from: iconValue),
+              let relativePath = safeExtensionPagePath(path) else { return nil }
+        return try? Data(contentsOf: record.directory.appendingPathComponent(relativePath))
+    }
+
+    private func iconPath(from value: Any?) -> String? {
+        if let path = value as? String { return path }
+        guard let paths = value as? [String: Any] else { return nil }
+        return paths
+            .compactMap { key, value -> (Int, String)? in
+                guard let size = Int(key), let path = value as? String else { return nil }
+                return (size, path)
+            }
+            .max(by: { $0.0 < $1.0 })?
+            .1
+    }
+
+    private func safeExtensionPagePath(_ rawPath: String?) -> String? {
+        guard let rawPath, !rawPath.isEmpty else { return nil }
+        let path = rawPath.drop(while: { $0 == "/" })
+        let components = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard !path.isEmpty,
+              !components.contains(".."),
+              !rawPath.contains("\\") else { return nil }
+        return String(path)
+    }
+
+    private func pinnedExtensionIds(profileId: String) -> [String] {
+        defaults.stringArray(forKey: pinnedDefaultsKey(profileId: profileId)) ?? []
+    }
+
+    private func pinnedDefaultsKey(profileId: String) -> String {
+        "CefPinnedExtensions.\(profileId)"
+    }
+
+    private func isExtensionId(_ value: String) -> Bool {
+        value.count == 32 && value.allSatisfy { ("a"..."p").contains(String($0)) }
+    }
+
+    static func sanitizedProfileName(_ name: String) -> String {
+        let cleaned = name
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: ":", with: "_")
+            .replacingOccurrences(of: "\\", with: "_")
+        let trimmed = cleaned.drop(while: { $0 == "." })
+        return trimmed.isEmpty ? "Profile" : String(trimmed)
+    }
+}
+
 struct BrowserAutomationPoint: Equatable {
     static let normalizedMaximum = 1_000
 
@@ -283,6 +542,7 @@ private final class CefBrowserWindow: NSWindow {
     private static var retainedAppController: AppController?
     private var nextWindowId = 1
     private var profiles: [String: CefProfile] = [:]
+    private var extensionCatalogRootURL: URL?
     private var pendingPageContext: [String: PendingPageContext] = [:]
     private var pageContextTimeouts: [String: DispatchWorkItem] = [:]
     private var pendingAutomation: [String: PendingAutomation] = [:]
@@ -327,6 +587,7 @@ private final class CefBrowserWindow: NSWindow {
             // transport so valid images and media do not remain broken.
             configuration.extraCommandLineSwitches["disable-http2"] = nil
             try CefRuntime.shared.initialize(configuration: configuration)
+            shared.extensionCatalogRootURL = root
             shared.registerPageContextBridge()
             shared.registerAutomationBridge()
             shared.registerWebCredentialBridge()
@@ -552,6 +813,69 @@ private final class CefBrowserWindow: NSWindow {
         let profile = CefProfile.persistent(name: profileId)
         profiles[profileId] = profile
         return profile
+    }
+
+    func installedExtensionInfo(profileId: String, isIncognito: Bool) -> [[String: Any]] {
+        guard let extensionCatalogRootURL else { return [] }
+        return CefInstalledExtensionCatalog(rootURL: extensionCatalogRootURL).installedInfo(
+            profileId: profileId,
+            isDefaultProfile: profileId == LocalStore.defaultProfileId,
+            isIncognito: isIncognito
+        )
+    }
+
+    func containsInstalledExtension(
+        extensionId: String,
+        profileId: String,
+        isIncognito: Bool
+    ) -> Bool {
+        guard let extensionCatalogRootURL else { return false }
+        return CefInstalledExtensionCatalog(rootURL: extensionCatalogRootURL).contains(
+            extensionId: extensionId,
+            profileId: profileId,
+            isDefaultProfile: profileId == LocalStore.defaultProfileId,
+            isIncognito: isIncognito
+        )
+    }
+
+    func installedExtensionActionURL(
+        extensionId: String,
+        profileId: String,
+        isIncognito: Bool
+    ) -> String? {
+        guard let extensionCatalogRootURL else { return nil }
+        return CefInstalledExtensionCatalog(rootURL: extensionCatalogRootURL).actionURL(
+            extensionId: extensionId,
+            profileId: profileId,
+            isDefaultProfile: profileId == LocalStore.defaultProfileId,
+            isIncognito: isIncognito
+        )
+    }
+
+    func setInstalledExtensionPinned(
+        _ isPinned: Bool,
+        extensionId: String,
+        profileId: String
+    ) {
+        guard let extensionCatalogRootURL else { return }
+        CefInstalledExtensionCatalog(rootURL: extensionCatalogRootURL).setPinned(
+            isPinned,
+            extensionId: extensionId,
+            profileId: profileId
+        )
+    }
+
+    func moveInstalledExtension(
+        extensionId: String,
+        to destinationIndex: Int,
+        profileId: String
+    ) -> Bool {
+        guard let extensionCatalogRootURL else { return false }
+        return CefInstalledExtensionCatalog(rootURL: extensionCatalogRootURL).movePinned(
+            extensionId: extensionId,
+            to: destinationIndex,
+            profileId: profileId
+        )
     }
 
     private func registerPageContextBridge() {

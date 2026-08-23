@@ -426,8 +426,8 @@ final class ZenMuxTests: XCTestCase {
     }
 
     @MainActor
-    func testHttpsPagesShareProfileScopedWebKitStore() {
-        XCTAssertTrue(WebContentEnginePolicy.usesPersistentWebKit(
+    func testRegularWebPagesUseChromeRuntimeAcrossProfiles() {
+        XCTAssertFalse(WebContentEnginePolicy.usesPersistentWebKit(
             for: URL(string: "https://accounts.google.com/")!,
             profileId: LocalStore.defaultProfileId,
             allowsCredentialStorage: true
@@ -437,16 +437,103 @@ final class ZenMuxTests: XCTestCase {
             profileId: LocalStore.defaultProfileId,
             allowsCredentialStorage: true
         ))
-        XCTAssertTrue(WebContentEnginePolicy.usesPersistentWebKit(
+        XCTAssertFalse(WebContentEnginePolicy.usesPersistentWebKit(
             for: URL(string: "https://www.youtube.com/")!,
             profileId: "Profile-work",
             allowsCredentialStorage: true
+        ))
+        XCTAssertFalse(WebContentEnginePolicy.usesPersistentWebKit(
+            for: URL(string: "https://example.com/")!,
+            profileId: LocalStore.defaultProfileId,
+            allowsCredentialStorage: false
         ))
         XCTAssertFalse(WebContentEnginePolicy.usesPersistentWebKit(
             for: URL(string: "chrome://newtab")!,
             profileId: LocalStore.defaultProfileId,
             allowsCredentialStorage: true
         ))
+        XCTAssertTrue(WebContentEnginePolicy.usesPersistentWebKit(
+            for: URL(string: "https://example.com/")!,
+            profileId: LocalStore.defaultProfileId,
+            allowsCredentialStorage: true,
+            forceSystemMediaEngine: true
+        ))
+    }
+
+    func testSystemMediaEngineBlocksPageWebRTC() {
+        let script = WebKitWebRTCPrivacyPolicy.javaScript
+
+        XCTAssertTrue(script.contains("RTCPeerConnection"))
+        XCTAssertTrue(script.contains("webkitRTCPeerConnection"))
+        XCTAssertTrue(script.contains("configurable: false"))
+    }
+
+    func testCefExtensionCatalogExposesInstalledIconAndControls() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let extensionId = "abcdefghijklmnopabcdefghijklmnop"
+        let versionDirectory = root
+            .appendingPathComponent("Default/Extensions", isDirectory: true)
+            .appendingPathComponent(extensionId, isDirectory: true)
+            .appendingPathComponent("1.2.3_0", isDirectory: true)
+        let localeDirectory = versionDirectory
+            .appendingPathComponent("_locales/en", isDirectory: true)
+        try FileManager.default.createDirectory(at: localeDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let manifest: [String: Any] = [
+            "name": "__MSG_extensionName__",
+            "version": "1.2.3",
+            "default_locale": "en",
+            "action": [
+                "default_popup": "popup/index.html",
+                "default_icon": ["16": "icon.png"],
+            ],
+        ]
+        try JSONSerialization.data(withJSONObject: manifest).write(
+            to: versionDirectory.appendingPathComponent("manifest.json")
+        )
+        try JSONSerialization.data(withJSONObject: [
+            "extensionName": ["message": "Fixture Extension"],
+        ]).write(to: localeDirectory.appendingPathComponent("messages.json"))
+        let iconData = Data([0x01, 0x02, 0x03, 0x04])
+        try iconData.write(to: versionDirectory.appendingPathComponent("icon.png"))
+
+        let suiteName = "CefExtensionCatalogTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let catalog = CefInstalledExtensionCatalog(rootURL: root, defaults: defaults)
+
+        var info = try XCTUnwrap(catalog.installedInfo(
+            profileId: "default",
+            isDefaultProfile: true,
+            isIncognito: false
+        ).first)
+        XCTAssertEqual(info["id"] as? String, extensionId)
+        XCTAssertEqual(info["name"] as? String, "Fixture Extension")
+        XCTAssertEqual(info["version"] as? String, "1.2.3")
+        XCTAssertEqual(info["icon"] as? String, iconData.base64EncodedString())
+        XCTAssertEqual(info["isPinned"] as? Bool, false)
+        XCTAssertEqual(catalog.actionURL(
+            extensionId: extensionId,
+            profileId: "default",
+            isDefaultProfile: true,
+            isIncognito: false
+        ), "chrome-extension://\(extensionId)/popup/index.html")
+
+        catalog.setPinned(true, extensionId: extensionId, profileId: "default")
+        info = try XCTUnwrap(catalog.installedInfo(
+            profileId: "default",
+            isDefaultProfile: true,
+            isIncognito: false
+        ).first)
+        XCTAssertEqual(info["isPinned"] as? Bool, true)
+        XCTAssertEqual(info["pinnedIndex"] as? Int, 0)
+        XCTAssertTrue(catalog.installedInfo(
+            profileId: "default",
+            isDefaultProfile: true,
+            isIncognito: true
+        ).isEmpty)
     }
 
     @MainActor

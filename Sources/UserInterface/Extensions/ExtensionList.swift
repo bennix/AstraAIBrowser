@@ -19,6 +19,7 @@ final class CertificatePanelSheetDelegate: NSObject {
 }
 
 // Protocol to abstract ExtensionManager for testing
+@MainActor
 protocol ExtensionManagerProtocol: ObservableObject {
     var extensions: [Extension] { get }
     var badges: [String: ExtensionManager.BadgeState] { get }
@@ -27,6 +28,7 @@ protocol ExtensionManagerProtocol: ObservableObject {
     func togglePin(_ model: Extension)
 }
 
+@MainActor
 extension ExtensionManager: ExtensionManagerProtocol {}
 
 struct ExtensionList<Manager: ExtensionManagerProtocol>: View {
@@ -245,17 +247,26 @@ struct ExtensionList<Manager: ExtensionManagerProtocol>: View {
         // the popover's fade-out animation runs in parallel with the popup's
         // appearance instead of overlapping it visually.
         onRequestDismiss?()
-        let windowId = MainBrowserWindowControllersManager.shared
-            .activeWindowController?.browserState.windowId
-        ChromiumLauncher.sharedInstance().bridge?.triggerExtension(
-            withId: ext.id,
-            anchorRect: ExtensionPopupAnchor.rectOfView(anchor),
-            windowId: windowId?.int64Value ?? 0
-        )
+        let anchorRect = ExtensionPopupAnchor.rectOfView(anchor)
+        if let manager = extensionManager as? ExtensionManager {
+            manager.triggerExtension(ext, anchorRect: anchorRect)
+        } else {
+            let windowId = MainBrowserWindowControllersManager.shared
+                .activeWindowController?.browserState.windowId
+            ChromiumLauncher.sharedInstance().bridge?.triggerExtension(
+                withId: ext.id,
+                anchorRect: anchorRect,
+                windowId: windowId?.int64Value ?? 0
+            )
+        }
     }
 
     private func triggerExtensionContextMenu(_ ext: Extension) {
         let point = ExtensionPopupAnchor.mouseFallback()
+        if let manager = extensionManager as? ExtensionManager {
+            manager.manageExtension(ext, fallbackPoint: point)
+            return
+        }
         let windowId = MainBrowserWindowControllersManager.shared
             .activeWindowController?.browserState.windowId
         ChromiumLauncher.sharedInstance().bridge?.triggerExtensionContextMenu(
@@ -673,6 +684,7 @@ private struct MenuAnchorViewRepresentable: NSViewRepresentable {
 #if DEBUG
 // MARK: - Mock Data for Testing
 
+@MainActor
 class MockExtensionManager: ObservableObject, ExtensionManagerProtocol {
     @Published var extensions: [Extension] = []
     @Published var pinedExtensions: [Extension] = []
