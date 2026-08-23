@@ -223,42 +223,87 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertNil(object["toolCallID"])
     }
 
-    func testVisualInspectionUsesVertexInlineDataWithoutTemporaryFileURI() throws {
-        let dataURL = "data:image/jpeg;base64,ZmFrZQ=="
-        let data = try APIClient.makeZenMuxVisualLocalizationRequest(
-            targetDescription: "Click the settings button",
-            imageDataURL: dataURL
+    func testMultimodalMessagesUseOpenAICompatibleImageParts() throws {
+        let firstDataURL = "data:image/jpeg;base64,ZmFrZQ=="
+        let secondDataURL = "data:image/png;base64,aW1hZ2U="
+        let message = ZenMuxChatRequestMessage.multimodalUserMessage(
+            text: "Compare these images",
+            imageDataURLs: [firstDataURL, secondDataURL]
         )
         let object = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: data) as? [String: Any]
+            JSONSerialization.jsonObject(
+                with: JSONEncoder().encode(message)
+            ) as? [String: Any]
         )
-        let contents = try XCTUnwrap(object["contents"] as? [[String: Any]])
-        let parts = try XCTUnwrap(contents.first?["parts"] as? [[String: Any]])
-        XCTAssertEqual(parts.count, 2)
-        XCTAssertTrue((parts[0]["text"] as? String)?.contains("settings button") == true)
-        let inlineData = try XCTUnwrap(parts[1]["inlineData"] as? [String: Any])
-        XCTAssertEqual(inlineData["mimeType"] as? String, "image/jpeg")
-        XCTAssertEqual(inlineData["data"] as? String, "ZmFrZQ==")
-        XCTAssertNil(parts[1]["fileData"])
+        let parts = try XCTUnwrap(object["content"] as? [[String: Any]])
+        XCTAssertEqual(parts.count, 3)
+        XCTAssertEqual(parts[0]["type"] as? String, "text")
+        XCTAssertEqual(parts[0]["text"] as? String, "Compare these images")
+        XCTAssertEqual(parts[1]["type"] as? String, "image_url")
+        XCTAssertEqual(
+            (parts[1]["image_url"] as? [String: Any])?["url"] as? String,
+            firstDataURL
+        )
+        XCTAssertEqual(
+            (parts[1]["image_url"] as? [String: Any])?["detail"] as? String,
+            "high"
+        )
+        XCTAssertEqual(
+            (parts[2]["image_url"] as? [String: Any])?["url"] as? String,
+            secondDataURL
+        )
     }
 
-    func testVisualLocalizationRejectsOutOfBoundsCoordinates() {
-        XCTAssertTrue(
-            ZenMuxVisualLocalization(
-                found: true,
-                x: 500,
-                y: 250,
-                description: "Settings button"
-            ).isValid
+    func testTextOnlyMessagesKeepStringContent() throws {
+        let message = ZenMuxChatRequestMessage(role: "user", content: "Hello")
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: JSONEncoder().encode(message)
+            ) as? [String: Any]
         )
-        XCTAssertFalse(
-            ZenMuxVisualLocalization(
-                found: true,
-                x: 1_001,
-                y: 250,
-                description: "Invalid point"
-            ).isValid
+        XCTAssertEqual(object["content"] as? String, "Hello")
+    }
+
+    func testImageAttachmentPreparationProducesBoundedVisionInput() throws {
+        let source = try XCTUnwrap(Data(base64Encoded:
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9YP8b1sAAAAASUVORK5CYII="
+        ))
+        let attachment = try ZenMuxImageAttachment.prepare(
+            data: source,
+            filename: "coin.png"
         )
+
+        XCTAssertEqual(attachment.filename, "coin.png")
+        XCTAssertTrue(["image/png", "image/jpeg"].contains(attachment.mimeType))
+        XCTAssertLessThanOrEqual(
+            attachment.data.count,
+            ZenMuxImageAttachment.maximumEncodedBytes
+        )
+        XCTAssertTrue(attachment.dataURL.hasPrefix("data:image/"))
+    }
+
+    func testImageAttachmentSelectionIsLimitedToFiveAndSupportsRemoval() {
+        let session = ZenMuxChatSession()
+        let candidates = (0..<7).map { index in
+            ZenMuxImageAttachment(
+                filename: "image-\(index).png",
+                mimeType: "image/png",
+                data: Data([UInt8(index)])
+            )
+        }
+
+        session.addImageAttachments(candidates)
+
+        XCTAssertEqual(session.imageAttachments.count, 5)
+        XCTAssertTrue(session.canSend)
+        session.beginLoadingImageAttachments()
+        XCTAssertFalse(session.canSend)
+        session.finishLoadingImageAttachments()
+        XCTAssertTrue(session.canSend)
+        let removedID = session.imageAttachments[2].id
+        session.removeImageAttachment(id: removedID)
+        XCTAssertEqual(session.imageAttachments.count, 4)
+        XCTAssertFalse(session.imageAttachments.contains { $0.id == removedID })
     }
 
     func testWebCredentialStoreAcceptsOnlyCanonicalHTTPSOrigins() {

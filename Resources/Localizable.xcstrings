@@ -185,6 +185,51 @@
         }
       }
     },
+    "chat.zenMux.attachments.addImagesTooltip" : {
+      "comment" : "ZenMux chat attachments - Tooltip for opening the image picker",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Attach images" } } }
+    },
+    "chat.zenMux.attachments.defaultPrompt" : {
+      "comment" : "ZenMux chat attachments - Prompt used when images are sent without a typed message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Describe the attached images." } } }
+    },
+    "chat.zenMux.attachments.fileTooLargeError" : {
+      "comment" : "ZenMux chat attachments - Error shown when a selected image cannot be reduced to the upload size limit",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "That image is too large to attach." } } }
+    },
+    "chat.zenMux.attachments.invalidImageError" : {
+      "comment" : "ZenMux chat attachments - Error shown when a selected file is not a readable image",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "That file could not be read as an image." } } }
+    },
+    "chat.zenMux.attachments.maximumCountError" : {
+      "comment" : "ZenMux chat attachments - Error shown when more than five images are selected",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "You can attach up to 5 images." } } }
+    },
+    "chat.zenMux.attachments.pickerMessage" : {
+      "comment" : "ZenMux chat attachments - Guidance shown in the image file picker",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Choose up to 5 images to send with your message." } } }
+    },
+    "chat.zenMux.attachments.pickerTitle" : {
+      "comment" : "ZenMux chat attachments - Title of the image file picker",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Attach Images" } } }
+    },
+    "chat.zenMux.attachments.privacyNotice" : {
+      "comment" : "ZenMux chat attachments - Privacy notice shown while images are ready to send",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Attached images are sent to ZenMux with your message." } } }
+    },
+    "chat.zenMux.attachments.removeImageAccessibilityLabel" : {
+      "comment" : "ZenMux chat attachments - Accessibility label for removing an attached image; placeholder is the filename",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Remove image %@" } } }
+    },
     "chat.zenMux.youtubeContextNotice" : {
       "comment" : "ZenMux chat - Privacy notice explaining current-page, caption, and public-video context sharing",
       "extractionState" : "extracted_with_value",
