@@ -312,6 +312,10 @@ import PostHog
             || ApplicationState.shared.canUseBrowser
         guard canUseBrowser else { return }
 
+        if CefBrowserRuntime.shared.reopenStatePreservedWindowIfNeeded() {
+            return
+        }
+
         // Cmd-Tab and an ordinary Dock activation do not reliably call
         // applicationShouldHandleReopen while a browser window still exists.
         // Re-run the slot visibility reconcile so an active window that was
@@ -339,6 +343,9 @@ import PostHog
                 AuthManager.shared.renewCredentials()
             } else {
                 AppLogDebug("reopen: Guest Mode or fresh access token, skipping renew")
+            }
+            if CefBrowserRuntime.shared.reopenStatePreservedWindowIfNeeded() {
+                return true
             }
             // With no surviving browser window, spawn the persisted
             // last-active Space ourselves instead of letting Chromium's

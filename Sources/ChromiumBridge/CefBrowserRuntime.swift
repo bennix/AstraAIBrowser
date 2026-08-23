@@ -183,6 +183,35 @@ struct BrowserAutomationResult: Equatable {
     var imageDataURL: String? = nil
 }
 
+/// A normal CEF browser window stays alive when the user presses the title-bar
+/// close button. CEF has no Chromium session bridge to rebuild an in-process
+/// closed window, so ordering it out is what preserves the exact tabs, page
+/// history, scroll position, and form state for the next Dock activation.
+/// Programmatic `close()` calls still perform a real teardown.
+@MainActor
+private final class CefBrowserWindow: NSWindow {
+    var preservesStateOnUserClose = false
+
+    func configureStatePreservingClose() {
+        preservesStateOnUserClose = true
+        standardWindowButton(.closeButton)?.target = self
+        standardWindowButton(.closeButton)?.action = #selector(orderOutPreservingState(_:))
+    }
+
+    override func performClose(_ sender: Any?) {
+        guard preservesStateOnUserClose, sender != nil else {
+            super.performClose(sender)
+            return
+        }
+        orderOut(sender)
+    }
+
+    @objc private func orderOutPreservingState(_ sender: Any?) {
+        AppLogInfo("[CEF] preserving the browser window state on user close")
+        orderOut(sender)
+    }
+}
+
 @MainActor
 @objc final class CefBrowserRuntime: NSObject {
     private struct PageContextPayload: Codable, Sendable {
@@ -331,6 +360,30 @@ struct BrowserAutomationResult: Equatable {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    /// Surfaces the most recently active normal CEF window after the user hid
+    /// every browser window with the title-bar close button. The controller,
+    /// tabs, and live web contents never changed, so this restores the exact
+    /// in-memory page state rather than reconstructing URLs.
+    @discardableResult
+    func reopenStatePreservedWindowIfNeeded() -> Bool {
+        let manager = MainBrowserWindowControllersManager.shared
+        let controllers = manager.getAllWindows().filter { controller in
+            controller.browserType == .normal
+                && controller.window is CefBrowserWindow
+        }
+        guard !controllers.isEmpty,
+              !controllers.contains(where: { $0.window?.isVisible == true }),
+              let controller = controllers.first(where: {
+                  $0 === manager.activeWindowController
+              }) ?? controllers.first,
+              let window = controller.window as? CefBrowserWindow,
+              window.preservesStateOnUserClose else { return false }
+        AppLogInfo("[CEF] reopening the state-preserved browser window")
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        return true
+    }
+
     @discardableResult
     func spawnWindow(
         in slot: SpaceWindowSlot,
@@ -345,12 +398,15 @@ struct BrowserAutomationResult: Equatable {
         nextWindowId += 1
         let contentRect = inheritedFrame
             ?? NSRect(origin: .zero, size: MainBrowserWindowController.defaultWindowSize)
-        let window = NSWindow(
+        let window = CefBrowserWindow(
             contentRect: contentRect,
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
+        if !isIncognito {
+            window.configureStatePreservingClose()
+        }
         if let inheritedFrame {
             window.setFrame(inheritedFrame, display: false)
         } else {
