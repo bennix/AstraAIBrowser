@@ -230,14 +230,19 @@
       "extractionState" : "extracted_with_value",
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Remove image %@" } } }
     },
+    "chat.zenMux.capturingPageStatus" : {
+      "comment" : "ZenMux chat - Status shown while the current visible page area is captured for message context",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Capturing the visible page…" } } }
+    },
     "chat.zenMux.youtubeContextNotice" : {
-      "comment" : "ZenMux chat - Privacy notice explaining current-page, caption, and public-video context sharing",
+      "comment" : "ZenMux chat - Privacy notice explaining automatic visible-page, caption, and public-video context sharing",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Astra Browser shares this page's readable content, available captions, and public YouTube video when captions are unavailable with ZenMux."
+            "value" : "Astra Browser sends this page's visible area, readable content, available captions, and public video when captions are unavailable to ZenMux with each message."
           }
         }
       }
@@ -303,13 +308,13 @@
       }
     },
     "chat.zenMux.contextNotice" : {
-      "comment" : "ZenMux chat - Privacy note explaining current-page context sharing",
+      "comment" : "ZenMux chat - Privacy notice explaining automatic visible-page context sharing",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Astra Browser shares this page's title, URL, and readable content with ZenMux."
+            "value" : "Astra Browser sends this page's visible area, title, URL, and readable content to ZenMux with each message."
           }
         }
       }

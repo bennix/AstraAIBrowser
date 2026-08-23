@@ -3,9 +3,9 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 20)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.20/Astra-Browser-build20.dmg)
+[Download Astra 1.0 (build 21)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.21/Astra-Browser-build21.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.20)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.21)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
@@ -16,6 +16,7 @@ and accepted by Apple's notarization service.
 - Chromium compatibility through the embedded CEF runtime.
 - Integrated AI workspace for browsing and task assistance.
 - ZenMux page vision and up to five removable image attachments with thumbnail previews.
+- Paste images directly into ZenMux and automatically include the current browser viewport with each question.
 - YouTube ad playback acceleration: detected ads play at 8× and the previous content speed is restored afterward.
 - YouTube and other WebKit media pages support HTML element fullscreen.
 - Red-button window close preserves tabs and live page state for the next Dock activation.

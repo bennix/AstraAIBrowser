@@ -3,6 +3,7 @@
 // Use of this source code is governed by an Apache license that can be
 // found in the LICENSE file.
 
+import AppKit
 import CryptoKit
 import CefKit
 import Security
@@ -264,6 +265,32 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertEqual(object["content"] as? String, "Hello")
     }
 
+    func testAutomaticPageImageIsCombinedWithManualAttachments() throws {
+        let manualDataURL = "data:image/png;base64,bWFudWFs"
+        let pageDataURL = "data:image/jpeg;base64,cGFnZQ=="
+        let message = ZenMuxChatVisionContext.requestMessage(
+            text: "What is visible here?",
+            manualImageDataURLs: [manualDataURL],
+            currentPageImageDataURL: pageDataURL
+        )
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: JSONEncoder().encode(message)
+            ) as? [String: Any]
+        )
+        let parts = try XCTUnwrap(object["content"] as? [[String: Any]])
+
+        XCTAssertEqual(parts.count, 3)
+        XCTAssertEqual(
+            (parts[1]["image_url"] as? [String: Any])?["url"] as? String,
+            manualDataURL
+        )
+        XCTAssertEqual(
+            (parts[2]["image_url"] as? [String: Any])?["url"] as? String,
+            pageDataURL
+        )
+    }
+
     func testImageAttachmentPreparationProducesBoundedVisionInput() throws {
         let source = try XCTUnwrap(Data(base64Encoded:
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9YP8b1sAAAAASUVORK5CYII="
@@ -304,6 +331,27 @@ final class ZenMuxTests: XCTestCase {
         session.removeImageAttachment(id: removedID)
         XCTAssertEqual(session.imageAttachments.count, 4)
         XCTAssertFalse(session.imageAttachments.contains { $0.id == removedID })
+    }
+
+    func testImagePasteboardReaderRecognizesImageDataWithoutChangingTextPaste() throws {
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        pasteboard.clearContents()
+        let imageData = try XCTUnwrap(Data(base64Encoded:
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9YP8b1sAAAAASUVORK5CYII="
+        ))
+        let imageItem = NSPasteboardItem()
+        imageItem.setData(imageData, forType: .png)
+        XCTAssertTrue(pasteboard.writeObjects([imageItem]))
+
+        let sources = ZenMuxImagePasteboardReader.sources(from: pasteboard)
+        XCTAssertEqual(sources.count, 1)
+        let attachment = try sources[0].load()
+        XCTAssertTrue(attachment.filename.hasPrefix("pasted-image-"))
+        XCTAssertTrue(attachment.dataURL.hasPrefix("data:image/"))
+
+        pasteboard.clearContents()
+        pasteboard.setString("plain text", forType: .string)
+        XCTAssertTrue(ZenMuxImagePasteboardReader.sources(from: pasteboard).isEmpty)
     }
 
     func testWebCredentialStoreAcceptsOnlyCanonicalHTTPSOrigins() {

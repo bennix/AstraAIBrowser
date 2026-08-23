@@ -1328,7 +1328,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                     selector: "#astra-visual-result",
                     matchIndex: nil
                 )
-                let inspection = captureVisualAutomationPage()
+                let inspection = await captureVisualAutomationPage()
                 let clicked = await clickVisualAutomationPoint(point)
                 let waited = await waitForAutomationElement(resultTarget, milliseconds: 2_000)
                 let succeeded = inspection.succeeded
@@ -1856,7 +1856,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                 milliseconds: action.milliseconds ?? 3_000
             )
         case .inspectVisualPage:
-            return captureVisualAutomationPage()
+            return await captureVisualAutomationPage()
         case .visualClick:
             guard let point = BrowserAutomationPoint(x: action.x, y: action.y) else {
                 return .init(
@@ -1891,16 +1891,29 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         }
     }
 
-    private func captureVisualAutomationPage() -> BrowserAutomationResult {
-        guard let overlay = chromeBrowser?.nsWindow,
-              overlay.isVisible,
-              overlay.windowNumber > 0,
-              let image = CGWindowListCreateImage(
+    private func captureVisualAutomationPage() async -> BrowserAutomationResult {
+        let image: CGImage?
+        if let overlay = chromeBrowser?.nsWindow,
+           overlay.isVisible,
+           overlay.windowNumber > 0 {
+            image = CGWindowListCreateImage(
                 .null,
                 .optionIncludingWindow,
                 CGWindowID(overlay.windowNumber),
                 [.boundsIgnoreFraming, .bestResolution]
-              ),
+            )
+        } else if let webView = systemMediaWebView {
+            let snapshot = await withCheckedContinuation { continuation in
+                webView.takeSnapshot(with: nil) { image, _ in
+                    continuation.resume(returning: image)
+                }
+            }
+            image = snapshot?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        } else {
+            image = nil
+        }
+
+        guard let image,
               let jpeg = compressedAutomationScreenshot(image) else {
             return .init(
                 succeeded: false,
