@@ -41,6 +41,10 @@ final class CefWebRTCPrivacyPolicyTests: XCTestCase {
             "webrtc-ip-handling-policy"
         )
         XCTAssertEqual(
+            CefWebRTCPrivacyPolicy.forceCommandLineSwitch,
+            "force-webrtc-ip-handling-policy"
+        )
+        XCTAssertEqual(
             CefWebRTCPrivacyPolicy.requiredValue,
             "disable_non_proxied_udp"
         )

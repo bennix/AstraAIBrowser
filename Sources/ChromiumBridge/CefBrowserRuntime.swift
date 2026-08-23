@@ -67,13 +67,15 @@ enum CefDisabledFeaturePolicy {
 
 enum CefWebRTCPrivacyPolicy {
     static let commandLineSwitch = "webrtc-ip-handling-policy"
+    static let forceCommandLineSwitch = "force-webrtc-ip-handling-policy"
     static let requiredValue = "disable_non_proxied_udp"
 
     static func apply(to commandLine: CefCommandLine) {
-        // Keep WebRTC available while preventing it from bypassing a configured
-        // proxy or VPN with direct UDP candidates. Appending here overrides any
-        // weaker value supplied on the process command line.
+        // Cover both Chrome-runtime profiles and Content-layer renderers. The
+        // force switch is process-wide, so isolated and incognito profiles
+        // cannot silently fall back to unrestricted direct UDP.
         commandLine.appendSwitch(commandLineSwitch, value: requiredValue)
+        commandLine.appendSwitch(forceCommandLineSwitch, value: requiredValue)
     }
 }
 

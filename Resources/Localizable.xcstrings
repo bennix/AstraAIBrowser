@@ -4,6 +4,26 @@
     "" : {
 
     },
+    "privacy.mediaPermission.allowOnceButton" : {
+      "comment" : "Media permission prompt - Button granting camera or microphone access for the current request only",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Allow This Time" } } }
+    },
+    "privacy.mediaPermission.denyButton" : {
+      "comment" : "Media permission prompt - Button denying the current camera or microphone request",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Don't Allow" } } }
+    },
+    "privacy.mediaPermission.message" : {
+      "comment" : "Media permission prompt - Explanation; placeholder is the website host requesting temporary camera or microphone access",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "%@ wants to use your camera or microphone. Allow this request once? Direct, non-proxied WebRTC connections remain blocked." } } }
+    },
+    "privacy.mediaPermission.title" : {
+      "comment" : "Media permission prompt - Title shown when a website requests camera or microphone access",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Allow video call access?" } } }
+    },
     "passwords.webCredential.choosePrompt.cancelButton" : {
       "comment" : "Web password manager - Button cancelling saved-account selection",
       "extractionState" : "extracted_with_value",

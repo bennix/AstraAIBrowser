@@ -421,6 +421,46 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         downloadsManager?.handleCEFDownloadProgress(download)
     }
 
+    func browser(
+        _ browser: CefBrowser,
+        requestsPermission request: CefPermissionRequest
+    ) -> CefPermissionDecision {
+        let mediaKinds: CefPermissionKind = [.camera, .microphone]
+        let requestedMedia = request.kinds.intersection(mediaKinds)
+        guard !requestedMedia.isEmpty,
+              request.kinds.subtracting(mediaKinds).isEmpty else {
+            return .deny
+        }
+
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = NSLocalizedString(
+            "privacy.mediaPermission.title",
+            value: "Allow video call access?",
+            comment: "Media permission prompt - Title shown when a website requests camera or microphone access"
+        )
+        let origin = URL(string: request.origin)?.host ?? request.origin
+        alert.informativeText = String(
+            format: NSLocalizedString(
+                "privacy.mediaPermission.message",
+                value: "%@ wants to use your camera or microphone. Allow this request once? Direct, non-proxied WebRTC connections remain blocked.",
+                comment: "Media permission prompt - Explanation; placeholder is the website host requesting temporary camera or microphone access"
+            ),
+            origin
+        )
+        alert.addButton(withTitle: NSLocalizedString(
+            "privacy.mediaPermission.allowOnceButton",
+            value: "Allow This Time",
+            comment: "Media permission prompt - Button granting camera or microphone access for the current request only"
+        ))
+        alert.addButton(withTitle: NSLocalizedString(
+            "privacy.mediaPermission.denyButton",
+            value: "Don't Allow",
+            comment: "Media permission prompt - Button denying the current camera or microphone request"
+        ))
+        return alert.runModal() == .alertFirstButtonReturn ? .allow : .deny
+    }
+
     private static func cefURL(for rawValue: String) -> URL {
         if rawValue.isEmpty || rawValue.isNTP {
             return URL(string: "about:blank")!
@@ -1398,13 +1438,9 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                 await connection.setLocalDescription(await connection.createOffer());
                 await gatheringComplete;
                 connection.close();
-                const unsafeUDPCandidates = candidates.filter(
-                  (candidate) => candidate.protocol.toLowerCase() === 'udp' && candidate.type !== 'relay'
-                );
                 return JSON.stringify({
-                  ok: unsafeUDPCandidates.length === 0,
-                  candidates,
-                  unsafeUDPCandidates
+                  ok: candidates.length === 0,
+                  candidates
                 });
                 """
                 let result = await evaluateJavaScriptResult(operation: operation, timeout: 12) ?? "unavailable"
