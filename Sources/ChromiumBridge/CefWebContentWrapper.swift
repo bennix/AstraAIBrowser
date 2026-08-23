@@ -473,6 +473,10 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         configuration.websiteDataStore = systemMediaDataStore()
         configuration.allowsAirPlayForMediaPlayback = true
         configuration.mediaTypesRequiringUserActionForPlayback = []
+        // WKWebView disables the HTML Fullscreen API by default. Media sites
+        // such as YouTube read document.fullscreenEnabled and otherwise report
+        // that the browser does not support fullscreen.
+        configuration.preferences.isElementFullscreenEnabled = true
         configuration.applicationNameForUserAgent = SupportedBrowserUserAgent.safariApplicationName
         configuration.userContentController.addUserScript(
             WKUserScript(
