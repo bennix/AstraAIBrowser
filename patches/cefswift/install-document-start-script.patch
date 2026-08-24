@@ -1,0 +1,218 @@
+diff --git a/Sources/CefKit/CefConfiguration.swift b/Sources/CefKit/CefConfiguration.swift
+--- a/Sources/CefKit/CefConfiguration.swift
++++ b/Sources/CefKit/CefConfiguration.swift
+@@ -147,6 +147,12 @@ public struct CefConfiguration: Sendable {
+     /// on (the main thread for the browser process).
+     public var onBeforeCommandLineProcessing: (@Sendable (CefCommandLine) -> Void)?
+
++    /// JavaScript evaluated in the page's default V8 context immediately
++    /// after each frame context is created and before document scripts run.
++    /// Use this for security-sensitive compatibility policies that must be
++    /// present from the first script in every frame.
++    public var documentStartJavaScript: String?
++
+     public init() {}
+
+     /// The default configuration.
+diff --git a/Sources/CefKit/CefRuntime.swift b/Sources/CefKit/CefRuntime.swift
+--- a/Sources/CefKit/CefRuntime.swift
++++ b/Sources/CefKit/CefRuntime.swift
+@@ -179,6 +179,7 @@ public final class CefRuntime {
+             extraSwitches: configuration.extraCommandLineSwitches,
+             useMockKeychain: configuration.safeStorage.resolved() == .mockKeychain,
+             userCommandLineHook: configuration.onBeforeCommandLineProcessing,
++            documentStartJavaScript: configuration.documentStartJavaScript,
+             customSchemes: customSchemes,
+             pump: pump
+         )
+@@ -297,10 +298,14 @@ public final class CefRuntime {
+         // Custom schemes must be registered in every process: the browser
+         // forwarded its list via --cefswift-schemes (see CefAppContext).
+         let customSchemes = CefCustomScheme.parse(fromArguments: arguments)
++        let documentStartJavaScript = CefDocumentStartScript.parse(fromArguments: arguments)
+         var helperApp: UnsafeMutablePointer<cef_app_t>?
+-        if !customSchemes.isEmpty {
++        if !customSchemes.isEmpty || documentStartJavaScript != nil {
+             // cef_execute_process consumes our +1 reference on the app.
+-            helperApp = CefHelperAppContext(customSchemes: customSchemes).makeApp()
++            helperApp = CefHelperAppContext(
++                customSchemes: customSchemes,
++                documentStartJavaScript: documentStartJavaScript
++            ).makeApp()
+         }
+
+         var mainArgs = cef_main_args_t(argc: CommandLine.argc, argv: CommandLine.unsafeArgv)
+diff --git a/Sources/CefKit/CefAppHandlers.swift b/Sources/CefKit/CefAppHandlers.swift
+--- a/Sources/CefKit/CefAppHandlers.swift
++++ b/Sources/CefKit/CefAppHandlers.swift
+@@ -8,6 +8,7 @@ final class CefAppContext: @unchecked Sendable {
+     let extraSwitches: [String: String?]
+     let useMockKeychain: Bool
+     let userCommandLineHook: (@Sendable (CefCommandLine) -> Void)?
++    let documentStartJavaScript: String?
+     let customSchemes: [CefCustomScheme]
+     let pump: CefMessagePump
+
+@@ -18,12 +19,14 @@ final class CefAppContext: @unchecked Sendable {
+         extraSwitches: [String: String?],
+         useMockKeychain: Bool,
+         userCommandLineHook: (@Sendable (CefCommandLine) -> Void)?,
++        documentStartJavaScript: String?,
+         customSchemes: [CefCustomScheme],
+         pump: CefMessagePump
+     ) {
+         self.extraSwitches = extraSwitches
+         self.useMockKeychain = useMockKeychain
+         self.userCommandLineHook = userCommandLineHook
++        self.documentStartJavaScript = documentStartJavaScript
+         self.customSchemes = customSchemes
+         self.pump = pump
+     }
+@@ -41,16 +44,25 @@ final class CefAppContext: @unchecked Sendable {
+             guard let commandLine else { return }
+             // Callback object arguments arrive +1; release when done.
+             defer { cefRelease(UnsafeMutableRawPointer(commandLine)) }
+-            guard let owner = cefOwner(CefAppContext.self, handlerSelf.map(UnsafeMutableRawPointer.init)),
+-                  !owner.customSchemes.isEmpty
++            guard let owner = cefOwner(CefAppContext.self, handlerSelf.map(UnsafeMutableRawPointer.init))
+             else { return }
+             // CEF does not forward app-registered schemes to subprocesses;
+             // pass them on the child command line so helperMain() can mirror
+             // the registration (scheme lists must match in every process).
+-            CefCommandLine(raw: commandLine).appendSwitch(
+-                CefCustomScheme.childProcessSwitchName,
+-                value: CefCustomScheme.serialize(owner.customSchemes)
+-            )
++            let wrapper = CefCommandLine(raw: commandLine)
++            if !owner.customSchemes.isEmpty {
++                wrapper.appendSwitch(
++                    CefCustomScheme.childProcessSwitchName,
++                    value: CefCustomScheme.serialize(owner.customSchemes)
++                )
++            }
++            if let script = owner.documentStartJavaScript {
++                wrapper.appendSwitch(
++                    CefDocumentStartScript.childProcessSwitchName,
++                    value: CefDocumentStartScript.serialize(script)
++                )
++            }
++            owner.userCommandLineHook?(wrapper)
+         }
+         browserProcessHandlerPointer = bp
+
+@@ -99,15 +111,61 @@ final class CefAppContext: @unchecked Sendable {
+ /// `--cefswift-schemes`, appended by `on_before_child_process_launch`).
+ final class CefHelperAppContext: @unchecked Sendable {
+     let customSchemes: [CefCustomScheme]
++    let documentStartJavaScript: String?
++    private(set) var renderProcessHandlerPointer: UnsafeMutablePointer<cef_render_process_handler_t>?
+
+-    init(customSchemes: [CefCustomScheme]) {
++    init(customSchemes: [CefCustomScheme], documentStartJavaScript: String?) {
+         self.customSchemes = customSchemes
++        self.documentStartJavaScript = documentStartJavaScript
+     }
+
+     /// Builds the helper app struct. The returned `cef_app_t*` carries one
+     /// reference owned by the caller (transferred to cef_execute_process).
+     func makeApp() -> UnsafeMutablePointer<cef_app_t> {
++        if documentStartJavaScript != nil {
++            let renderHandler = cefAllocate(cef_render_process_handler_t.self, owner: self)
++            renderHandler.pointee.on_context_created = { handlerSelf, _, _, context in
++                guard let context,
++                      let owner = cefOwner(
++                          CefHelperAppContext.self,
++                          handlerSelf.map(UnsafeMutableRawPointer.init)
++                      ),
++                      let script = owner.documentStartJavaScript
++                else { return }
++
++                var result: UnsafeMutablePointer<cef_v8_value_t>?
++                var exception: UnsafeMutablePointer<cef_v8_exception_t>?
++                CefStringUtil.withCefString(script) { code in
++                    CefStringUtil.withCefString("cefswift://document-start.js") { scriptURL in
++                        _ = context.pointee.eval?(
++                            context,
++                            code,
++                            scriptURL,
++                            0,
++                            &result,
++                            &exception
++                        )
++                    }
++                }
++                if let result {
++                    cefRelease(UnsafeMutableRawPointer(result))
++                }
++                if let exception {
++                    cefRelease(UnsafeMutableRawPointer(exception))
++                }
++            }
++            renderProcessHandlerPointer = renderHandler
++        }
++
+         let app = cefAllocate(cef_app_t.self, owner: self)
++        app.pointee.get_render_process_handler = { appSelf in
++            guard let owner = cefOwner(
++                CefHelperAppContext.self,
++                appSelf.map(UnsafeMutableRawPointer.init)
++            ), let handler = owner.renderProcessHandlerPointer else { return nil }
++            cefAddRef(UnsafeMutableRawPointer(handler))
++            return handler
++        }
+         app.pointee.on_register_custom_schemes = { appSelf, registrar in
+             guard let registrar,
+                   let owner = cefOwner(CefHelperAppContext.self, appSelf.map(UnsafeMutableRawPointer.init))
+@@ -117,3 +175,21 @@ final class CefHelperAppContext: @unchecked Sendable {
+         return app
+     }
+ }
++
++/// Encodes an optional document-start script onto renderer helper command
++/// lines. Base64 keeps JavaScript punctuation out of Chromium switch parsing.
++enum CefDocumentStartScript {
++    static let childProcessSwitchName = "cefswift-document-start-script"
++
++    static func serialize(_ script: String) -> String {
++        Data(script.utf8).base64EncodedString()
++    }
++
++    static func parse(fromArguments arguments: [String]) -> String? {
++        let prefix = "--\(childProcessSwitchName)="
++        guard let argument = arguments.first(where: { $0.hasPrefix(prefix) }),
++              let data = Data(base64Encoded: String(argument.dropFirst(prefix.count)))
++        else { return nil }
++        return String(data: data, encoding: .utf8)
++    }
++}
+diff --git a/Tests/CefKitTests/CustomSchemeAndBridgeTests.swift b/Tests/CefKitTests/CustomSchemeAndBridgeTests.swift
+--- a/Tests/CefKitTests/CustomSchemeAndBridgeTests.swift
++++ b/Tests/CefKitTests/CustomSchemeAndBridgeTests.swift
+@@ -44,6 +44,27 @@ import Testing
+     }
+ }
+
++@Suite struct CefDocumentStartScriptTests {
++    @Test func childSwitchSerializationRoundTripsUnicodeJavaScript() {
++        let script = "globalThis.__policy = '✓';"
++        let encoded = CefDocumentStartScript.serialize(script)
++        let arguments = [
++            "/path/to/Helper",
++            "--type=renderer",
++            "--\(CefDocumentStartScript.childProcessSwitchName)=\(encoded)",
++        ]
++
++        #expect(CefDocumentStartScript.parse(fromArguments: arguments) == script)
++    }
++
++    @Test func absentOrMalformedSwitchReturnsNil() {
++        #expect(CefDocumentStartScript.parse(fromArguments: ["--type=renderer"]) == nil)
++        #expect(CefDocumentStartScript.parse(fromArguments: [
++            "--\(CefDocumentStartScript.childProcessSwitchName)=***"
++        ]) == nil)
++    }
++}
++
+ @Suite struct CefBridgeDispatchTests {
+     private func request(
+         _ url: String,

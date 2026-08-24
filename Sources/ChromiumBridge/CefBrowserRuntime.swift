@@ -79,6 +79,197 @@ enum CefWebRTCPrivacyPolicy {
     }
 }
 
+enum AudioFingerprintPrivacyPolicy {
+    static let javaScript = """
+    (() => {
+      if (globalThis.__astraAudioPrivacyInstalled) {
+        return;
+      }
+
+      Object.defineProperty(globalThis, "__astraAudioPrivacyInstalled", {
+        value: true,
+        configurable: false,
+        enumerable: false,
+        writable: false
+      });
+
+      const randomWords = new Uint32Array(2);
+      if (globalThis.crypto?.getRandomValues) {
+        globalThis.crypto.getRandomValues(randomWords);
+      } else {
+        randomWords[0] = Math.floor(Math.random() * 0x100000000);
+        randomWords[1] = Math.floor(Math.random() * 0x100000000);
+      }
+      const sessionFactor = 1 + ((randomWords[0] / 0xffffffff) - 0.5) * 0.00002;
+      const byteDirection = (randomWords[1] & 1) === 0 ? -1 : 1;
+
+      const replaceMethod = (prototype, name, implementation) => {
+        if (!prototype || typeof prototype[name] !== "function") {
+          return;
+        }
+        Object.defineProperty(prototype, name, {
+          value: implementation(prototype[name]),
+          configurable: true,
+          enumerable: false,
+          writable: true
+        });
+      };
+
+      const farbleFloatValues = (values) => {
+        if (!values || typeof values.length !== "number") {
+          return;
+        }
+        for (let index = 0; index < values.length; index += 1) {
+          const value = values[index];
+          if (Number.isFinite(value) && value !== 0) {
+            values[index] = value * sessionFactor;
+          }
+        }
+      };
+
+      const farbleByteValues = (values) => {
+        if (!values || typeof values.length !== "number") {
+          return;
+        }
+        const offset = randomWords[1] % 32;
+        for (let index = offset; index < values.length; index += 32) {
+          const value = values[index];
+          values[index] = Math.max(0, Math.min(255, value + byteDirection));
+        }
+      };
+
+      if (typeof AudioBuffer === "function") {
+        const farbledChannels = new WeakMap();
+        replaceMethod(AudioBuffer.prototype, "getChannelData", (nativeMethod) => function(channel) {
+          const values = nativeMethod.call(this, channel);
+          let channels = farbledChannels.get(this);
+          if (!channels) {
+            channels = new Set();
+            farbledChannels.set(this, channels);
+          }
+          if (!channels.has(channel)) {
+            farbleFloatValues(values);
+            channels.add(channel);
+          }
+          return values;
+        });
+        replaceMethod(AudioBuffer.prototype, "copyFromChannel", (nativeMethod) => function(destination, ...args) {
+          const result = nativeMethod.call(this, destination, ...args);
+          farbleFloatValues(destination);
+          return result;
+        });
+      }
+
+      if (typeof AnalyserNode === "function") {
+        for (const name of ["getFloatFrequencyData", "getFloatTimeDomainData"]) {
+          replaceMethod(AnalyserNode.prototype, name, (nativeMethod) => function(values) {
+            const result = nativeMethod.call(this, values);
+            farbleFloatValues(values);
+            return result;
+          });
+        }
+        for (const name of ["getByteFrequencyData", "getByteTimeDomainData"]) {
+          replaceMethod(AnalyserNode.prototype, name, (nativeMethod) => function(values) {
+            const result = nativeMethod.call(this, values);
+            farbleByteValues(values);
+            return result;
+          });
+        }
+      }
+
+      if (typeof AudioNode === "function") {
+        const nativeConnect = AudioNode.prototype.connect;
+        const deferredConnections = [];
+        const upstreamSources = new WeakMap();
+        const hasUserActivation = () => globalThis.navigator?.userActivation?.hasBeenActive === true;
+        const rememberConnection = (source, destination) => {
+          if (!(destination instanceof AudioNode)) {
+            return;
+          }
+          let sources = upstreamSources.get(destination);
+          if (!sources) {
+            sources = new Set();
+            upstreamSources.set(destination, sources);
+          }
+          sources.add(source);
+        };
+        const hasSilentGainUpstream = (node, visited = new Set()) => {
+          if (!node || visited.has(node)) {
+            return false;
+          }
+          visited.add(node);
+          if (typeof GainNode === "function" && node instanceof GainNode &&
+              Number(node.gain?.value) === 0) {
+            return true;
+          }
+          const sources = upstreamSources.get(node);
+          if (!sources) {
+            return false;
+          }
+          for (const source of sources) {
+            if (hasSilentGainUpstream(source, visited)) {
+              return true;
+            }
+          }
+          return false;
+        };
+        const shouldDeferOutput = (source, destination) => {
+          const context = source?.context;
+          if (!context || destination !== context.destination || hasUserActivation()) {
+            return false;
+          }
+          return true;
+        };
+
+        Object.defineProperty(AudioNode.prototype, "connect", {
+          value: function(destination, ...args) {
+            rememberConnection(this, destination);
+            const context = this?.context;
+            if (context && destination === context.destination && hasSilentGainUpstream(this)) {
+              return destination;
+            }
+            if (shouldDeferOutput(this, destination)) {
+              deferredConnections.push({ source: this, destination, args });
+              return destination;
+            }
+            return nativeConnect.call(this, destination, ...args);
+          },
+          configurable: true,
+          enumerable: false,
+          writable: true
+        });
+
+        const activateAudioOutput = (event) => {
+          if (!event || event.isTrusted !== true) {
+            return;
+          }
+          while (deferredConnections.length > 0) {
+            const connection = deferredConnections.shift();
+            if (hasSilentGainUpstream(connection.source)) {
+              continue;
+            }
+            try {
+              nativeConnect.call(
+                connection.source,
+                connection.destination,
+                ...connection.args
+              );
+            } catch (_) {
+              // Ignore graphs that the page discarded before activation.
+            }
+          }
+        };
+        for (const eventName of ["pointerdown", "keydown", "touchstart"]) {
+          globalThis.addEventListener?.(eventName, activateAudioOutput, {
+            capture: true,
+            passive: true
+          });
+        }
+      }
+    })();
+    """
+}
+
 /// Reads Chrome-runtime extension metadata from the profile directory. CEF's
 /// Chrome runtime owns installation and execution, while this catalog only
 /// adapts its persisted manifests to Astra's existing native extension UI.
@@ -584,6 +775,7 @@ private final class CefBrowserWindow: NSWindow {
             configuration.persistSessionCookies = true
             configuration.defaultRuntimeStyle = .chrome
             configuration.userAgentProduct = SupportedBrowserUserAgent.chromiumProduct
+            configuration.documentStartJavaScript = AudioFingerprintPrivacyPolicy.javaScript
             // Gmail rejects unbranded Chromium Client Hints. Prefer the UA
             // string, which reports a current Chrome product token. Preserve
             // CEF's compatibility exclusions when adding this feature.

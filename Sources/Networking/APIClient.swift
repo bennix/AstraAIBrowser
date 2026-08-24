@@ -674,6 +674,9 @@ final class ZenMuxCredentialStore {
     var storageFileURL: URL { fileURL }
 
     func loadAPIKey() throws -> String? {
+        if CommandLine.arguments.contains("--cef-smoke-test") {
+            return nil
+        }
         guard fileManager.fileExists(atPath: fileURL.path) else { return nil }
         guard let keyData = try readKeychainKey() else {
             throw StoreError.invalidEnvelope

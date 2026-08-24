@@ -557,6 +557,13 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         )
         configuration.userContentController.addUserScript(
             WKUserScript(
+                source: AudioFingerprintPrivacyPolicy.javaScript,
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: false
+            )
+        )
+        configuration.userContentController.addUserScript(
+            WKUserScript(
                 source: YouTubeAdPlaybackPolicy.javaScript,
                 injectionTime: .atDocumentStart,
                 forMainFrameOnly: true
@@ -1649,6 +1656,30 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                 """
                 let result = await evaluateJavaScriptResult(operation: operation, timeout: 8) ?? "unavailable"
                 FileHandle.standardOutput.write(Data("[cef-smoke] media compatibility: \(result)\n".utf8))
+                NSApp.terminate(nil)
+            }
+            return
+        }
+
+        if arguments.contains("--cef-audio-privacy-smoke") {
+            guard !isLoading, browser != nil || systemMediaWebView != nil else { return }
+            didStartSmokeCheck = true
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let operation = """
+                const AudioContextConstructor = globalThis.AudioContext || globalThis.webkitAudioContext;
+                if (globalThis.__astraAudioPrivacyInstalled !== true) return 'unprotected';
+                if (typeof AudioContextConstructor !== 'function') return 'protected';
+                try {
+                  const context = new AudioContextConstructor();
+                  context.close?.();
+                  return 'protected';
+                } catch (_) {
+                  return 'protected';
+                }
+                """
+                let result = await evaluateJavaScriptResult(operation: operation, timeout: 8) ?? "unavailable"
+                FileHandle.standardOutput.write(Data("[cef-smoke] web audio: \(result)\n".utf8))
                 NSApp.terminate(nil)
             }
             return
