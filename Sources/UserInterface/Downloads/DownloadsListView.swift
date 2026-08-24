@@ -21,7 +21,7 @@ struct DownloadsListView: View {
                 downloadsList
             }
             
-            DownloadsBottomBar()
+            DownloadsBottomBar(downloadsManager: downloadsManager)
         }
         .frame(width: 340)
         .background(.clear)
@@ -89,6 +89,7 @@ struct DownloadsListView: View {
 }
 
 private struct DownloadsBottomBar: View {
+    @ObservedObject var downloadsManager: DownloadsManager
     @State private var isHovered: Bool = false
     
     var body: some View {
@@ -97,6 +98,46 @@ private struct DownloadsBottomBar: View {
                 .background(Color.phiPrimary.opacity(0.1))
             
             HStack {
+                Menu {
+                    Button {
+                        downloadsManager.startMediaDownload(kind: .video)
+                    } label: {
+                        Label(
+                            NSLocalizedString(
+                                "downloads.media.saveVideoAction",
+                                value: "Save Video",
+                                comment: "Downloads popover - Action to save unencrypted video from the current page"
+                            ),
+                            systemImage: "video"
+                        )
+                    }
+                    Button {
+                        downloadsManager.startMediaDownload(kind: .audio)
+                    } label: {
+                        Label(
+                            NSLocalizedString(
+                                "downloads.media.saveAudioAction",
+                                value: "Save Audio",
+                                comment: "Downloads popover - Action to save unencrypted audio from the current page"
+                            ),
+                            systemImage: "waveform"
+                        )
+                    }
+                } label: {
+                    Label(
+                        NSLocalizedString(
+                            "downloads.media.saveCurrentPageMenu",
+                            value: "Save Media",
+                            comment: "Downloads popover - Menu for saving unencrypted media from the current page"
+                        ),
+                        systemImage: "square.and.arrow.down"
+                    )
+                    .font(.system(size: 11))
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .padding(.leading, 12)
+
                 Spacer()
                 
                 Button(action: {

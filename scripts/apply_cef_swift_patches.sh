@@ -10,18 +10,21 @@ patches=(
   "$repository_root/patches/cefswift/integrate-unmanaged-browser-windows.patch"
   "$repository_root/patches/cefswift/install-document-start-script.patch"
   "$repository_root/patches/cefswift/configure-accept-language.patch"
+  "$repository_root/patches/cefswift/export-session-cookies.patch"
 )
 targets=(
   "$cef_swift_root/Sources/CefKit/CefBrowser.swift"
   "$cef_swift_root/Sources/CefKit/CefRuntime.swift"
   "$cef_swift_root/Sources/CefKit/CefConfiguration.swift"
   "$cef_swift_root/Sources/CefKit/CefConfiguration.swift"
+  "$cef_swift_root/Sources/CefKit/CefBrowser.swift"
 )
 markers=(
   "public func captureVisiblePageScreenshot"
   "public func closeUnmanagedBrowserWindow"
   "public var documentStartJavaScript"
   "public var acceptLanguageList"
+  "public func cookies(for url: URL"
 )
 
 applied_any=false

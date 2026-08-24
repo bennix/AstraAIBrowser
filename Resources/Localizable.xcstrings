@@ -31211,6 +31211,46 @@
         }
       }
     },
+    "downloads.media.audioKindLabel" : {
+      "comment" : "Downloads popover - Media type label for a saved audio track",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Audio" } } }
+    },
+    "downloads.media.drmProtectedError" : {
+      "comment" : "Downloads list - Failure text when encrypted media is intentionally rejected",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "DRM-protected media cannot be saved" } } }
+    },
+    "downloads.media.saveAudioAction" : {
+      "comment" : "Downloads popover - Action to save unencrypted audio from the current page",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Save Audio" } } }
+    },
+    "downloads.media.saveCurrentPageMenu" : {
+      "comment" : "Downloads popover - Menu for saving unencrypted media from the current page",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Save Media" } } }
+    },
+    "downloads.media.saveVideoAction" : {
+      "comment" : "Downloads popover - Action to save unencrypted video from the current page",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Save Video" } } }
+    },
+    "downloads.media.toolUnavailableError" : {
+      "comment" : "Downloads list - Failure text when the private media helper is missing",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Media saver is unavailable in this build" } } }
+    },
+    "downloads.media.unverifiedError" : {
+      "comment" : "Downloads list - Failure text when media protection status cannot be verified",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Media protection could not be verified" } } }
+    },
+    "downloads.media.videoKindLabel" : {
+      "comment" : "Downloads popover - Media type label for a saved video",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Video" } } }
+    },
     "downloads.list.emptyMessage" : {
       "comment" : "Downloads list - Empty state text when no downloads exist",
       "extractionState" : "extracted_with_value",

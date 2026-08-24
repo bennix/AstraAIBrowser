@@ -18,6 +18,11 @@ protocol BrowserAutomationProviding: AnyObject {
     func performBrowserAutomation(_ action: BrowserAutomationAction) async -> BrowserAutomationResult
 }
 
+protocol MediaSessionCookieProviding: AnyObject {
+    @MainActor
+    func mediaSessionCookies(for url: URL) async -> [HTTPCookie]
+}
+
 enum BrowserAutomationInteractionPolicy {
     static func requiresConfirmation(controlType: String?) -> Bool {
         controlType?.lowercased() == "submit"
@@ -335,7 +340,7 @@ enum VisiblePageCaptureRoute: Equatable {
 }
 
 @MainActor
-final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, CefBrowserDelegate, PageContentProviding, BrowserAutomationProviding, WKNavigationDelegate, WKUIDelegate {
+final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, CefBrowserDelegate, PageContentProviding, BrowserAutomationProviding, MediaSessionCookieProviding, WKNavigationDelegate, WKUIDelegate {
     private final class PendingConsoleEvaluation {
         let continuation: CheckedContinuation<String?, Never>
         var chunks: [Int: String] = [:]
@@ -2129,6 +2134,30 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: timeoutWork)
             browser.executeJavaScript(script)
         }
+    }
+
+    func mediaSessionCookies(for url: URL) async -> [HTTPCookie] {
+        if let systemMediaWebView {
+            return await withCheckedContinuation { continuation in
+                systemMediaWebView.configuration.websiteDataStore.httpCookieStore.getAllCookies {
+                    let cookies = $0.filter { Self.cookie($0, matches: url) }
+                    continuation.resume(returning: cookies)
+                }
+            }
+        }
+        return await browser?.cookies(for: url) ?? []
+    }
+
+    private static func cookie(_ cookie: HTTPCookie, matches url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return false }
+        let domain = cookie.domain.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        let hostMatches = host == domain || host.hasSuffix(".\(domain)")
+        guard hostMatches else { return false }
+        if cookie.isSecure, url.scheme?.lowercased() != "https" {
+            return false
+        }
+        let requestPath = url.path.isEmpty ? "/" : url.path
+        return requestPath.hasPrefix(cookie.path.isEmpty ? "/" : cookie.path)
     }
 
     func pageContentContext() async -> String? {

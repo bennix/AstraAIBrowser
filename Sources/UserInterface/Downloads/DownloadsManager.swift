@@ -6,6 +6,7 @@
 import AppKit
 import CefKit
 import Combine
+import Darwin
 
 /// Download item state enumeration matching Chromium's DownloadItem::DownloadState
 enum DownloadState: Int {
@@ -51,6 +52,14 @@ class DownloadItem: ObservableObject, Identifiable {
 
     var isCEFDownload: Bool {
         id.hasPrefix("cef-")
+    }
+
+    var isMediaDownload: Bool {
+        id.hasPrefix("media-")
+    }
+
+    var isAppManagedDownload: Bool {
+        isCEFDownload || isMediaDownload
     }
 
     // MARK: - Safety State (delegates to DownloadSafetyComputation)
@@ -213,6 +222,68 @@ class DownloadItem: ObservableObject, Identifiable {
         self.targetFilePath = destination.path
     }
 
+    init(mediaID: UUID, fileName: String, pageURL: URL, mimeType: String) {
+        self.id = "media-\(mediaID.uuidString)"
+        self.fileName = fileName
+        self.url = pageURL.absoluteString
+        self.mimeType = mimeType
+        self.state = .inProgress
+        self.totalBytes = 0
+        self.receivedBytes = 0
+        self.percentComplete = -1
+        self.currentSpeed = 0
+        self.startTime = Date()
+        self.endTime = nil
+        self.canShowInFolder = false
+        self.canOpenDownload = false
+        self.canResume = false
+        self.isPaused = false
+        self.isDone = false
+        self.isDangerous = false
+        self.dangerType = 0
+        self.isInsecure = false
+        self.insecureDownloadStatus = 0
+        self.targetFilePath = ""
+    }
+
+    func updateMediaProgress(
+        receivedBytes: Int64,
+        totalBytes: Int64,
+        speed: Int64
+    ) {
+        self.receivedBytes = max(0, receivedBytes)
+        self.totalBytes = max(0, totalBytes)
+        self.currentSpeed = max(0, speed)
+        if totalBytes > 0 {
+            percentComplete = min(99, max(0, Int(receivedBytes * 100 / totalBytes)))
+        }
+    }
+
+    func finishMediaDownload(at fileURL: URL) {
+        fileName = fileURL.lastPathComponent
+        targetFilePath = fileURL.path
+        state = .complete
+        percentComplete = 100
+        currentSpeed = 0
+        endTime = Date()
+        isDone = true
+        canShowInFolder = FileManager.default.fileExists(atPath: fileURL.path)
+        canOpenDownload = canShowInFolder
+        canResume = false
+        isPaused = false
+    }
+
+    func failMediaDownload(cancelled: Bool) {
+        state = cancelled ? .cancelled : .interrupted
+        currentSpeed = 0
+        endTime = Date()
+        isDone = true
+        canShowInFolder = false
+        canOpenDownload = false
+        canResume = false
+        isPaused = false
+    }
+
     func update(from download: CefDownload, currentSpeed: Int64) {
         totalBytes = download.totalBytes
         receivedBytes = download.receivedBytes
@@ -292,6 +363,494 @@ struct DownloadEvent {
     let downloadItem: DownloadItem?
 }
 
+enum MediaDownloadKind: String {
+    case video
+    case audio
+
+    var mimeType: String {
+        switch self {
+        case .video: return "video/mp4"
+        case .audio: return "audio/mp4"
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .video:
+            return NSLocalizedString(
+                "downloads.media.videoKindLabel",
+                value: "Video",
+                comment: "Downloads popover - Media type label for a saved video"
+            )
+        case .audio:
+            return NSLocalizedString(
+                "downloads.media.audioKindLabel",
+                value: "Audio",
+                comment: "Downloads popover - Media type label for a saved audio track"
+            )
+        }
+    }
+}
+
+enum MediaDownloadPolicy {
+    enum Decision: Equatable {
+        case allow
+        case rejectDRM
+        case rejectUnverified
+    }
+
+    static func decision(for data: Data) -> Decision {
+        guard let object = metadataObject(in: data) else {
+            return .rejectUnverified
+        }
+        if object["has_drm"] as? Bool == true {
+            return .rejectDRM
+        }
+        guard let formats = object["formats"] as? [[String: Any]], !formats.isEmpty else {
+            return .rejectUnverified
+        }
+        let playableFormats = formats.filter { format in
+            format["has_drm"] as? Bool != true
+        }
+        return playableFormats.isEmpty ? .rejectDRM : .allow
+    }
+
+    static func metadataIndicatesDRM(_ data: Data) -> Bool {
+        decision(for: data) == .rejectDRM
+    }
+
+    private static func metadataObject(in data: Data) -> [String: Any]? {
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            return object
+        }
+        guard let output = String(data: data, encoding: .utf8) else { return nil }
+        for line in output.split(whereSeparator: \.isNewline).reversed() {
+            let candidate = Data(line.utf8)
+            if let object = try? JSONSerialization.jsonObject(with: candidate) as? [String: Any] {
+                return object
+            }
+        }
+        return nil
+    }
+}
+
+private final class MediaToolProcess: @unchecked Sendable {
+    struct Result {
+        let exitCode: Int32
+        let output: Data
+    }
+
+    let process = Process()
+    private let pipe = Pipe()
+    private let lock = NSLock()
+    private var output = Data()
+    private var pendingLine = Data()
+    private let lineHandler: @Sendable (String) -> Void
+
+    init(executableURL: URL, arguments: [String], lineHandler: @escaping @Sendable (String) -> Void) {
+        self.lineHandler = lineHandler
+        process.executableURL = executableURL
+        process.arguments = arguments
+        process.standardOutput = pipe
+        process.standardError = pipe
+        var environment = ProcessInfo.processInfo.environment
+        environment["LANG"] = "en_US.UTF-8"
+        environment["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin"
+        process.environment = environment
+    }
+
+    func run() async throws -> Result {
+        pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            let data = handle.availableData
+            guard !data.isEmpty else { return }
+            self?.consume(data)
+        }
+        return try await withCheckedThrowingContinuation { continuation in
+            process.terminationHandler = { [weak self] process in
+                guard let self else {
+                    continuation.resume(returning: Result(exitCode: process.terminationStatus, output: Data()))
+                    return
+                }
+                self.pipe.fileHandleForReading.readabilityHandler = nil
+                let remaining = self.pipe.fileHandleForReading.readDataToEndOfFile()
+                if !remaining.isEmpty {
+                    self.consume(remaining)
+                }
+                self.flushPendingLine()
+                self.lock.lock()
+                let output = self.output
+                self.lock.unlock()
+                continuation.resume(returning: Result(exitCode: process.terminationStatus, output: output))
+            }
+            do {
+                try process.run()
+            } catch {
+                pipe.fileHandleForReading.readabilityHandler = nil
+                process.terminationHandler = nil
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+
+    func terminate() {
+        guard process.isRunning else { return }
+        process.terminate()
+    }
+
+    func pause() {
+        guard process.isRunning else { return }
+        Darwin.kill(process.processIdentifier, SIGSTOP)
+    }
+
+    func resume() {
+        guard process.isRunning else { return }
+        Darwin.kill(process.processIdentifier, SIGCONT)
+    }
+
+    private func consume(_ data: Data) {
+        lock.lock()
+        output.append(data)
+        pendingLine.append(data)
+        var lines: [String] = []
+        while let newline = pendingLine.firstIndex(of: 0x0A) {
+            let lineData = pendingLine.prefix(upTo: newline)
+            pendingLine.removeSubrange(...newline)
+            if let line = String(data: lineData, encoding: .utf8) {
+                lines.append(line.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+        }
+        lock.unlock()
+        lines.forEach(lineHandler)
+    }
+
+    private func flushPendingLine() {
+        lock.lock()
+        let lineData = pendingLine
+        pendingLine.removeAll(keepingCapacity: false)
+        lock.unlock()
+        guard !lineData.isEmpty,
+              let line = String(data: lineData, encoding: .utf8) else { return }
+        lineHandler(line.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+}
+
+@MainActor
+private final class MediaDownloadCoordinator {
+    private weak var manager: DownloadsManager?
+    private var processes: [String: MediaToolProcess] = [:]
+    private var cancelledIDs = Set<String>()
+
+    init(manager: DownloadsManager) {
+        self.manager = manager
+    }
+
+    func start(
+        item: DownloadItem,
+        pageURL: URL,
+        kind: MediaDownloadKind,
+        cookies: [HTTPCookie]
+    ) {
+        Task { [weak self, weak item] in
+            guard let self, let item else { return }
+            await self.perform(item: item, pageURL: pageURL, kind: kind, cookies: cookies)
+        }
+    }
+
+    func cancel(_ item: DownloadItem) {
+        cancelledIDs.insert(item.id)
+        processes[item.id]?.terminate()
+        item.failMediaDownload(cancelled: true)
+        finishEvent(for: item, eventType: .cancelled)
+    }
+
+    func pause(_ item: DownloadItem) {
+        guard let process = processes[item.id] else { return }
+        process.pause()
+        item.isPaused = true
+        item.canResume = true
+        finishEvent(for: item, eventType: .paused)
+    }
+
+    func resume(_ item: DownloadItem) {
+        guard let process = processes[item.id] else { return }
+        process.resume()
+        item.isPaused = false
+        item.canResume = false
+        finishEvent(for: item, eventType: .resumed)
+    }
+
+    private func perform(
+        item: DownloadItem,
+        pageURL: URL,
+        kind: MediaDownloadKind,
+        cookies: [HTTPCookie]
+    ) async {
+        guard let toolURL = Self.ytDLPURL() else {
+            item.fileName = NSLocalizedString(
+                "downloads.media.toolUnavailableError",
+                value: "Media saver is unavailable in this build",
+                comment: "Downloads list - Failure text when the private media helper is missing"
+            )
+            fail(item)
+            return
+        }
+
+        let workDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("astra-media-\(UUID().uuidString)", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: workDirectory, withIntermediateDirectories: true)
+        } catch {
+            fail(item)
+            return
+        }
+        defer { try? FileManager.default.removeItem(at: workDirectory) }
+
+        let cookieURL = workDirectory.appendingPathComponent("session-cookies.txt")
+        if !cookies.isEmpty {
+            try? Self.writeNetscapeCookies(cookies, to: cookieURL)
+        }
+        let cookieArguments = FileManager.default.fileExists(atPath: cookieURL.path)
+            ? ["--cookies", cookieURL.path]
+            : []
+
+        let metadataArguments = [
+            "--no-config", "--no-playlist", "--no-warnings", "--skip-download", "--dump-single-json",
+        ] + cookieArguments + [pageURL.absoluteString]
+        do {
+            let metadataProcess = MediaToolProcess(
+                executableURL: toolURL,
+                arguments: metadataArguments,
+                lineHandler: { _ in }
+            )
+            processes[item.id] = metadataProcess
+            let metadata = try await metadataProcess.run()
+            guard !wasCancelled(item) else { return }
+            guard metadata.exitCode == 0 else {
+                fail(item)
+                return
+            }
+            switch MediaDownloadPolicy.decision(for: metadata.output) {
+            case .allow:
+                break
+            case .rejectDRM:
+                item.fileName = NSLocalizedString(
+                    "downloads.media.drmProtectedError",
+                    value: "DRM-protected media cannot be saved",
+                    comment: "Downloads list - Failure text when encrypted media is intentionally rejected"
+                )
+                fail(item)
+                return
+            case .rejectUnverified:
+                item.fileName = NSLocalizedString(
+                    "downloads.media.unverifiedError",
+                    value: "Media protection could not be verified",
+                    comment: "Downloads list - Failure text when media protection status cannot be verified"
+                )
+                fail(item)
+                return
+            }
+        } catch {
+            guard !wasCancelled(item) else { return }
+            fail(item)
+            return
+        }
+
+        let downloadsDirectory = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let baseName = Self.uniqueBaseName(
+            title: item.fileName,
+            kind: kind,
+            directory: downloadsDirectory
+        )
+        let outputTemplate = downloadsDirectory
+            .appendingPathComponent("\(baseName).%(ext)s")
+            .path
+        var arguments = [
+            "--no-config",
+            "--no-playlist",
+            "--newline",
+            "--concurrent-fragments", "4",
+            "--progress-template", "download:__ASTRA_PROGRESS__:%(progress.downloaded_bytes)s:%(progress.total_bytes,progress.total_bytes_estimate)s:%(progress.speed)s",
+            "--print", "after_move:__ASTRA_FILE__:%(filepath)s",
+            "--output", outputTemplate,
+        ]
+        if kind == .video {
+            if let ffmpegURL = Self.ffmpegURL() {
+                arguments += [
+                    "--ffmpeg-location", ffmpegURL.deletingLastPathComponent().path,
+                    "--format", "bv*+ba/b",
+                    "--merge-output-format", "mp4",
+                ]
+            } else {
+                arguments += ["--format", "b[ext=mp4]/b"]
+            }
+        } else {
+            arguments += ["--format", "ba[ext=m4a]/ba/b"]
+        }
+        arguments += cookieArguments
+        arguments.append(pageURL.absoluteString)
+
+        do {
+            let downloadProcess = MediaToolProcess(
+                executableURL: toolURL,
+                arguments: arguments,
+                lineHandler: { [weak self, weak item] line in
+                    Task { @MainActor in
+                        guard let self, let item else { return }
+                        if let progress = Self.parseProgress(line) {
+                            item.updateMediaProgress(
+                                receivedBytes: progress.receivedBytes,
+                                totalBytes: progress.totalBytes,
+                                speed: progress.speed
+                            )
+                            self.finishEvent(for: item, eventType: .updated)
+                        }
+                    }
+                }
+            )
+            processes[item.id] = downloadProcess
+            let result = try await downloadProcess.run()
+            processes[item.id] = nil
+            guard !wasCancelled(item) else { return }
+            let finalFileURL = Self.finalFileURL(in: result.output)
+            guard result.exitCode == 0,
+                  let finalFileURL,
+                  FileManager.default.fileExists(atPath: finalFileURL.path) else {
+                fail(item)
+                return
+            }
+            item.finishMediaDownload(at: finalFileURL)
+            finishEvent(for: item, eventType: .completed)
+        } catch {
+            processes[item.id] = nil
+            guard !wasCancelled(item) else { return }
+            fail(item)
+        }
+    }
+
+    private func wasCancelled(_ item: DownloadItem) -> Bool {
+        if cancelledIDs.remove(item.id) != nil {
+            processes[item.id] = nil
+            return true
+        }
+        return false
+    }
+
+    private func fail(_ item: DownloadItem) {
+        processes[item.id] = nil
+        item.failMediaDownload(cancelled: false)
+        finishEvent(for: item, eventType: .interrupted)
+    }
+
+    private func finishEvent(for item: DownloadItem, eventType: DownloadEventType) {
+        manager?.mediaDownloadDidChange(item, eventType: eventType)
+    }
+
+    private static func ytDLPURL() -> URL? {
+        executableURL(
+            bundleName: "yt-dlp",
+            fallbackPaths: [
+                "/opt/homebrew/bin/yt-dlp",
+                "/usr/local/bin/yt-dlp",
+            ]
+        )
+    }
+
+    private static func ffmpegURL() -> URL? {
+        executableURL(
+            bundleName: "ffmpeg",
+            fallbackPaths: [
+                "/opt/homebrew/bin/ffmpeg",
+                "/usr/local/bin/ffmpeg",
+            ]
+        )
+    }
+
+    private static func executableURL(bundleName: String, fallbackPaths: [String]) -> URL? {
+        if let bundled = Bundle.main.resourceURL?
+            .appendingPathComponent("MediaTools", isDirectory: true)
+            .appendingPathComponent(bundleName),
+           FileManager.default.isExecutableFile(atPath: bundled.path) {
+            return bundled
+        }
+        return fallbackPaths
+            .map(URL.init(fileURLWithPath:))
+            .first { FileManager.default.isExecutableFile(atPath: $0.path) }
+    }
+
+    private static func writeNetscapeCookies(_ cookies: [HTTPCookie], to url: URL) throws {
+        var lines = ["# Netscape HTTP Cookie File", "# Temporary Astra browser session export"]
+        for cookie in cookies {
+            let domain = sanitizedCookieField(cookie.domain)
+            let includeSubdomains = domain.hasPrefix(".") ? "TRUE" : "FALSE"
+            let path = sanitizedCookieField(cookie.path.isEmpty ? "/" : cookie.path)
+            let secure = cookie.isSecure ? "TRUE" : "FALSE"
+            let expires = Int64(cookie.expiresDate?.timeIntervalSince1970 ?? 0)
+            let name = sanitizedCookieField(cookie.name)
+            let value = sanitizedCookieField(cookie.value)
+            lines.append([domain, includeSubdomains, path, secure, String(expires), name, value].joined(separator: "\t"))
+        }
+        try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: url, options: .atomic)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+    }
+
+    private static func sanitizedCookieField(_ value: String) -> String {
+        value.replacingOccurrences(of: "\t", with: " ")
+            .replacingOccurrences(of: "\r", with: "")
+            .replacingOccurrences(of: "\n", with: "")
+    }
+
+    private static func uniqueBaseName(
+        title: String,
+        kind: MediaDownloadKind,
+        directory: URL
+    ) -> String {
+        let invalid = CharacterSet(charactersIn: "/:\\?%*|\"<>")
+        let cleanedTitle = title.components(separatedBy: invalid).joined(separator: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let stem = String((cleanedTitle.isEmpty ? "media" : cleanedTitle).prefix(120))
+        let base = "\(stem) - \(kind.displayName)"
+        let existingNames = Set(
+            (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        )
+        var candidate = base
+        var suffix = 2
+        while existingNames.contains(where: { $0 == candidate || $0.hasPrefix("\(candidate).") }) {
+            candidate = "\(base) \(suffix)"
+            suffix += 1
+        }
+        return candidate
+    }
+
+    private static func parseProgress(_ line: String) -> (
+        receivedBytes: Int64,
+        totalBytes: Int64,
+        speed: Int64
+    )? {
+        guard line.hasPrefix("__ASTRA_PROGRESS__:") else { return nil }
+        let values = line.dropFirst("__ASTRA_PROGRESS__:".count)
+            .split(separator: ":", omittingEmptySubsequences: false)
+        guard values.count >= 3 else { return nil }
+        func number(_ value: Substring) -> Int64 {
+            Int64(Double(value.trimmingCharacters(in: .whitespaces)) ?? 0)
+        }
+        return (number(values[0]), number(values[1]), number(values[2]))
+    }
+
+    private static func finalFileURL(in output: Data) -> URL? {
+        guard let text = String(data: output, encoding: .utf8) else { return nil }
+        for line in text.split(whereSeparator: \.isNewline).reversed() {
+            guard line.hasPrefix("__ASTRA_FILE__:") else { continue }
+            let path = line.dropFirst("__ASTRA_FILE__:".count)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !path.isEmpty {
+                return URL(fileURLWithPath: path)
+            }
+        }
+        return nil
+    }
+}
+
 class DownloadsManager: ObservableObject {
     weak var browserState: BrowserState?
     
@@ -318,9 +877,51 @@ class DownloadsManager: ObservableObject {
     }
 
     private var cefProgressSamples: [String: (date: Date, receivedBytes: Int64)] = [:]
+    private lazy var mediaDownloadCoordinator = MainActor.assumeIsolated {
+        MediaDownloadCoordinator(manager: self)
+    }
     
     init(browserState: BrowserState? = nil) {
         self.browserState = browserState
+    }
+
+    func startMediaDownload(kind: MediaDownloadKind) {
+        guard let tab = browserState?.focusingTab,
+              let rawURL = tab.url,
+              let pageURL = URL(string: rawURL),
+              ["http", "https"].contains(pageURL.scheme?.lowercased() ?? "") else { return }
+
+        let title = tab.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let item = DownloadItem(
+            mediaID: UUID(),
+            fileName: title.isEmpty ? (pageURL.host ?? "Media") : title,
+            pageURL: pageURL,
+            mimeType: kind.mimeType
+        )
+        downloads.insert(item, at: 0)
+        updateTotalProgress()
+        downloadEventPublisher.send(DownloadEvent(eventType: .created, downloadItem: item))
+
+        Task { @MainActor [weak self, weak tab, weak item] in
+            guard let self, let tab, let item else { return }
+            let provider = tab.webContentWrapper as? MediaSessionCookieProviding
+            let cookies = await provider?.mediaSessionCookies(for: pageURL) ?? []
+            guard item.state == .inProgress else { return }
+            self.mediaDownloadCoordinator.start(
+                item: item,
+                pageURL: pageURL,
+                kind: kind,
+                cookies: cookies
+            )
+        }
+    }
+
+    fileprivate func mediaDownloadDidChange(
+        _ item: DownloadItem,
+        eventType: DownloadEventType
+    ) {
+        updateTotalProgress()
+        downloadEventPublisher.send(DownloadEvent(eventType: eventType, downloadItem: item))
     }
 
     /// Registers a CEF download and returns the collision-free file destination.
@@ -472,6 +1073,16 @@ class DownloadsManager: ObservableObject {
             return (item1.startTime ?? .distantPast) > (item2.startTime ?? .distantPast)
         }
         
+        let appManagedDownloads = downloads.filter(\.isAppManagedDownload)
+        newDownloads.append(contentsOf: appManagedDownloads.filter { managed in
+            newDownloads.contains(where: { $0.id == managed.id }) == false
+        })
+        newDownloads.sort {
+            let firstInProgress = $0.state == .inProgress
+            let secondInProgress = $1.state == .inProgress
+            if firstInProgress != secondInProgress { return firstInProgress }
+            return ($0.startTime ?? .distantPast) > ($1.startTime ?? .distantPast)
+        }
         downloads = newDownloads
         updateTotalProgress()
         AppLogDebug("📥 [Downloads] Refreshed \(downloads.count) items, progress: \(Int(totalDownloadProgress * 100))%")
@@ -558,19 +1169,42 @@ class DownloadsManager: ObservableObject {
     // MARK: - Download Actions
     
     func pauseDownload(_ item: DownloadItem) {
+        if item.isMediaDownload {
+            MainActor.assumeIsolated {
+                mediaDownloadCoordinator.pause(item)
+            }
+            return
+        }
         ChromiumLauncher.sharedInstance().bridge?.pauseDownload(withGuid: item.id, windowId: windowId)
     }
     
     func resumeDownload(_ item: DownloadItem) {
+        if item.isMediaDownload {
+            MainActor.assumeIsolated {
+                mediaDownloadCoordinator.resume(item)
+            }
+            return
+        }
         ChromiumLauncher.sharedInstance().bridge?.resumeDownload(withGuid: item.id, windowId: windowId)
     }
     
     func cancelDownload(_ item: DownloadItem) {
+        if item.isMediaDownload {
+            MainActor.assumeIsolated {
+                mediaDownloadCoordinator.cancel(item)
+            }
+            return
+        }
         ChromiumLauncher.sharedInstance().bridge?.cancelDownload(withGuid: item.id, windowId: windowId)
     }
     
     func removeDownload(_ item: DownloadItem) {
-        if item.isCEFDownload {
+        if item.isAppManagedDownload {
+            if item.isMediaDownload, item.state == .inProgress {
+                MainActor.assumeIsolated {
+                    mediaDownloadCoordinator.cancel(item)
+                }
+            }
             downloads.removeAll { $0.id == item.id }
             cefProgressSamples.removeValue(forKey: item.id)
             updateTotalProgress()
@@ -581,7 +1215,7 @@ class DownloadsManager: ObservableObject {
     }
     
     func openDownload(_ item: DownloadItem) {
-        if item.isCEFDownload {
+        if item.isAppManagedDownload {
             guard FileManager.default.fileExists(atPath: item.targetFilePath) else { return }
             NSWorkspace.shared.open(URL(fileURLWithPath: item.targetFilePath))
             return
@@ -590,7 +1224,7 @@ class DownloadsManager: ObservableObject {
     }
     
     func showInFinder(_ item: DownloadItem) {
-        if item.isCEFDownload {
+        if item.isAppManagedDownload {
             guard FileManager.default.fileExists(atPath: item.targetFilePath) else { return }
             NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: item.targetFilePath)])
             return

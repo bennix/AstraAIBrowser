@@ -1,0 +1,122 @@
+diff --git a/Sources/CefKit/CefBrowser.swift b/Sources/CefKit/CefBrowser.swift
+--- a/Sources/CefKit/CefBrowser.swift
++++ b/Sources/CefKit/CefBrowser.swift
+@@ -181,1 +181,19 @@
++    /// Returns cookies visible to `url` in this browser's request context.
++    /// HTTP-only cookies are included so callers can continue an authenticated
++    /// browser request without reading cookie storage directly from disk.
++    public func cookies(for url: URL, timeout: TimeInterval = 2) async -> [HTTPCookie] {
++        await withCheckedContinuation { continuation in
++            let request = CefCookieReadRequest(
++                continuation: continuation,
++                timeout: timeout
++            )
++            guard withHost({ host in
++                request.start(host: host, url: url)
++            }) == true else {
++                request.cancel()
++                return
++            }
++        }
++    }
++
+     /// Searches the page for `text`.
+@@ -719,1 +737,98 @@
++@MainActor
++private final class CefCookieReadRequest {
++    private var continuation: CheckedContinuation<[HTTPCookie], Never>?
++    private var timeoutItem: DispatchWorkItem?
++    private var cookies: [HTTPCookie] = []
++
++    init(
++        continuation: CheckedContinuation<[HTTPCookie], Never>,
++        timeout: TimeInterval
++    ) {
++        self.continuation = continuation
++        let timeoutItem = DispatchWorkItem { [weak self] in
++            self?.finish()
++        }
++        self.timeoutItem = timeoutItem
++        DispatchQueue.main.asyncAfter(
++            deadline: .now() + max(0.5, timeout),
++            execute: timeoutItem
++        )
++    }
++
++    func start(
++        host: UnsafeMutablePointer<cef_browser_host_t>,
++        url: URL
++    ) -> Bool {
++        guard let context = host.pointee.get_request_context?(host) else {
++            return false
++        }
++        defer { cefRelease(UnsafeMutableRawPointer(context)) }
++        guard let manager = context.pointee.get_cookie_manager?(context, nil) else {
++            return false
++        }
++        defer { cefRelease(UnsafeMutableRawPointer(manager)) }
++
++        let visitor = cefAllocate(cef_cookie_visitor_t.self, owner: self)
++        visitor.pointee.visit = { visitorSelf, cookie, count, total, _ in
++            guard let owner = cefOwner(
++                CefCookieReadRequest.self,
++                visitorSelf.map(UnsafeMutableRawPointer.init)
++            ), let cookie else { return 0 }
++            MainActor.assumeIsolated {
++                owner.append(cookie.pointee)
++                if count + 1 >= total {
++                    owner.finish()
++                }
++            }
++            return 1
++        }
++
++        let didStart = CefStringUtil.withCefString(url.absoluteString) { cefURL in
++            manager.pointee.visit_url_cookies?(manager, cefURL, 1, visitor) ?? 0
++        } != 0
++        if !didStart {
++            cefRelease(UnsafeMutableRawPointer(visitor))
++        }
++        return didStart
++    }
++
++    func cancel() {
++        finish()
++    }
++
++    private func append(_ cookie: cef_cookie_t) {
++        let name = CefStringUtil.string(from: cookie.name)
++        let value = CefStringUtil.string(from: cookie.value)
++        let domain = CefStringUtil.string(from: cookie.domain)
++        let rawPath = CefStringUtil.string(from: cookie.path)
++        guard !name.isEmpty, !domain.isEmpty else { return }
++
++        var properties: [HTTPCookiePropertyKey: Any] = [
++            .name: name,
++            .value: value,
++            .domain: domain,
++            .path: rawPath.isEmpty ? "/" : rawPath,
++            .secure: cookie.secure != 0 ? "TRUE" : "FALSE",
++        ]
++        if cookie.has_expires != 0 {
++            let windowsEpochOffset: TimeInterval = 11_644_473_600
++            properties[.expires] = Date(
++                timeIntervalSince1970:
++                    Double(cookie.expires.val) / 1_000_000 - windowsEpochOffset
++            )
++        }
++        if let result = HTTPCookie(properties: properties) {
++            cookies.append(result)
++        }
++    }
++
++    private func finish() {
++        guard let continuation else { return }
++        self.continuation = nil
++        timeoutItem?.cancel()
++        timeoutItem = nil
++        continuation.resume(returning: cookies)
++    }
++}
++
+ // MARK: - Editing

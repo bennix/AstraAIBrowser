@@ -104,6 +104,11 @@ done
   exit 66
 }
 
+[[ -x "$resources_path/MediaTools/yt-dlp" ]] || {
+  >&2 echo "Verified media helper is missing from the Astra release."
+  exit 66
+}
+
 legacy_icon="$(find "$resources_path" -iname 'PhiIcon*' -print -quit)"
 [[ -z "$legacy_icon" ]] || {
   >&2 echo "Legacy Phi app icon remains in the release bundle: $legacy_icon"

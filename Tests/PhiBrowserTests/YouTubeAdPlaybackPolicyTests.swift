@@ -3,11 +3,64 @@
 // Use of this source code is governed by an Apache license that can be
 // found in the LICENSE file.
 
+import Foundation
 import JavaScriptCore
 import XCTest
 @testable import Phi
 
 final class YouTubeAdPlaybackPolicyTests: XCTestCase {
+    func testMediaDownloadPolicyRejectsTopLevelDRM() throws {
+        let metadata = try JSONSerialization.data(withJSONObject: [
+            "has_drm": true,
+            "formats": [["format_id": "encrypted", "has_drm": true]],
+        ])
+
+        XCTAssertTrue(MediaDownloadPolicy.metadataIndicatesDRM(metadata))
+    }
+
+    func testMediaDownloadPolicyRejectsWhenEveryFormatUsesDRM() throws {
+        let metadata = try JSONSerialization.data(withJSONObject: [
+            "formats": [
+                ["format_id": "video", "has_drm": true],
+                ["format_id": "audio", "has_drm": true],
+            ],
+        ])
+
+        XCTAssertTrue(MediaDownloadPolicy.metadataIndicatesDRM(metadata))
+    }
+
+    func testMediaDownloadPolicyAllowsAnyClearFormat() throws {
+        let metadata = try JSONSerialization.data(withJSONObject: [
+            "formats": [
+                ["format_id": "encrypted", "has_drm": true],
+                ["format_id": "clear", "has_drm": false],
+            ],
+        ])
+
+        XCTAssertFalse(MediaDownloadPolicy.metadataIndicatesDRM(metadata))
+    }
+
+    func testMediaDownloadPolicyFindsJSONAfterDiagnosticOutput() throws {
+        let metadata = try JSONSerialization.data(withJSONObject: [
+            "formats": [["format_id": "clear"]],
+        ])
+        let output = Data("diagnostic\n".utf8) + metadata
+
+        XCTAssertFalse(MediaDownloadPolicy.metadataIndicatesDRM(output))
+        XCTAssertEqual(MediaDownloadPolicy.decision(for: output), .allow)
+    }
+
+    func testMediaDownloadPolicyRejectsUnverifiedMetadata() {
+        XCTAssertEqual(
+            MediaDownloadPolicy.decision(for: Data("not-json".utf8)),
+            .rejectUnverified
+        )
+        XCTAssertEqual(
+            MediaDownloadPolicy.decision(for: Data("{}".utf8)),
+            .rejectUnverified
+        )
+    }
+
     func testPlaybackRateDefaultsToEightTimes() {
         XCTAssertEqual(YouTubeAdPlaybackPolicy.adPlaybackRate, 8)
         XCTAssertTrue(

@@ -123,6 +123,7 @@ frameworks_dir="$app_path/Contents/Frameworks"
 resources_dir="$app_path/Contents/Resources"
 mkdir -p "$frameworks_dir"
 mkdir -p "$resources_dir"
+"$project_root/scripts/bundle_media_tools.sh" --app "$app_path"
 
 runtime_targets=(
   "$frameworks_dir/Chromium Embedded Framework.framework"
@@ -214,6 +215,10 @@ fi
 
 for release_helper in "$app_path"/Contents/Helpers/*(N.); do
   [[ -f "$release_helper" ]] && sign_target "$release_helper"
+done
+
+for media_tool in "$resources_dir"/MediaTools/*(N.); do
+  [[ -x "$media_tool" ]] && sign_target "$media_tool"
 done
 
 # Xcode leaves package frameworks signed for local development when the app is
