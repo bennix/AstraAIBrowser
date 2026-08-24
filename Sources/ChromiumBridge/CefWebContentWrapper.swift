@@ -28,7 +28,20 @@ enum BrowserWindowOpenPolicy {
     static func isIdentityProviderURL(_ url: URL?) -> Bool {
         guard url?.scheme?.lowercased() == "https",
               let host = url?.host?.lowercased() else { return false }
-        return host == "accounts.youtube.com" || host.hasPrefix("accounts.google.")
+        if host == "accounts.youtube.com" || host.hasPrefix("accounts.google.") {
+            return true
+        }
+
+        let path = url?.path.lowercased() ?? ""
+        let isXIdentityHost = host == "x.com"
+            || host.hasSuffix(".x.com")
+            || host == "twitter.com"
+            || host.hasSuffix(".twitter.com")
+        guard isXIdentityHost else { return false }
+        return path == "/i/oauth2/authorize"
+            || path.hasPrefix("/i/oauth2/authorize/")
+            || path == "/oauth/authorize"
+            || path == "/oauth/authenticate"
     }
 
     static func action(for request: CefWindowOpenRequest) -> CefWindowOpenAction {
@@ -51,12 +64,12 @@ enum BrowserWindowOpenPolicy {
 enum WebResourceCompatibilityPolicy {
     static func permitsPageMutation(for url: URL) -> Bool {
         guard url.scheme?.lowercased() == "https",
-              let host = url.host?.lowercased() else { return false }
+              url.host != nil else { return false }
 
         // Identity pages depend on an unmodified DOM and opener/postMessage
         // channel to return OAuth results to the relying site. Resource repair
         // must never rewrite executable elements inside those documents.
-        if host == "accounts.youtube.com" || host.hasPrefix("accounts.google.") {
+        if BrowserWindowOpenPolicy.isIdentityProviderURL(url) {
             return false
         }
         return true
@@ -250,15 +263,30 @@ enum SystemMediaCompatibilityPolicy {
 
     private static var detectedDomains = Set<String>()
 
+    private static let chromiumOnlyDomains = [
+        "grok.com",
+    ]
+
+    private static func matches(_ host: String, domains: [String]) -> Bool {
+        domains.contains { host == $0 || host.hasSuffix(".\($0)") }
+    }
+
+    static func allowsAutomaticFallback(for url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "https",
+              let host = url.host?.lowercased() else { return false }
+        return !matches(host, domains: chromiumOnlyDomains)
+    }
+
     static func requiresSystemMediaEngine(for url: URL) -> Bool {
         guard url.scheme?.lowercased() == "https",
               let host = url.host?.lowercased() else { return false }
+        guard !matches(host, domains: chromiumOnlyDomains) else { return false }
         return detectedDomains.contains(host)
-            || supportedDomains.contains { host == $0 || host.hasSuffix(".\($0)") }
+            || matches(host, domains: supportedDomains)
     }
 
     static func rememberDetectedMediaIncompatibility(for url: URL) {
-        guard url.scheme?.lowercased() == "https",
+        guard allowsAutomaticFallback(for: url),
               let host = url.host?.lowercased() else { return }
         detectedDomains.insert(host)
     }
@@ -944,7 +972,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     private func installAutomaticMediaCompatibilityDetection() {
         guard let browser,
               let pageURL = URL(string: urlString ?? pendingURL.absoluteString),
-              pageURL.scheme?.lowercased() == "https" else { return }
+              SystemMediaCompatibilityPolicy.allowsAutomaticFallback(for: pageURL) else { return }
         let prefix = Self.javaScriptLiteral(Self.mediaFallbackPrefix)
         let script = """
         (function () {
@@ -1791,6 +1819,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         if message.hasPrefix(Self.mediaFallbackPrefix) {
             let rawURL = String(message.dropFirst(Self.mediaFallbackPrefix.count))
             guard let detectedURL = URL(string: rawURL),
+                  SystemMediaCompatibilityPolicy.allowsAutomaticFallback(for: detectedURL),
                   detectedURL.host?.caseInsensitiveCompare(
                     URL(string: urlString ?? pendingURL.absoluteString)?.host ?? ""
                   ) == .orderedSame else { return }

@@ -609,6 +609,34 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertEqual(BrowserWindowOpenPolicy.action(for: request), .allowNativePopup)
     }
 
+    func testXOAuthKeepsNativeOpenerRelationship() {
+        let authorizationURL = URL(
+            string: "https://x.com/i/oauth2/authorize?client_id=grok"
+        )!
+        let request = CefWindowOpenRequest(
+            targetURL: authorizationURL,
+            disposition: .newPopup,
+            userGesture: true
+        )
+
+        XCTAssertEqual(BrowserWindowOpenPolicy.action(for: request), .allowNativePopup)
+        XCTAssertFalse(BrowserWindowOpenPolicy.shouldHandleNewTabInApp(for: authorizationURL))
+        XCTAssertFalse(WebResourceCompatibilityPolicy.permitsPageMutation(for: authorizationURL))
+    }
+
+    func testRegularXLinkDoesNotBecomeIdentityPopup() {
+        let regularURL = URL(string: "https://x.com/xai/status/1")!
+        let request = CefWindowOpenRequest(
+            targetURL: regularURL,
+            disposition: .newForegroundTab,
+            userGesture: true
+        )
+
+        XCTAssertEqual(BrowserWindowOpenPolicy.action(for: request), .handled)
+        XCTAssertTrue(BrowserWindowOpenPolicy.shouldHandleNewTabInApp(for: regularURL))
+        XCTAssertTrue(WebResourceCompatibilityPolicy.permitsPageMutation(for: regularURL))
+    }
+
     func testResourceCompatibilityDoesNotMutateGoogleIdentityPages() {
         XCTAssertFalse(WebResourceCompatibilityPolicy.permitsPageMutation(
             for: URL(string: "https://accounts.google.com/gsi/select")!
@@ -634,6 +662,20 @@ final class ZenMuxTests: XCTestCase {
         ))
         XCTAssertTrue(SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(
             for: URL(string: "https://mobile.twitter.com/example/status/1")!
+        ))
+    }
+
+    @MainActor
+    func testGrokRemainsInChromiumAfterMediaErrors() {
+        let grokURL = URL(string: "https://grok.com/imagine")!
+
+        XCTAssertFalse(SystemMediaCompatibilityPolicy.allowsAutomaticFallback(for: grokURL))
+        SystemMediaCompatibilityPolicy.rememberDetectedMediaIncompatibility(for: grokURL)
+        XCTAssertFalse(SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(for: grokURL))
+        XCTAssertFalse(WebContentEnginePolicy.usesPersistentWebKit(
+            for: grokURL,
+            profileId: LocalStore.defaultProfileId,
+            allowsCredentialStorage: true
         ))
     }
 

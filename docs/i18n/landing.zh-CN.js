@@ -16,7 +16,7 @@
     "features.pageControl.body": "助手可检查当前标签页并执行经确认的浏览器操作，同时 Chromium 浏览体验始终内嵌在 Astra 中。",
     "features.youtube.title": "减少等待 YouTube 广告",
     "features.youtube.body": "YouTube 将当前播放标记为广告时，Astra 会临时使用 8 倍速，并在正片开始后恢复原播放速度。",
-    "download.summary": "Build 27 新增对静默 WebAudio 指纹和零音量处理链的网页脚本前置防护，同时保留标准 HTML 媒体播放和当前可见网页区域的 AI 截图上下文。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 28 修复 Grok 登录后因媒体兼容切换而丢失会话的问题，并保留 X OAuth 弹窗与原始页面的关联；现有 WebRTC 与静默音频指纹防护继续启用。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {
