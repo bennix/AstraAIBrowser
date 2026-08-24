@@ -313,8 +313,7 @@ enum AudioFingerprintPrivacyPolicy {
 enum FingerprintPrivacyPolicy {
     static var outwardLocale: String {
         outwardLocale(
-            timeZoneIdentifier: TimeZone.current.identifier,
-            systemLocaleIdentifier: Locale.current.identifier
+            for: PhiPreferences.GeneralSettings.activeProcessAppLanguage()
         )
     }
 
@@ -322,23 +321,27 @@ enum FingerprintPrivacyPolicy {
         acceptLanguageList(for: outwardLocale)
     }
 
-    static func outwardLocale(
-        timeZoneIdentifier: String,
-        systemLocaleIdentifier: String
-    ) -> String {
-        let localeByTimeZone = [
-            "Asia/Tokyo": "ja-JP",
-            "Asia/Shanghai": "zh-CN",
-            "Asia/Chongqing": "zh-CN",
-            "Asia/Hong_Kong": "zh-HK",
-            "Asia/Taipei": "zh-TW",
-            "Europe/London": "en-GB",
-        ]
-        if let locale = localeByTimeZone[timeZoneIdentifier] {
-            return locale
+    static func outwardLocale(for appLanguage: SupportedAppLanguage) -> String {
+        switch appLanguage {
+        case .english:
+            return "en-US"
+        case .simplifiedChinese:
+            return "zh-CN"
+        case .traditionalChinese:
+            return "zh-TW"
+        case .japanese:
+            return "ja-JP"
+        case .french:
+            return "fr-FR"
+        case .german:
+            return "de-DE"
+        case .dutch:
+            return "nl-NL"
+        case .spanish:
+            return "es-ES"
+        case .korean:
+            return "ko-KR"
         }
-        let normalized = systemLocaleIdentifier.replacingOccurrences(of: "_", with: "-")
-        return normalized.isEmpty ? "en-US" : normalized
     }
 
     static func acceptLanguageList(for locale: String) -> String {
@@ -1266,6 +1269,38 @@ private final class CefBrowserWindow: NSWindow {
             .first(where: { $0.hasPrefix("--astra-initial-url=") })?
             .dropFirst("--astra-initial-url=".count)
         openBrowserWindow(initialURL: initialURL.map(String.init) ?? "chrome://newtab")
+    }
+
+    /// Opens URLs delivered by Launch Services in the embedded Chromium
+    /// runtime. The legacy framework bridge is absent in CEF builds, so these
+    /// URLs must enter the same BrowserState path used by in-app new tabs.
+    @MainActor
+    func openExternalURLs(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+
+        if let controller = MainBrowserWindowControllersManager.shared.activeWindowController {
+            for url in urls {
+                controller.browserState.createTab(
+                    url.absoluteString,
+                    focusAfterCreate: true
+                )
+            }
+            controller.window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        openBrowserWindow(initialURL: urls[0].absoluteString)
+        guard urls.count > 1,
+              let controller = MainBrowserWindowControllersManager.shared.activeWindowController else {
+            return
+        }
+        for url in urls.dropFirst() {
+            controller.browserState.createTab(
+                url.absoluteString,
+                focusAfterCreate: true
+            )
+        }
     }
 
     /// Chrome runtime extension APIs may create a complete native Chromium

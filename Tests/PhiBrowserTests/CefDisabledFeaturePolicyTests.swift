@@ -201,10 +201,11 @@ final class FingerprintPrivacyPolicyTests: XCTestCase {
         XCTAssertEqual(context.evaluateScript("navigator.deviceMemory")?.toInt32(), 8)
         XCTAssertEqual(context.evaluateScript("screen.colorDepth")?.toInt32(), 24)
         XCTAssertEqual(context.evaluateScript("screen.pixelDepth")?.toInt32(), 24)
-        XCTAssertEqual(context.evaluateScript("navigator.language")?.toString(), "ja-JP")
+        let expectedLocale = FingerprintPrivacyPolicy.outwardLocale
+        XCTAssertEqual(context.evaluateScript("navigator.language")?.toString(), expectedLocale)
         XCTAssertEqual(
             context.evaluateScript("navigator.languages.join(',')")?.toString(),
-            "ja-JP,ja,en-US,en"
+            FingerprintPrivacyPolicy.acceptLanguageList(for: expectedLocale)
         )
         XCTAssertEqual(
             context.evaluateScript("new FontFaceSet().check('16px \\\"PingFang SC\\\"')")?.toBool(),
@@ -287,28 +288,26 @@ final class FingerprintPrivacyPolicyTests: XCTestCase {
         XCTAssertNil(exception?.toString())
     }
 
-    func testPolicyUsesLocaleConsistentWithJapaneseExitProfile() {
-        let locale = FingerprintPrivacyPolicy.outwardLocale(
-            timeZoneIdentifier: "Asia/Tokyo",
-            systemLocaleIdentifier: "en_US"
-        )
-        XCTAssertEqual(locale, "ja-JP")
+    func testPolicyUsesLocaleConsistentWithSimplifiedChineseAppLanguage() {
+        let locale = FingerprintPrivacyPolicy.outwardLocale(for: .simplifiedChinese)
+        XCTAssertEqual(locale, "zh-CN")
         XCTAssertEqual(
             FingerprintPrivacyPolicy.acceptLanguageList(for: locale),
-            "ja-JP,ja,en-US,en"
+            "zh-CN,zh,en-US,en"
         )
     }
 
-    func testPolicyFallsBackToNormalizedSystemLocaleOutsideKnownTimeZones() {
-        let locale = FingerprintPrivacyPolicy.outwardLocale(
-            timeZoneIdentifier: "Etc/UTC",
-            systemLocaleIdentifier: "fr_FR"
-        )
-
-        XCTAssertEqual(locale, "fr-FR")
+    func testPolicyUsesLocaleConsistentWithTraditionalChineseAppLanguage() {
         XCTAssertEqual(
-            FingerprintPrivacyPolicy.acceptLanguageList(for: locale),
-            "fr-FR,fr,en-US,en"
+            FingerprintPrivacyPolicy.outwardLocale(for: .traditionalChinese),
+            "zh-TW"
+        )
+    }
+
+    func testPolicyUsesLocaleConsistentWithJapaneseAppLanguage() {
+        XCTAssertEqual(
+            FingerprintPrivacyPolicy.outwardLocale(for: .japanese),
+            "ja-JP"
         )
     }
 

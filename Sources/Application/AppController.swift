@@ -379,22 +379,34 @@ import PostHog
     }
     
     func application(_ application: NSApplication, open urls: [URL]) {
-        if PhiBuildCapabilities.supportsAuthentication {
-            for url in urls where AuthManager.shared.resumeExternalBrowserAuthentication(with: url) {
-                return
+        var browserURLs: [URL] = []
+        browserURLs.reserveCapacity(urls.count)
+
+        for url in urls {
+            if PhiBuildCapabilities.supportsAuthentication,
+               AuthManager.shared.resumeExternalBrowserAuthentication(with: url) {
+                continue
             }
+            if ApplicationState.shared.canUseBrowser,
+               DeeplinkHandler.handle(url) {
+                continue
+            }
+            browserURLs.append(url)
         }
 
+        guard !browserURLs.isEmpty else { return }
+
         if !ApplicationState.shared.canUseBrowser {
-            pendingOpenURLsAwaitingBrowserAccess.append(contentsOf: urls)
+            pendingOpenURLsAwaitingBrowserAccess.append(contentsOf: browserURLs)
             if !ApplicationState.shared.isGuestMigrationRecoveryInProgress {
                 LoginController.shared.showLoginWindow()
             }
         } else {
-            if let url = urls.first, DeeplinkHandler.handle(url) {
-                return
-            }
-            scheduleForwardOpenURLsToChromium(application: application, urls: urls)
+            application.activate(ignoringOtherApps: true)
+            scheduleForwardOpenURLsToChromium(
+                application: application,
+                urls: browserURLs
+            )
         }
     }
 
@@ -460,7 +472,14 @@ import PostHog
 
     private func forwardOpenURLsToChromium(application: NSApplication, urls: [URL], label: String) {
         AppLogDebug("[coldopen] urls call bridge (\(label))")
-        ChromiumLauncher.sharedInstance().bridge?.application(application, open: urls)
+        if let bridge = ChromiumLauncher.sharedInstance().bridge {
+            bridge.application(application, open: urls)
+            return
+        }
+
+        MainActor.assumeIsolated {
+            CefBrowserRuntime.shared.openExternalURLs(urls)
+        }
     }
     
     func application(_ application: NSApplication, willContinueUserActivityWithType userActivityType: String) -> Bool {
@@ -547,10 +566,12 @@ import PostHog
 
         let urls = pendingOpenURLsAwaitingBrowserAccess
         pendingOpenURLsAwaitingBrowserAccess.removeAll()
-        if let url = urls.first, DeeplinkHandler.handle(url) {
+        let browserURLs = urls.filter { !DeeplinkHandler.handle($0) }
+        guard !browserURLs.isEmpty else {
             return
         }
-        scheduleForwardOpenURLsToChromium(application: NSApp, urls: urls)
+        NSApp.activate(ignoringOtherApps: true)
+        scheduleForwardOpenURLsToChromium(application: NSApp, urls: browserURLs)
     }
 
     private func resolveBrowserAccessFromAuthentication(

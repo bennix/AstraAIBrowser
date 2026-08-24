@@ -25,4 +25,18 @@ final class DefaultBrowserViewModelTests: XCTestCase {
         ))
     }
 
+    func testAppDeclaresViewerRoleForWebURLSchemes() throws {
+        let urlTypes = try XCTUnwrap(
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes")
+                as? [[String: Any]]
+        )
+        let webType = try XCTUnwrap(urlTypes.first { type in
+            let schemes = type["CFBundleURLSchemes"] as? [String]
+            return schemes?.contains("http") == true
+                && schemes?.contains("https") == true
+        })
+
+        XCTAssertEqual(webType["CFBundleTypeRole"] as? String, "Viewer")
+    }
+
 }

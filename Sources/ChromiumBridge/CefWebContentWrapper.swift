@@ -1460,6 +1460,20 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         let arguments = CommandLine.arguments
         guard arguments.contains("--cef-smoke-test"), !didStartSmokeCheck else { return }
 
+        if arguments.contains("--cef-external-open-smoke") {
+            guard !isLoading,
+                  let urlString,
+                  urlString.contains("astra-external-open-smoke=1") else {
+                return
+            }
+            didStartSmokeCheck = true
+            FileHandle.standardOutput.write(
+                Data("[cef-smoke] external open: \(urlString)\n".utf8)
+            )
+            NSApp.terminate(nil)
+            return
+        }
+
         if arguments.contains("--cef-memory-api-smoke") {
             guard !isLoading, browser != nil else { return }
             didStartSmokeCheck = true
