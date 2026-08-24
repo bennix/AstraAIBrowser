@@ -310,6 +310,403 @@ enum AudioFingerprintPrivacyPolicy {
     """
 }
 
+enum FingerprintPrivacyPolicy {
+    static var outwardLocale: String {
+        outwardLocale(
+            timeZoneIdentifier: TimeZone.current.identifier,
+            systemLocaleIdentifier: Locale.current.identifier
+        )
+    }
+
+    static var acceptLanguageList: String {
+        acceptLanguageList(for: outwardLocale)
+    }
+
+    static func outwardLocale(
+        timeZoneIdentifier: String,
+        systemLocaleIdentifier: String
+    ) -> String {
+        let localeByTimeZone = [
+            "Asia/Tokyo": "ja-JP",
+            "Asia/Shanghai": "zh-CN",
+            "Asia/Chongqing": "zh-CN",
+            "Asia/Hong_Kong": "zh-HK",
+            "Asia/Taipei": "zh-TW",
+            "Europe/London": "en-GB",
+        ]
+        if let locale = localeByTimeZone[timeZoneIdentifier] {
+            return locale
+        }
+        let normalized = systemLocaleIdentifier.replacingOccurrences(of: "_", with: "-")
+        return normalized.isEmpty ? "en-US" : normalized
+    }
+
+    static func acceptLanguageList(for locale: String) -> String {
+        let primaryLanguage = locale.split(separator: "-").first.map(String.init) ?? locale
+        var languages: [String] = []
+        for language in [locale, primaryLanguage, "en-US", "en"]
+        where !language.isEmpty && !languages.contains(language) {
+            languages.append(language)
+        }
+        return languages.joined(separator: ",")
+    }
+
+    private static let processSeed = UUID().uuidString
+
+    static let javaScript: String = {
+        let outwardLocaleValue = FingerprintPrivacyPolicy.outwardLocale
+        let outwardLanguages = FingerprintPrivacyPolicy.acceptLanguageList
+        let surfacePolicy = #"""
+        (() => {
+          if (globalThis.__astraFingerprintPrivacyInstalled) {
+            return;
+          }
+
+          Object.defineProperty(globalThis, "__astraFingerprintPrivacyInstalled", {
+            value: true,
+            configurable: false,
+            enumerable: false,
+            writable: false
+          });
+
+          const processSeed = "\#(processSeed)";
+          const hashString = (value) => {
+            let hash = 2166136261;
+            for (let index = 0; index < value.length; index += 1) {
+              hash ^= value.charCodeAt(index);
+              hash = Math.imul(hash, 16777619);
+            }
+            return hash >>> 0;
+          };
+          const hostname = String(globalThis.location?.hostname || "opaque").toLowerCase();
+          const siteSeed = hashString(`${processSeed}:${hostname}`);
+          const byteDirection = (siteSeed & 1) === 0 ? -1 : 1;
+
+          const replaceMethod = (prototype, name, implementation) => {
+            if (!prototype || typeof prototype[name] !== "function") {
+              return;
+            }
+            try {
+              const nativeMethod = prototype[name];
+              Object.defineProperty(prototype, name, {
+                value: implementation(nativeMethod),
+                configurable: true,
+                enumerable: false,
+                writable: true
+              });
+            } catch (_) {
+              // Some engines expose non-configurable compatibility methods.
+            }
+          };
+
+          const replaceGetter = (prototype, name, value) => {
+            if (!prototype) {
+              return;
+            }
+            try {
+              const descriptor = Object.getOwnPropertyDescriptor(prototype, name);
+              if (!descriptor || descriptor.configurable !== true) {
+                return;
+              }
+              Object.defineProperty(prototype, name, {
+                get: () => value,
+                configurable: true,
+                enumerable: descriptor.enumerable === true
+              });
+            } catch (_) {
+              // Leave the native value when the engine does not allow wrapping.
+            }
+          };
+
+          const farbleBytes = (values, salt = 0) => {
+            if (!values || typeof values.length !== "number" || values.length < 4) {
+              return;
+            }
+            const pixelCount = Math.floor(values.length / 4);
+            const stride = Math.max(1, Math.floor(pixelCount / 8));
+            let pixel = (siteSeed ^ salt) % pixelCount;
+            for (let count = 0; count < 8 && pixel < pixelCount; count += 1) {
+              const channel = ((siteSeed >>> (count % 24)) + count) % 3;
+              const index = pixel * 4 + channel;
+              const value = Number(values[index]);
+              if (Number.isFinite(value)) {
+                values[index] = Math.max(0, Math.min(255, value + byteDirection));
+              }
+              pixel = (pixel + stride) % pixelCount;
+            }
+          };
+
+          if (typeof CanvasRenderingContext2D === "function") {
+            const prototype = CanvasRenderingContext2D.prototype;
+            const nativeGetImageData = prototype.getImageData;
+            const nativePutImageData = prototype.putImageData;
+            const nativeDrawImage = prototype.drawImage;
+
+            replaceMethod(prototype, "getImageData", (nativeMethod) => function(...args) {
+              const imageData = nativeMethod.apply(this, args);
+              farbleBytes(imageData?.data, 0x2d);
+              return imageData;
+            });
+
+            if (typeof HTMLCanvasElement === "function") {
+              const canvasPrototype = HTMLCanvasElement.prototype;
+              const nativeToDataURL = canvasPrototype.toDataURL;
+              const nativeToBlob = canvasPrototype.toBlob;
+              const protectedCopy = (canvas) => {
+                if (!canvas?.ownerDocument || canvas.width < 1 || canvas.height < 1) {
+                  return canvas;
+                }
+                try {
+                  const copy = canvas.ownerDocument.createElement("canvas");
+                  copy.width = canvas.width;
+                  copy.height = canvas.height;
+                  const context = copy.getContext("2d");
+                  nativeDrawImage.call(context, canvas, 0, 0);
+                  const imageData = nativeGetImageData.call(
+                    context,
+                    0,
+                    0,
+                    copy.width,
+                    copy.height
+                  );
+                  farbleBytes(imageData.data, copy.width ^ copy.height);
+                  nativePutImageData.call(context, imageData, 0, 0);
+                  return copy;
+                } catch (_) {
+                  return canvas;
+                }
+              };
+
+              replaceMethod(canvasPrototype, "toDataURL", () => function(...args) {
+                return nativeToDataURL.apply(protectedCopy(this), args);
+              });
+              replaceMethod(canvasPrototype, "toBlob", () => function(callback, ...args) {
+                return nativeToBlob.call(protectedCopy(this), callback, ...args);
+              });
+            }
+          }
+
+          const protectWebGL = (constructor) => {
+            if (typeof constructor !== "function") {
+              return;
+            }
+            const prototype = constructor.prototype;
+            replaceMethod(prototype, "getParameter", (nativeMethod) => function(parameter) {
+              if (parameter === 0x9245) return "Google Inc. (Apple)";
+              if (parameter === 0x9246) {
+                return "ANGLE (Apple, ANGLE Metal Renderer: Apple GPU, Unspecified Version)";
+              }
+              const value = nativeMethod.call(this, parameter);
+              const numericCaps = new Map([
+                [0x0d33, 8192],
+                [0x851c, 8192],
+                [0x84e8, 8192],
+                [0x8869, 16],
+                [0x8872, 16],
+                [0x8b4c, 16],
+                [0x8b4d, 32]
+              ]);
+              const cap = numericCaps.get(parameter);
+              return typeof value === "number" && cap ? Math.min(value, cap) : value;
+            });
+            replaceMethod(prototype, "readPixels", (nativeMethod) => function(...args) {
+              const result = nativeMethod.apply(this, args);
+              const output = args[6];
+              if (ArrayBuffer.isView(output)) {
+                farbleBytes(output, 0x3f);
+              }
+              return result;
+            });
+          };
+          protectWebGL(globalThis.WebGLRenderingContext);
+          protectWebGL(globalThis.WebGL2RenderingContext);
+
+          const hiddenFonts = [
+            "PingFang SC",
+            "PingFang TC",
+            "Hiragino Sans GB",
+            "Hiragino Sans CNS",
+            "STHeiti",
+            "Heiti SC",
+            "Heiti TC",
+            "STSong",
+            "Songti SC",
+            "Songti TC",
+            "STKaiti",
+            "Kaiti SC",
+            "Kaiti TC",
+            "STFangsong",
+            "Fangsong",
+            "LiHei Pro",
+            "LiSong Pro",
+            "Microsoft YaHei",
+            "Microsoft JhengHei",
+            "SimHei",
+            "SimSun",
+            "NSimSun",
+            "KaiTi",
+            "FangSong",
+            "Noto Sans CJK SC",
+            "Noto Serif CJK SC",
+            "Source Han Sans SC",
+            "Source Han Serif SC"
+          ].map((font) => font.toLowerCase());
+          const containsHiddenFont = (value) => {
+            const normalized = String(value || "").replace(/["']/g, "").toLowerCase();
+            return hiddenFonts.some((font) => normalized.includes(font));
+          };
+          const genericFontDeclaration = (value, familyOnly) => {
+            if (!containsHiddenFont(value)) {
+              return value;
+            }
+            if (familyOnly) {
+              return "monospace";
+            }
+            const match = String(value).match(
+              /^(.*?\b(?:\d+(?:\.\d+)?(?:px|pt|pc|in|cm|mm|em|rem|ex|ch|vw|vh|vmin|vmax|%))(?:\s*\/\s*[^\s]+)?\s+).+$/i
+            );
+            return match ? `${match[1]}monospace` : value;
+          };
+
+          const replaceSanitizedSetter = (prototype, name, familyOnly) => {
+            if (!prototype) {
+              return;
+            }
+            try {
+              let descriptorOwner = prototype;
+              let descriptor = Object.getOwnPropertyDescriptor(descriptorOwner, name);
+              while (!descriptor && descriptorOwner) {
+                descriptorOwner = Object.getPrototypeOf(descriptorOwner);
+                descriptor = descriptorOwner
+                  ? Object.getOwnPropertyDescriptor(descriptorOwner, name)
+                  : undefined;
+              }
+              if (!descriptor?.get || !descriptor?.set || descriptor.configurable !== true) {
+                return;
+              }
+              Object.defineProperty(descriptorOwner, name, {
+                get: descriptor.get,
+                set(value) {
+                  return descriptor.set.call(
+                    this,
+                    genericFontDeclaration(value, familyOnly)
+                  );
+                },
+                configurable: true,
+                enumerable: descriptor.enumerable === true
+              });
+            } catch (_) {
+              // Font rendering remains available when a setter cannot be wrapped.
+            }
+          };
+          replaceSanitizedSetter(globalThis.CanvasRenderingContext2D?.prototype, "font", false);
+          replaceSanitizedSetter(globalThis.CSSStyleDeclaration?.prototype, "font", false);
+          replaceSanitizedSetter(globalThis.CSSStyleDeclaration?.prototype, "fontFamily", true);
+          replaceMethod(globalThis.CSSStyleDeclaration?.prototype, "setProperty", (nativeMethod) =>
+            function(name, value, priority) {
+              const normalizedName = String(name).toLowerCase();
+              const sanitizedValue = normalizedName === "font-family"
+                ? genericFontDeclaration(value, true)
+                : normalizedName === "font"
+                  ? genericFontDeclaration(value, false)
+                  : value;
+              return nativeMethod.call(this, name, sanitizedValue, priority);
+            }
+          );
+
+          const fontFaceSetPrototype = globalThis.FontFaceSet?.prototype
+            || Object.getPrototypeOf(globalThis.document?.fonts || null);
+          replaceMethod(fontFaceSetPrototype, "check", (nativeMethod) =>
+            function(font, text) {
+              if (containsHiddenFont(font)) {
+                return false;
+              }
+              return nativeMethod.call(this, font, text);
+            }
+          );
+          const sanitizeFontProbeElement = (element) => {
+            const declaration = element?.style?.fontFamily;
+            if (!containsHiddenFont(declaration)) {
+              return;
+            }
+            const genericFamilies = String(declaration).toLowerCase().match(
+              /(?:^|[,\s])(monospace|sans-serif|serif|system-ui)(?=\s*(?:,|$))/g
+            );
+            const fallback = genericFamilies?.at(-1)?.trim().replace(/^,/, "").trim()
+              || "monospace";
+            try {
+              element.style.fontFamily = fallback;
+            } catch (_) {
+              // Leave layout measurement available if the style is immutable.
+            }
+          };
+          const replaceFontMetricGetter = (prototype, name) => {
+            if (!prototype) {
+              return;
+            }
+            try {
+              let descriptorOwner = prototype;
+              let descriptor = Object.getOwnPropertyDescriptor(descriptorOwner, name);
+              while (!descriptor && descriptorOwner) {
+                descriptorOwner = Object.getPrototypeOf(descriptorOwner);
+                descriptor = descriptorOwner
+                  ? Object.getOwnPropertyDescriptor(descriptorOwner, name)
+                  : undefined;
+              }
+              if (!descriptor?.get || descriptor.configurable !== true) {
+                return;
+              }
+              Object.defineProperty(descriptorOwner, name, {
+                get() {
+                  sanitizeFontProbeElement(this);
+                  return descriptor.get.call(this);
+                },
+                configurable: true,
+                enumerable: descriptor.enumerable === true
+              });
+            } catch (_) {
+              // Native metrics remain available when a getter cannot be wrapped.
+            }
+          };
+          replaceFontMetricGetter(globalThis.HTMLElement?.prototype, "offsetWidth");
+          replaceFontMetricGetter(globalThis.HTMLElement?.prototype, "offsetHeight");
+          replaceMethod(globalThis.Element?.prototype, "getBoundingClientRect", (nativeMethod) =>
+            function(...args) {
+              sanitizeFontProbeElement(this);
+              return nativeMethod.apply(this, args);
+            }
+          );
+          if (globalThis.navigator && typeof globalThis.navigator.queryLocalFonts === "function") {
+            try {
+              Object.defineProperty(globalThis.navigator, "queryLocalFonts", {
+                value: async () => [],
+                configurable: true,
+                enumerable: false,
+                writable: false
+              });
+            } catch (_) {
+              // Native permission enforcement remains the fallback.
+            }
+          }
+
+          replaceGetter(globalThis.Navigator?.prototype, "hardwareConcurrency", 8);
+          if ("deviceMemory" in (globalThis.Navigator?.prototype || {})) {
+            replaceGetter(globalThis.Navigator.prototype, "deviceMemory", 8);
+          }
+          replaceGetter(globalThis.Navigator?.prototype, "language", "\#(outwardLocaleValue)");
+          replaceGetter(
+            globalThis.Navigator?.prototype,
+            "languages",
+            Object.freeze("\#(outwardLanguages)".split(","))
+          );
+          replaceGetter(globalThis.Screen?.prototype, "colorDepth", 24);
+          replaceGetter(globalThis.Screen?.prototype, "pixelDepth", 24);
+        })();
+        """#
+        return AudioFingerprintPrivacyPolicy.javaScript + "\n" + surfacePolicy
+    }()
+}
+
 /// Reads Chrome-runtime extension metadata from the profile directory. CEF's
 /// Chrome runtime owns installation and execution, while this catalog only
 /// adapts its persisted manifests to Astra's existing native extension UI.
@@ -814,8 +1211,10 @@ private final class CefBrowserWindow: NSWindow {
             configuration.cachePath = root
             configuration.persistSessionCookies = true
             configuration.defaultRuntimeStyle = .chrome
+            configuration.locale = FingerprintPrivacyPolicy.outwardLocale
+            configuration.acceptLanguageList = FingerprintPrivacyPolicy.acceptLanguageList
             configuration.userAgentProduct = SupportedBrowserUserAgent.chromiumProduct
-            configuration.documentStartJavaScript = AudioFingerprintPrivacyPolicy.javaScript
+            configuration.documentStartJavaScript = FingerprintPrivacyPolicy.javaScript
             CefBrowserAccountPrivacyPolicy.apply(to: &configuration)
             try CefBrowserAccountPrivacyPolicy.prepareProfile(at: root)
             // Gmail rejects unbranded Chromium Client Hints. Prefer the UA

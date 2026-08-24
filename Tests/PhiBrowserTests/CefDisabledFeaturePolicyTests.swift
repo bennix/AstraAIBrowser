@@ -170,3 +170,252 @@ final class AudioFingerprintPrivacyPolicyTests: XCTestCase {
     };
     """
 }
+
+final class FingerprintPrivacyPolicyTests: XCTestCase {
+    func testPolicyCoversHighEntropyBrowserSurfaces() {
+        let script = FingerprintPrivacyPolicy.javaScript
+
+        XCTAssertTrue(script.contains("__astraFingerprintPrivacyInstalled"))
+        XCTAssertTrue(script.contains("CanvasRenderingContext2D"))
+        XCTAssertTrue(script.contains("HTMLCanvasElement"))
+        XCTAssertTrue(script.contains("WebGLRenderingContext"))
+        XCTAssertTrue(script.contains("readPixels"))
+        XCTAssertTrue(script.contains("queryLocalFonts"))
+        XCTAssertTrue(script.contains("PingFang SC"))
+        XCTAssertTrue(script.contains("Hiragino Sans GB"))
+        XCTAssertTrue(script.contains("offsetWidth"))
+        XCTAssertTrue(script.contains("getBoundingClientRect"))
+        XCTAssertTrue(script.contains("hardwareConcurrency"))
+        XCTAssertTrue(script.contains("colorDepth"))
+        XCTAssertTrue(script.contains("AudioBuffer"))
+    }
+
+    func testPolicyHidesChineseFontsAndNormalizesHardwareSignals() throws {
+        let context = try XCTUnwrap(JSContext())
+        var exception: JSValue?
+        context.exceptionHandler = { _, value in exception = value }
+        context.evaluateScript(Self.browserSurfaceTestEnvironment)
+        context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
+
+        XCTAssertEqual(context.evaluateScript("navigator.hardwareConcurrency")?.toInt32(), 8)
+        XCTAssertEqual(context.evaluateScript("navigator.deviceMemory")?.toInt32(), 8)
+        XCTAssertEqual(context.evaluateScript("screen.colorDepth")?.toInt32(), 24)
+        XCTAssertEqual(context.evaluateScript("screen.pixelDepth")?.toInt32(), 24)
+        XCTAssertEqual(context.evaluateScript("navigator.language")?.toString(), "ja-JP")
+        XCTAssertEqual(
+            context.evaluateScript("navigator.languages.join(',')")?.toString(),
+            "ja-JP,ja,en-US,en"
+        )
+        XCTAssertEqual(
+            context.evaluateScript("new FontFaceSet().check('16px \\\"PingFang SC\\\"')")?.toBool(),
+            false
+        )
+        XCTAssertEqual(
+            context.evaluateScript("testSanitizedFontFamily()")?.toString(),
+            "monospace"
+        )
+        XCTAssertNil(exception?.toString())
+    }
+
+    func testPolicyFarblesCanvasAndMasksWebGLRenderer() throws {
+        let context = try XCTUnwrap(JSContext())
+        var exception: JSValue?
+        context.exceptionHandler = { _, value in exception = value }
+        context.evaluateScript(Self.browserSurfaceTestEnvironment)
+        context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
+
+        XCTAssertEqual(context.evaluateScript("testCanvasWasFarbled()")?.toBool(), true)
+        XCTAssertEqual(context.evaluateScript("testWebGLWasFarbled()")?.toBool(), true)
+        XCTAssertEqual(
+            context.evaluateScript("testWebGLRenderer()")?.toString(),
+            "ANGLE (Apple, ANGLE Metal Renderer: Apple GPU, Unspecified Version)"
+        )
+        XCTAssertNil(exception?.toString())
+    }
+
+    func testPolicyHidesFontsWhenFontFaceSetConstructorIsNotGlobal() throws {
+        let context = try XCTUnwrap(JSContext())
+        var exception: JSValue?
+        context.exceptionHandler = { _, value in exception = value }
+        context.evaluateScript(Self.browserSurfaceTestEnvironment)
+        context.evaluateScript("""
+        globalThis.document = { fonts: new FontFaceSet() };
+        delete globalThis.FontFaceSet;
+        """)
+        context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
+
+        XCTAssertEqual(
+            context.evaluateScript("document.fonts.check('16px \\\"PingFang SC\\\"')")?.toBool(),
+            false
+        )
+        XCTAssertNil(exception?.toString())
+    }
+
+    func testPolicyNeutralizesDOMFontMetricProbes() throws {
+        let context = try XCTUnwrap(JSContext())
+        var exception: JSValue?
+        context.exceptionHandler = { _, value in exception = value }
+        context.evaluateScript(Self.browserSurfaceTestEnvironment)
+        context.evaluateScript("""
+        class Element {
+          getBoundingClientRect() { return { width: this.offsetWidth, height: 20 }; }
+        }
+        class HTMLElement extends Element {
+          constructor() { super(); this.style = new CSSStyleDeclaration(); }
+        }
+        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
+          get() { return this.style.fontFamily.includes('PingFang') ? 200 : 100; },
+          configurable: true,
+          enumerable: true
+        });
+        Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+          get() { return 20; }, configurable: true, enumerable: true
+        });
+        globalThis.Element = Element;
+        globalThis.HTMLElement = HTMLElement;
+        """)
+        context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
+        context.evaluateScript("""
+        globalThis.metricProbe = new HTMLElement();
+        Object.defineProperty(metricProbe.style, 'fontFamily', {
+          value: 'PingFang SC, monospace', writable: true, configurable: true
+        });
+        """)
+
+        XCTAssertEqual(context.evaluateScript("metricProbe.offsetWidth")?.toInt32(), 100)
+        XCTAssertEqual(context.evaluateScript("metricProbe.style.fontFamily")?.toString(), "monospace")
+        XCTAssertNil(exception?.toString())
+    }
+
+    func testPolicyUsesLocaleConsistentWithJapaneseExitProfile() {
+        let locale = FingerprintPrivacyPolicy.outwardLocale(
+            timeZoneIdentifier: "Asia/Tokyo",
+            systemLocaleIdentifier: "en_US"
+        )
+        XCTAssertEqual(locale, "ja-JP")
+        XCTAssertEqual(
+            FingerprintPrivacyPolicy.acceptLanguageList(for: locale),
+            "ja-JP,ja,en-US,en"
+        )
+    }
+
+    func testPolicyFallsBackToNormalizedSystemLocaleOutsideKnownTimeZones() {
+        let locale = FingerprintPrivacyPolicy.outwardLocale(
+            timeZoneIdentifier: "Etc/UTC",
+            systemLocaleIdentifier: "fr_FR"
+        )
+
+        XCTAssertEqual(locale, "fr-FR")
+        XCTAssertEqual(
+            FingerprintPrivacyPolicy.acceptLanguageList(for: locale),
+            "fr-FR,fr,en-US,en"
+        )
+    }
+
+    private static let browserSurfaceTestEnvironment = """
+    globalThis.window = globalThis;
+    globalThis.location = { hostname: 'fingerprint.example' };
+    globalThis.crypto = { getRandomValues(values) { values[0] = 1234; values[1] = 5678; return values; } };
+    globalThis.addEventListener = () => {};
+
+    class Navigator {}
+    Object.defineProperty(Navigator.prototype, 'hardwareConcurrency', {
+      get() { return 10; }, configurable: true, enumerable: true
+    });
+    Object.defineProperty(Navigator.prototype, 'deviceMemory', {
+      get() { return 32; }, configurable: true, enumerable: true
+    });
+    Object.defineProperty(Navigator.prototype, 'language', {
+      get() { return 'en-US'; }, configurable: true, enumerable: true
+    });
+    Object.defineProperty(Navigator.prototype, 'languages', {
+      get() { return ['en-US']; }, configurable: true, enumerable: true
+    });
+    Navigator.prototype.queryLocalFonts = async () => [{ family: 'PingFang SC' }];
+    globalThis.Navigator = Navigator;
+    globalThis.navigator = new Navigator();
+
+    class Screen {}
+    Object.defineProperty(Screen.prototype, 'colorDepth', {
+      get() { return 30; }, configurable: true, enumerable: true
+    });
+    Object.defineProperty(Screen.prototype, 'pixelDepth', {
+      get() { return 30; }, configurable: true, enumerable: true
+    });
+    globalThis.Screen = Screen;
+    globalThis.screen = new Screen();
+
+    class CanvasRenderingContext2D {
+      constructor() { this.fontValue = '10px sans-serif'; }
+      getImageData() { return { data: new Uint8ClampedArray(64).fill(100) }; }
+      putImageData() {}
+      drawImage() {}
+    }
+    Object.defineProperty(CanvasRenderingContext2D.prototype, 'font', {
+      get() { return this.fontValue; },
+      set(value) { this.fontValue = value; },
+      configurable: true,
+      enumerable: true
+    });
+    globalThis.CanvasRenderingContext2D = CanvasRenderingContext2D;
+
+    class HTMLCanvasElement {
+      constructor() {
+        this.width = 4;
+        this.height = 4;
+        this.ownerDocument = { createElement: () => new HTMLCanvasElement() };
+        this.context = new CanvasRenderingContext2D();
+      }
+      getContext() { return this.context; }
+      toDataURL() { return 'native'; }
+      toBlob(callback) { callback('native'); }
+    }
+    globalThis.HTMLCanvasElement = HTMLCanvasElement;
+
+    class CSSStyleProperties {
+      constructor() { this.fontValue = ''; this.fontFamilyValue = ''; }
+    }
+    class CSSStyleDeclaration extends CSSStyleProperties {
+      setProperty(name, value) { this[name] = value; }
+    }
+    Object.defineProperty(CSSStyleProperties.prototype, 'font', {
+      get() { return this.fontValue; },
+      set(value) { this.fontValue = value; },
+      configurable: true,
+      enumerable: true
+    });
+    Object.defineProperty(CSSStyleProperties.prototype, 'fontFamily', {
+      get() { return this.fontFamilyValue; },
+      set(value) { this.fontFamilyValue = value; },
+      configurable: true,
+      enumerable: true
+    });
+    globalThis.CSSStyleDeclaration = CSSStyleDeclaration;
+
+    class FontFaceSet { check() { return true; } }
+    globalThis.FontFaceSet = FontFaceSet;
+
+    class WebGLRenderingContext {
+      getParameter() { return 'Apple M4'; }
+      readPixels(x, y, width, height, format, type, output) { output.fill(100); }
+    }
+    globalThis.WebGLRenderingContext = WebGLRenderingContext;
+
+    globalThis.testSanitizedFontFamily = () => {
+      const style = new CSSStyleDeclaration();
+      style.fontFamily = 'PingFang SC, sans-serif';
+      return style.fontFamily;
+    };
+    globalThis.testCanvasWasFarbled = () => {
+      const values = new CanvasRenderingContext2D().getImageData().data;
+      return Array.from(values).some((value) => value !== 100);
+    };
+    globalThis.testWebGLWasFarbled = () => {
+      const values = new Uint8Array(64);
+      new WebGLRenderingContext().readPixels(0, 0, 4, 4, 0, 0, values);
+      return Array.from(values).some((value) => value !== 100);
+    };
+    globalThis.testWebGLRenderer = () =>
+      new WebGLRenderingContext().getParameter(0x9246);
+    """
+}

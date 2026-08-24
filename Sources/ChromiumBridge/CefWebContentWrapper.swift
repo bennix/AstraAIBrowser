@@ -605,7 +605,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         )
         configuration.userContentController.addUserScript(
             WKUserScript(
-                source: AudioFingerprintPrivacyPolicy.javaScript,
+                source: FingerprintPrivacyPolicy.javaScript,
                 injectionTime: .atDocumentStart,
                 forMainFrameOnly: false
             )
@@ -1745,6 +1745,127 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                 """
                 let result = await evaluateJavaScriptResult(operation: operation, timeout: 8) ?? "unavailable"
                 FileHandle.standardOutput.write(Data("[cef-smoke] web audio: \(result)\n".utf8))
+                NSApp.terminate(nil)
+            }
+            return
+        }
+
+        if arguments.contains("--cef-fingerprint-site-smoke") {
+            guard !isLoading, browser != nil || systemMediaWebView != nil else { return }
+            didStartSmokeCheck = true
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let operation = """
+                await new Promise((resolve) => setTimeout(resolve, 2_000));
+                const localizedStartLabel = String.fromCharCode(
+                  0x5f00, 0x59cb, 0x68c0, 0x6d4b
+                );
+                const localizedDismissLabel = String.fromCharCode(
+                  0x6211, 0x77e5, 0x9053, 0x4e86
+                );
+                const initialControls = Array.from(document.querySelectorAll('button, a'));
+                const dismissControl = initialControls.find((element) => {
+                  const label = (element.innerText || element.textContent || '').trim();
+                  return label.includes(localizedDismissLabel)
+                    || label.toLowerCase().includes('got it');
+                });
+                if (dismissControl) {
+                  dismissControl.click();
+                  await new Promise((resolve) => setTimeout(resolve, 1_000));
+                }
+                const startControl = Array.from(document.querySelectorAll('button, a')).find((element) => {
+                  const label = (element.innerText || element.textContent || '').trim();
+                  const normalizedLabel = label.toLowerCase();
+                  return label.includes(localizedStartLabel)
+                    || normalizedLabel.includes('start test')
+                    || normalizedLabel.includes('start check');
+                });
+                if (!startControl) {
+                  return JSON.stringify({
+                    ok: false,
+                    message: 'start control not found',
+                    controls: Array.from(document.querySelectorAll('button, a'))
+                      .map((element) => (element.innerText || element.textContent || '').trim())
+                      .filter(Boolean)
+                      .slice(0, 40)
+                  });
+                }
+                startControl.click();
+                await new Promise((resolve) => setTimeout(resolve, 8_000));
+                return document.body?.innerText || '';
+                """
+                let result = await evaluateJavaScriptResult(operation: operation, timeout: 12)
+                    ?? "unavailable"
+                FileHandle.standardOutput.write(
+                    Data("[cef-smoke] fingerprint site: \(result)\n".utf8)
+                )
+                NSApp.terminate(nil)
+            }
+            return
+        }
+
+        if arguments.contains("--cef-fingerprint-privacy-smoke") {
+            guard !isLoading, browser != nil || systemMediaWebView != nil else { return }
+            didStartSmokeCheck = true
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let operation = """
+                return (() => {
+                  const canvas = document.createElement('canvas');
+                  canvas.width = 32;
+                  canvas.height = 16;
+                  const context = canvas.getContext('2d');
+                  context.font = '16px "PingFang SC", monospace';
+                  context.fillText('Astra privacy', 1, 12);
+                  const webglCanvas = document.createElement('canvas');
+                  const webgl = webglCanvas.getContext('webgl2') || webglCanvas.getContext('webgl');
+                  const rendererExtension = webgl?.getExtension('WEBGL_debug_renderer_info');
+                  const renderer = rendererExtension
+                    ? webgl.getParameter(rendererExtension.UNMASKED_RENDERER_WEBGL)
+                    : null;
+                  const protectedFontNames = [
+                    'PingFang SC', 'Hiragino Sans GB', 'STHeiti', 'STSong',
+                    'Microsoft YaHei', 'SimSun', 'SimHei', 'Noto Sans CJK SC'
+                  ];
+                  const genericFamilies = ['monospace', 'sans-serif', 'serif'];
+                  const fontProbe = document.createElement('span');
+                  fontProbe.style.position = 'absolute';
+                  fontProbe.style.left = '-9999px';
+                  fontProbe.style.fontSize = '72px';
+                  fontProbe.textContent = 'mmmmmmmmmmlli';
+                  document.body.appendChild(fontProbe);
+                  const genericWidths = Object.fromEntries(genericFamilies.map((family) => {
+                    fontProbe.style.fontFamily = family;
+                    return [family, fontProbe.offsetWidth];
+                  }));
+                  const protectedFontsDetected = protectedFontNames.filter((fontName) =>
+                    genericFamilies.some((family) => {
+                      fontProbe.style.fontFamily = `'${fontName}', ${family}`;
+                      return fontProbe.offsetWidth !== genericWidths[family];
+                    })
+                  );
+                  fontProbe.remove();
+                  return JSON.stringify({
+                    installed: globalThis.__astraFingerprintPrivacyInstalled === true,
+                    audioInstalled: globalThis.__astraAudioPrivacyInstalled === true,
+                    canvas: canvas.toDataURL().slice(0, 32),
+                    renderer,
+                    pingFangVisible: document.fonts.check('16px "PingFang SC"'),
+                    hiraginoVisible: document.fonts.check('16px "Hiragino Sans GB"'),
+                    protectedFontsDetected,
+                    hardwareConcurrency: navigator.hardwareConcurrency,
+                    deviceMemory: navigator.deviceMemory ?? null,
+                    colorDepth: screen.colorDepth,
+                    language: navigator.language,
+                    languages: navigator.languages
+                  });
+                })();
+                """
+                let result = await evaluateJavaScriptResult(operation: operation, timeout: 8)
+                    ?? "unavailable"
+                FileHandle.standardOutput.write(
+                    Data("[cef-smoke] fingerprint privacy: \(result)\n".utf8)
+                )
                 NSApp.terminate(nil)
             }
             return

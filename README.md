@@ -3,9 +3,9 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 30)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.30/Astra-Browser-build30.dmg)
+[Download Astra 1.0 (build 31)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.31/Astra-Browser-build31.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.30)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.31)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
@@ -24,6 +24,7 @@ and accepted by Apple's notarization service.
 - Red-button window close preserves tabs and live page state for the next Dock activation.
 - WebRTC exposes no direct candidates, while camera and microphone access requires one-time approval.
 - Silent WebAudio fingerprinting is disrupted at document start: fingerprint readbacks are randomized per page context and zero-gain processing graphs cannot claim the system audio output. Standard HTML media playback is left unchanged.
+- Canvas and WebGL readbacks are farbled per site and session, precise Apple GPU models are masked, protected local and Chinese fonts resist direct and text-metric enumeration, and exposed hardware and language signals are normalized to a coherent profile.
 - Grok stays in its persistent Chromium session after sign-in, and X OAuth popups retain their originating page relationship.
 - Astra's icon and installation identity remain stable across restarts; the legacy Phi updater cannot replace the installed app.
 - Google website sign-in remains available without associating the account with Astra at the browser level or enabling browser sync.

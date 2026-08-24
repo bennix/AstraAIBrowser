@@ -1,0 +1,33 @@
+diff --git a/Sources/CefKit/CefConfiguration.swift b/Sources/CefKit/CefConfiguration.swift
+--- a/Sources/CefKit/CefConfiguration.swift
++++ b/Sources/CefKit/CefConfiguration.swift
+@@ -81,6 +81,10 @@ public struct CefConfiguration: Sendable {
+     /// UI locale, e.g. `"en-US"`. Defaults to the system locale.
+     public var locale: String?
+
++    /// Ordered language list used by the HTTP `Accept-Language` header and
++    /// JavaScript language APIs, e.g. `"ja-JP,ja,en-US,en"`.
++    public var acceptLanguageList: String?
++
+     /// Product portion of the User-Agent string, e.g. `"MyApp/1.0"`.
+     public var userAgentProduct: String?
+
+diff --git a/Sources/CefKit/CefRuntime.swift b/Sources/CefKit/CefRuntime.swift
+--- a/Sources/CefKit/CefRuntime.swift
++++ b/Sources/CefKit/CefRuntime.swift
+@@ -51,6 +51,7 @@ final class MappedCefSettings {
+         }
+
+         CefStringUtil.set(configuration.locale, into: &raw.locale)
++        CefStringUtil.set(configuration.acceptLanguageList, into: &raw.accept_language_list)
+         CefStringUtil.set(configuration.userAgentProduct, into: &raw.user_agent_product)
+         CefStringUtil.set(configuration.logFile?.path, into: &raw.log_file)
+         CefStringUtil.set(frameworkDirectory?.path, into: &raw.framework_dir_path)
+@@ -72,6 +73,7 @@ final class MappedCefSettings {
+         ccef_string_clear(&raw.root_cache_path)
+         ccef_string_clear(&raw.cache_path)
+         ccef_string_clear(&raw.locale)
++        ccef_string_clear(&raw.accept_language_list)
+         ccef_string_clear(&raw.user_agent_product)
+         ccef_string_clear(&raw.log_file)
+         ccef_string_clear(&raw.framework_dir_path)
