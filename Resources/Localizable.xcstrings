@@ -43140,7 +43140,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "View and manage your browser memory"
+            "value" : "View and manage local AI memory"
           }
         },
         "es" : {
@@ -43158,7 +43158,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ブラウザのメモリを表示・管理"
+            "value" : "ローカルAIメモリを表示・管理"
           }
         },
         "ko" : {
@@ -43176,13 +43176,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "查看和管理你的浏览器记忆"
+            "value" : "查看和管理本地 AI 记忆"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "查看與管理你的瀏覽器記憶"
+            "value" : "查看與管理本機 AI 記憶"
           }
         }
       }
@@ -43200,7 +43200,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Browser memory"
+            "value" : "Local AI memory"
           }
         },
         "es" : {
@@ -43218,7 +43218,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ブラウザメモリ"
+            "value" : "ローカルAIメモリ"
           }
         },
         "ko" : {
@@ -43236,13 +43236,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "浏览器记忆"
+            "value" : "本地 AI 记忆"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "瀏覽器記憶"
+            "value" : "本機 AI 記憶"
           }
         }
       }

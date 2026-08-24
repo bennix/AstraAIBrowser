@@ -183,9 +183,8 @@ final class GuestModeUITests: XCTestCase {
         }
     }
 
-    func testLoginRequiredPolicyGatesEveryGuestAccountSurface() {
+    func testLoginRequiredPolicyGatesRemoteGuestAccountSurfaces() {
         for surface in [
-            LoginRequiredSurface.browserMemory,
             LoginRequiredSurface.connectors,
             .imChannels
         ] {
@@ -206,6 +205,15 @@ final class GuestModeUITests: XCTestCase {
                 )
             )
         }
+
+        XCTAssertFalse(
+            LoginRequiredPresentationPolicy.shouldPresent(
+                for: .browserMemory,
+                isGuest: true,
+                isPhiAIEnabled: true,
+                supportsAuthentication: true
+            )
+        )
     }
 
     func testLoginRequiredPolicyIsDisabledWhenBuildHasNoAuthentication() {

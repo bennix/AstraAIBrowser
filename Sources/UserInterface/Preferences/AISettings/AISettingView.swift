@@ -35,6 +35,7 @@ struct AISettingView: View {
                     loginAction: {}
                 )
                 ZenMuxConfigurationSectionView()
+                BrowserMemorySectionView(enabled: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 36)
@@ -421,11 +422,11 @@ private struct BrowserMemorySectionView: View {
 
     var body: some View {
         AISectionView(
-            title: NSLocalizedString("settings.ai.browserMemory.sectionTitle", value: "Browser memory", comment: "AI settings - Section title for browser memory management")
+            title: NSLocalizedString("settings.ai.browserMemory.sectionTitle", value: "Local AI memory", comment: "AI settings - Section title for local AI memory management")
         ) {
             AIContainerView {
                 AINavigationRow(
-                    title: NSLocalizedString("settings.ai.browserMemory.manageButtonTitle", value: "View and manage your browser memory", comment: "AI settings - Row title to open browser memory management"),
+                    title: NSLocalizedString("settings.ai.browserMemory.manageButtonTitle", value: "View and manage local AI memory", comment: "AI settings - Row title to open local AI memory management"),
                     enabled: enabled,
                     action: openBrowserMemoryPage
                 )
@@ -436,7 +437,7 @@ private struct BrowserMemorySectionView: View {
     private func openBrowserMemoryPage() {
         guard let state = BrowserState.currentState() else { return }
         state.createTab(
-            "chrome://memory/memory.html",
+            URLProcessor.browserMemoryURL,
             focusAfterCreate: true
         )
         FirstTimeActionTracker.capture(.memoryOpened)

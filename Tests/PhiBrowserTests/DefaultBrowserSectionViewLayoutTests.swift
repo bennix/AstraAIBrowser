@@ -9,6 +9,23 @@ import XCTest
 
 @MainActor
 final class DefaultBrowserSectionViewLayoutTests: XCTestCase {
+    func testDefaultBrowserRequiresBothWebSchemes() {
+        let bundleIdentifier = "com.example.Astra"
+
+        XCTAssertTrue(DefaultBrowserViewModel.isDefaultBrowser(
+            applicationBundleIdentifier: bundleIdentifier,
+            handlerBundleIdentifiers: [bundleIdentifier, bundleIdentifier]
+        ))
+        XCTAssertFalse(DefaultBrowserViewModel.isDefaultBrowser(
+            applicationBundleIdentifier: bundleIdentifier,
+            handlerBundleIdentifiers: [bundleIdentifier, "com.example.Other"]
+        ))
+        XCTAssertFalse(DefaultBrowserViewModel.isDefaultBrowser(
+            applicationBundleIdentifier: bundleIdentifier,
+            handlerBundleIdentifiers: [bundleIdentifier]
+        ))
+    }
+
     func testStatusLabelAllowsUnlimitedLines() throws {
         let view = DefaultBrowserSectionView(viewModel: DefaultBrowserViewModel())
         let statusLabel = try XCTUnwrap(view.subviews.compactMap { $0 as? NSTextField }.first)

@@ -1215,6 +1215,7 @@ private final class CefBrowserWindow: NSWindow {
             configuration.acceptLanguageList = FingerprintPrivacyPolicy.acceptLanguageList
             configuration.userAgentProduct = SupportedBrowserUserAgent.chromiumProduct
             configuration.documentStartJavaScript = FingerprintPrivacyPolicy.javaScript
+            configuration.customSchemes.append(AstraMemorySchemeHandler.customScheme)
             CefBrowserAccountPrivacyPolicy.apply(to: &configuration)
             try CefBrowserAccountPrivacyPolicy.prepareProfile(at: root)
             // Gmail rejects unbranded Chromium Client Hints. Prefer the UA
@@ -1232,6 +1233,16 @@ private final class CefBrowserWindow: NSWindow {
             // transport so valid images and media do not remain broken.
             configuration.extraCommandLineSwitches["disable-http2"] = nil
             try CefRuntime.shared.initialize(configuration: configuration)
+            CefRuntime.shared.registerSchemeHandler(
+                scheme: AstraMemorySchemeHandler.schemeName,
+                domain: AstraMemorySchemeHandler.domain,
+                handler: AstraMemorySchemeHandler {
+                    await MainActor.run {
+                        AccountController.shared.localDataAccount?.userDataStorage
+                            ?? Account.defaultAccount.userDataStorage
+                    }
+                }
+            )
             shared.extensionCatalogRootURL = root
             shared.registerPageContextBridge()
             shared.registerAutomationBridge()

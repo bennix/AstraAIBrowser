@@ -368,37 +368,33 @@ class AccountSettingViewController: NSViewController, SettingsPane {
 // MARK: - ViewModels
 
 class DefaultBrowserViewModel: ObservableObject {
+    static let webSchemes = ["http", "https"]
+
     @Published var isDefaultBrowser: Bool = false
     @Published var statusText: String = NSLocalizedString("settings.account.defaultBrowser.initialNotDefaultStatus", value: "Astra Browser is not your default browser", comment: "Account settings - Initial status text before the current default-browser state is refreshed")
     @Published var isLoading: Bool = true
 
     init() {
-        // Don't check immediately, wait for viewWillAppear
+        // Wait for viewWillAppear so the status reflects external changes made
+        // while the settings window was closed.
     }
 
     func checkDefaultBrowser() {
         isLoading = true
-        // Check if Phi is the default browser
-        // This is a placeholder implementation
         isDefaultBrowser = isPhiBrowserDefault()
         updateStatusText()
         isLoading = false
     }
 
     private func isPhiBrowserDefault() -> Bool {
-        guard let bundleIdentifier = Bundle.main.bundleIdentifier,
-              let url = URL(string: "http://example.com"),
-              let defaultAppURL = LSCopyDefaultApplicationURLForURL(url as CFURL, .all, nil)?.takeRetainedValue() else {
+        guard let bundleIdentifier = Bundle.main.bundleIdentifier else {
             return false
         }
-
-        let appURL = defaultAppURL as URL
-        guard let defaultBundle = Bundle(url: appURL),
-              let defaultBundleId = defaultBundle.bundleIdentifier else {
-            return false
-        }
-
-        return defaultBundleId == bundleIdentifier
+        let handlers = Self.webSchemes.map(defaultBundleIdentifier(for:))
+        return Self.isDefaultBrowser(
+            applicationBundleIdentifier: bundleIdentifier,
+            handlerBundleIdentifiers: handlers
+        )
     }
 
     @MainActor
@@ -408,19 +404,50 @@ class DefaultBrowserViewModel: ObservableObject {
     }
 
     private func doSetAsDefaultBrowser() async {
-        guard let appURL = Bundle.main.bundleURL as URL? else {
+        guard let bundleIdentifier = Bundle.main.bundleIdentifier else {
             return
         }
 
+        let appURL = Bundle.main.bundleURL
         let workspace = NSWorkspace.shared
-        // macOS links the default handlers for "http" and "https" (and public.html).
-        // Setting "http" is sufficient; attempting to set "https" separately may fail.
-
-        do {
-            try await workspace.setDefaultApplication(at: appURL, toOpenURLsWithScheme: "http")
-        } catch {
-            AppLogError("fail to set default app: \(error.localizedDescription)")
+        for scheme in Self.webSchemes {
+            // macOS commonly links both web schemes after the first approved
+            // request. Re-check before each call so the user is not shown a
+            // redundant system confirmation while still repairing a partial
+            // HTTP/HTTPS registration when necessary.
+            guard defaultBundleIdentifier(for: scheme) != bundleIdentifier else {
+                continue
+            }
+            do {
+                try await workspace.setDefaultApplication(
+                    at: appURL,
+                    toOpenURLsWithScheme: scheme
+                )
+            } catch {
+                AppLogError("Failed to set the default \(scheme) handler: \(error.localizedDescription)")
+                return
+            }
         }
+    }
+
+    static func isDefaultBrowser(
+        applicationBundleIdentifier: String,
+        handlerBundleIdentifiers: [String?]
+    ) -> Bool {
+        handlerBundleIdentifiers.count == webSchemes.count &&
+            handlerBundleIdentifiers.allSatisfy { $0 == applicationBundleIdentifier }
+    }
+
+    private func defaultBundleIdentifier(for scheme: String) -> String? {
+        guard let url = URL(string: "\(scheme)://example.com"),
+              let applicationURL = LSCopyDefaultApplicationURLForURL(
+                url as CFURL,
+                .all,
+                nil
+              )?.takeRetainedValue() else {
+            return nil
+        }
+        return Bundle(url: applicationURL as URL)?.bundleIdentifier
     }
 
     private func updateStatusText() {

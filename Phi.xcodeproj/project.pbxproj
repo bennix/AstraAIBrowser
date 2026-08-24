@@ -140,6 +140,8 @@
 		37EA23AC2F6C010C00D3C4A9 /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = B02BEB612E3B2D5900E5859A /* Dependencies */; };
 		37EA25EF2F6D5A5A00D3C4A9 /* CommonMessageRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37EA25EE2F6D5A5A00D3C4A9 /* CommonMessageRouter.swift */; };
 		37EECF222F0F623A0022A176 /* EmbeddedChatViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37EECF212F0F623A0022A176 /* EmbeddedChatViewController.swift */; };
+		A1A1000130A0000000000001 /* AIMemoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1000230A0000000000002 /* AIMemoryStore.swift */; };
+		A1A1000330A0000000000003 /* AstraMemorySchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1000430A0000000000004 /* AstraMemorySchemeHandler.swift */; };
 		37FA01012FDA000100000001 /* LocalStoreCompatibilityManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37FA01112FDA000100000001 /* LocalStoreCompatibilityManifest.swift */; };
 		37FA01022FDA000100000002 /* LocalStoreBackupPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37FA01122FDA000100000002 /* LocalStoreBackupPolicy.swift */; };
 		37FA01032FDA000100000003 /* LocalStoreCompatibilityConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37FA01132FDA000100000003 /* LocalStoreCompatibilityConfiguration.swift */; };
@@ -784,6 +786,8 @@
 		37E9E91E2FC84DEA00815832 /* TabDataModelSchemaV6.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabDataModelSchemaV6.swift; sourceTree = "<group>"; };
 		37EA25EE2F6D5A5A00D3C4A9 /* CommonMessageRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommonMessageRouter.swift; sourceTree = "<group>"; };
 		37EECF212F0F623A0022A176 /* EmbeddedChatViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddedChatViewController.swift; sourceTree = "<group>"; };
+		A1A1000230A0000000000002 /* AIMemoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIMemoryStore.swift; sourceTree = "<group>"; };
+		A1A1000430A0000000000004 /* AstraMemorySchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AstraMemorySchemeHandler.swift; sourceTree = "<group>"; };
 		37FA01112FDA000100000001 /* LocalStoreCompatibilityManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalStoreCompatibilityManifest.swift; sourceTree = "<group>"; };
 		37FA01122FDA000100000002 /* LocalStoreBackupPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalStoreBackupPolicy.swift; sourceTree = "<group>"; };
 		37FA01132FDA000100000003 /* LocalStoreCompatibilityConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalStoreCompatibilityConfiguration.swift; sourceTree = "<group>"; };
@@ -1891,6 +1895,7 @@
 		B02586F92E42FDA9001B08FC /* ChromiumBridge */ = {
 			isa = PBXGroup;
 			children = (
+				A1A1000430A0000000000004 /* AstraMemorySchemeHandler.swift */,
 				CEF000113080000000000001 /* CefBrowserRuntime.swift */,
 				CEF000123080000000000002 /* CefWebContentWrapper.swift */,
 				CEF000133080000000000003 /* WebCredentialStore.swift */,
@@ -2147,6 +2152,7 @@
 		CC2708A42E7A65E500B65AB8 /* LocalStorage */ = {
 			isa = PBXGroup;
 			children = (
+				A1A1000230A0000000000002 /* AIMemoryStore.swift */,
 				CC2708A22E7A65E500B65AB8 /* LocalStore.swift */,
 				6A4750023B12345600000001 /* GuestDataMigration.swift */,
 				CCAA000B2F00010000000002 /* LocalStore+PinnedTabScope.swift */,
@@ -2931,6 +2937,7 @@
 				CC24EF082E89251D00CE9DD7 /* AuthManager.swift in Sources */,
 				8EC70E162F0BBF3D009FE2CD /* BookmarkItemView.swift in Sources */,
 				B001795A2E49CF84007B4635 /* PhiChromiumCoordinator.swift in Sources */,
+				A1A1000330A0000000000003 /* AstraMemorySchemeHandler.swift in Sources */,
 				CEF000013080000000000001 /* CefBrowserRuntime.swift in Sources */,
 				CEF000023080000000000002 /* CefWebContentWrapper.swift in Sources */,
 				CEF000033080000000000003 /* WebCredentialStore.swift in Sources */,
@@ -3099,6 +3106,7 @@
 				8E486A772F3EEF8A00078DEC /* StatusURLViewModel.swift in Sources */,
 				8E762CC62F16531A00631087 /* TabStripAnimation.swift in Sources */,
 				37C1B0DE2ED8081400DD4496 /* ShortcutsSettingsView.swift in Sources */,
+				A1A1000130A0000000000001 /* AIMemoryStore.swift in Sources */,
 				CC2708A52E7A65E500B65AB8 /* LocalStore.swift in Sources */,
 				6A4750023B12345600000002 /* GuestDataMigration.swift in Sources */,
 				CCAA000B2F00010000000001 /* LocalStore+PinnedTabScope.swift in Sources */,
@@ -3532,7 +3540,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10031;
+				CURRENT_PROJECT_VERSION = 10032;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -3995,7 +4003,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10031;
+				CURRENT_PROJECT_VERSION = 10032;
 				DEVELOPMENT_TEAM = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -4049,7 +4057,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10031;
+				CURRENT_PROJECT_VERSION = 10032;
 				DEVELOPMENT_TEAM = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -4242,7 +4250,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10031;
+				CURRENT_PROJECT_VERSION = 10032;
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;

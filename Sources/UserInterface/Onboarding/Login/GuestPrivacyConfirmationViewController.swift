@@ -212,11 +212,6 @@ final class GuestPrivacyConfirmationViewController: OnboardingBaseViewController
                 comment: "Guest privacy confirmation - Notice that AI features require signing in"
             ),
             NSLocalizedString(
-                "oobe.guestPrivacy.browserMemoryUnavailable",
-                value: "No Browser Memory either",
-                comment: "Guest privacy confirmation - Notice that Browser Memory is unavailable without signing in"
-            ),
-            NSLocalizedString(
                 "oobe.guestPrivacy.signInAnytime",
                 value: "Sign in whenever you're ready",
                 comment: "Guest privacy confirmation - Notice that the user can sign in later"

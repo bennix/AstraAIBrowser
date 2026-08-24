@@ -217,7 +217,7 @@ class SidebarViewController: NSViewController {
             guard let state = BrowserState.currentState() else { return }
             FeatureEntryAnalytics.capture(.memory, surface: .sidebar)
             state.createTab(
-                "chrome://memory/memory.html",
+                URLProcessor.browserMemoryURL,
                 focusAfterCreate: true
             )
             FirstTimeActionTracker.capture(.memoryOpened)

@@ -7,12 +7,23 @@ import Foundation
 
 /// Converts user-entered text into a browser URL string.
 public struct URLProcessor {
+
+    /// Chromium removed the legacy `chrome://memory/memory.html` WebUI.
+    /// Preserve the public route while moving its ownership to Astra's local,
+    /// account-scoped AI memory page.
+    public static let browserMemoryURL = "astra://memory/"
     
     /// Converts user input into a valid URL string.
     public static func processUserInput(_ searchText: String) -> String {
         let trimmedText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if isLegacyBrowserMemoryURL(trimmedText) {
+            return browserMemoryURL
+        }
         
         if trimmedText.hasPrefix("http://") || trimmedText.hasPrefix("https://") {
+            return trimmedText
+        } else if trimmedText.hasPrefix("astra://") {
             return trimmedText
         } else if trimmedText.hasPrefix("chrome://") || trimmedText.hasPrefix("about://") {
             return trimmedText
@@ -53,6 +64,7 @@ public struct URLProcessor {
            trimmedText.hasPrefix("https://") ||
            trimmedText.hasPrefix("chrome://") ||
            trimmedText.hasPrefix("about://") ||
+           trimmedText.hasPrefix("astra://") ||
            trimmedText.hasPrefix("phi://") {
             return true
         }
@@ -82,6 +94,15 @@ public struct URLProcessor {
         guard string.hasPrefix("chrome://") else { return string }
         let startIndex = string.index(string.startIndex, offsetBy: "chrome://".count)
         return "phi://" + string[startIndex...]
+    }
+
+    static func isLegacyBrowserMemoryURL(_ rawURL: String) -> Bool {
+        guard let components = URLComponents(string: rawURL),
+              let scheme = components.scheme?.lowercased(),
+              scheme == "chrome" || scheme == "phi" else {
+            return false
+        }
+        return components.host?.lowercased() == "memory"
     }
 
     private static func normalizedForOriginNavigation(_ rawURL: String) -> String? {

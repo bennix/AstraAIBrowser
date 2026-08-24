@@ -543,6 +543,9 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         if rawValue.isEmpty || rawValue.isNTP {
             return URL(string: "about:blank")!
         }
+        if URLProcessor.isLegacyBrowserMemoryURL(rawValue) {
+            return URL(string: URLProcessor.browserMemoryURL)!
+        }
         return URL(string: rawValue) ?? URL(string: URLProcessor.processUserInput(rawValue))
             ?? URL(string: "about:blank")!
     }

@@ -26,8 +26,10 @@ enum LoginRequiredPresentationPolicy {
         switch surface {
         case .newTabPage, .aiChat:
             return isPhiAIEnabled
-        case .browserMemory, .connectors, .imChannels:
+        case .connectors, .imChannels:
             return true
+        case .browserMemory:
+            return false
         }
     }
 

@@ -7,6 +7,31 @@ import XCTest
 @testable import Phi
 
 final class URLProcessorTests: XCTestCase {
+    func testLegacyBrowserMemoryURLsUseLocalAIMemoryPage() {
+        for input in [
+            "chrome://memory",
+            "chrome://memory/memory.html",
+            "phi://memory/memory.html?view=recent",
+        ] {
+            XCTAssertEqual(
+                URLProcessor.processUserInput(input),
+                URLProcessor.browserMemoryURL
+            )
+        }
+        XCTAssertEqual(URLProcessor.browserMemoryURL, "astra://memory/")
+    }
+
+    func testBrowserMemoryCompatibilityDoesNotRewriteSimilarHosts() {
+        XCTAssertEqual(
+            URLProcessor.processUserInput("chrome://memory-internals/"),
+            "chrome://memory-internals/"
+        )
+        XCTAssertEqual(
+            URLProcessor.processUserInput("https://memory/memory.html"),
+            "https://memory/memory.html"
+        )
+    }
+
     func testExplicitGoogleSearchDoesNotInterpretDomainAsNavigation() {
         let result = URLProcessor.googleSearchURL(for: "google.com")
 
