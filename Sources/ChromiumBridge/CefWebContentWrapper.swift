@@ -253,12 +253,32 @@ enum WebKitWebRTCPrivacyPolicy {
 
 enum SystemMediaCompatibilityPolicy {
     private static let supportedDomains = [
+        "acfun.cn",
+        "aiyifan.club",
+        "aiyifan.com.cn",
+        "aiyifan.tv",
         "bbc.com",
         "bbc.co.uk",
         "bbci.co.uk",
+        "bilibili.com",
+        "douyin.com",
+        "iq.com",
+        "iqiyi.com",
+        "ixigua.com",
+        "iyf.tv",
+        "mgtv.com",
+        "miguvideo.com",
+        "pptv.com",
+        "tv.cctv.com",
+        "tv.sohu.com",
         "twitter.com",
+        "v.qq.com",
+        "weibo.com",
         "x.com",
         "yahoo.com",
+        "yangshipin.cn",
+        "yfsp.tv",
+        "youku.com",
     ]
 
     private static var detectedDomains = Set<String>()
@@ -985,12 +1005,18 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
 
           let reported = false;
           const firstSeen = new WeakMap();
-          const isVisible = (media) => {
-            const rect = media.getBoundingClientRect();
-            const style = getComputedStyle(media);
-            return rect.width >= 120 && rect.height >= 70 &&
+          const isVisible = (element, minimumWidth = 120, minimumHeight = 70) => {
+            const rect = element.getBoundingClientRect();
+            const style = getComputedStyle(element);
+            return rect.width >= minimumWidth && rect.height >= minimumHeight &&
               style.display !== 'none' && style.visibility !== 'hidden';
           };
+          const hasVisibleHTML5Failure = () =>
+            Array.from(document.querySelectorAll('body *')).some((element) => {
+              if (!isVisible(element, 300, 150) || element.querySelector('video, audio')) return false;
+              const text = (element.innerText || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+              return text.length > 0 && text.length <= 300 && text.includes('html5');
+            });
           const declaresUnsupportedFormat = (media) => {
             const sources = [media, ...media.querySelectorAll('source')];
             return sources.some((source) => {
@@ -1008,6 +1034,10 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             console.warn(\(prefix) + location.href);
           };
           const inspect = () => {
+            if (hasVisibleHTML5Failure()) {
+              report();
+              return;
+            }
             const now = performance.now();
             for (const media of document.querySelectorAll('video, audio')) {
               if (!isVisible(media)) continue;
@@ -1016,7 +1046,14 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
               const stalledUnsupportedMedia = declaresUnsupportedFormat(media) &&
                 media.readyState <= HTMLMediaElement.HAVE_METADATA &&
                 now - firstSeen.get(media) >= 6000;
-              if (unsupportedError || stalledUnsupportedMedia) {
+              const hasMediaRequest = Boolean(
+                media.currentSrc || media.src || media.querySelector('source[src]') ||
+                media.autoplay || !media.paused
+              );
+              const stalledUnknownMedia = hasMediaRequest &&
+                media.readyState === HTMLMediaElement.HAVE_NOTHING &&
+                now - firstSeen.get(media) >= 10000;
+              if (unsupportedError || stalledUnsupportedMedia || stalledUnknownMedia) {
                 report();
                 return;
               }
@@ -1592,7 +1629,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         }
 
         if arguments.contains("--cef-image-compatibility-smoke") {
-            guard !isLoading, browser != nil else { return }
+            guard !isLoading, browser != nil || systemMediaWebView != nil else { return }
             didStartSmokeCheck = true
             Task { @MainActor [weak self] in
                 guard let self else { return }

@@ -3,9 +3,9 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 29)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.29/Astra-Browser-build29.dmg)
+[Download Astra 1.0 (build 30)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.30/Astra-Browser-build30.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.29)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.30)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
@@ -20,6 +20,7 @@ and accepted by Apple's notarization service.
 - ZenMux answers render GitHub-style Markdown tables and normalize common model-specific LaTeX wrappers before native math rendering.
 - YouTube ad playback acceleration: detected ads play at 8× and the previous content speed is restored afterward.
 - YouTube and other WebKit media pages support HTML element fullscreen.
+- Mainland and H.264/AAC-first video sites use an in-app system media engine when the bundled Chromium codec set is insufficient, while YouTube keeps its Chromium VP9/AV1 path.
 - Red-button window close preserves tabs and live page state for the next Dock activation.
 - WebRTC exposes no direct candidates, while camera and microphone access requires one-time approval.
 - Silent WebAudio fingerprinting is disrupted at document start: fingerprint readbacks are randomized per page context and zero-gain processing graphs cannot claim the system audio output. Standard HTML media playback is left unchanged.

@@ -16,7 +16,9 @@
     "features.pageControl.body": "助手可检查当前标签页并执行经确认的浏览器操作，同时 Chromium 浏览体验始终内嵌在 Astra 中。",
     "features.youtube.title": "减少等待 YouTube 广告",
     "features.youtube.body": "YouTube 将当前播放标记为广告时，Astra 会临时使用 8 倍速，并在正片开始后恢复原播放速度。",
-    "download.summary": "Build 29 已彻底断开旧 Phi 更新与回滚通道，采用持续递增的 Astra 构建标识，并在公证前强制校验 Astra 图标；同时关闭浏览器级 Google 账号关联与同步，Gmail、YouTube 等网页登录不受影响。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "features.mediaCompatibility.title": "不离开 Astra 的视频兼容",
+    "features.mediaCompatibility.body": "YouTube 保持 Chromium 的 VP9/AV1 播放路径；B 站、AcFun 以及主流大陆视频网站需要 H.264、AAC 或 HLS 时，则使用内嵌的系统媒体引擎。",
+    "download.summary": "Build 30 增加应用内媒体兼容路径，支持需要 H.264、AAC 和 HLS 的视频网站，同时保留 YouTube 的 Chromium 播放、扩展程序集成、WebRTC 防泄漏和静默音频指纹防护。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

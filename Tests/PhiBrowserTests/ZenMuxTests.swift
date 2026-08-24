@@ -778,6 +778,36 @@ final class ZenMuxTests: XCTestCase {
         ))
     }
 
+    @MainActor
+    func testSystemMediaEngineHandlesMainlandVideoDomains() {
+        let urls = [
+            "https://www.bilibili.com/video/BV1example",
+            "https://www.iqiyi.com/v_example.html",
+            "https://v.qq.com/x/cover/example.html",
+            "https://v.youku.com/v_show/id_example.html",
+            "https://www.mgtv.com/b/example.html",
+            "https://www.douyin.com/video/example",
+            "https://www.ixigua.com/example",
+            "https://www.acfun.cn/v/ac-example",
+            "https://tv.cctv.com/example",
+            "https://www.yangshipin.cn/video",
+            "https://www.aiyifan.tv/play/example",
+            "https://www.aiyifan.club/play/example",
+            "https://www.aiyifan.com.cn/play/example",
+            "https://www.iyf.tv/play/example",
+            "https://www.yfsp.tv/play/example",
+        ]
+
+        for rawURL in urls {
+            XCTAssertTrue(
+                SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(
+                    for: URL(string: rawURL)!
+                ),
+                rawURL
+            )
+        }
+    }
+
     func testSafariCompatibleUserAgentLooksLikeASupportedBrowser() {
         XCTAssertTrue(SupportedBrowserUserAgent.safariCompatibleUserAgent.contains("Version/"))
         XCTAssertTrue(SupportedBrowserUserAgent.safariCompatibleUserAgent.contains("Safari/"))
