@@ -21,8 +21,8 @@
     "features.localMemory.title": "本地第二大脑",
     "features.localMemory.body": "Astra 将手动笔记和完整的用户/AI 对话保存到账号独立的 SQLite 向量索引，并镜像成可迁移的 Markdown 文件，在本机检索相关上下文。过期会话只有在摘要成功写回后才删除原记录。",
     "features.browserOwnership.title": "完整的默认浏览器设置",
-    "features.browserOwnership.body": "账号设置会显示 Astra 是否同时接管 HTTP 与 HTTPS，并可请求将两种网页链接完整设为由 Astra 打开，同时避免重复的系统确认。",
-    "download.summary": "Build 32 将失效的浏览器记忆地址升级为本地向量记忆第二大脑，并完善 HTTP 与 HTTPS 默认浏览器设置，同时保留 Build 31 的隐私、扩展、AI、WebRTC 防泄漏及视频兼容改进。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "features.browserOwnership.body": "通用设置会显示 Astra 是否同时接管 HTTP 与 HTTPS，并可请求将两种网页链接完整设为由 Astra 打开，同时避免重复的系统确认。",
+    "download.summary": "Build 33 修复本地 AI 记忆首次打开时的访问问题，并将完整的 HTTP 与 HTTPS 默认浏览器设置移入通用设置，同时保留 Build 32 的本地第二大脑、隐私、扩展、AI、WebRTC 防泄漏及视频兼容改进。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

@@ -8,14 +8,15 @@ import AppKit
 import Foundation
 
 /// Serves Astra's account-scoped local memory UI and its same-origin API.
-/// The scheme is display-isolated and the page CSP blocks all remote content.
+/// The page CSP blocks all remote content while CORS remains enabled so the
+/// page can call its own Fetch API endpoints through Chromium.
 struct AstraMemorySchemeHandler: CefSchemeHandler {
     static let schemeName = "astra"
     static let domain = "memory"
     static let pageURL = URLProcessor.browserMemoryURL
     static let customScheme = CefCustomScheme(
         name: schemeName,
-        options: [.standard, .secure, .local, .displayIsolated, .fetchEnabled]
+        options: [.standard, .secure, .corsEnabled, .fetchEnabled]
     )
 
     private struct CreateRequest: Decodable {

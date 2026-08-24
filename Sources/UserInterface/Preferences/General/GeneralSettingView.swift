@@ -35,6 +35,99 @@ enum NewTabBehaviour: String, CaseIterable, Identifiable {
     }
 }
 
+@MainActor
+final class DefaultBrowserViewModel: ObservableObject {
+    static let webSchemes = ["http", "https"]
+
+    @Published private(set) var isDefaultBrowser = false
+    @Published private(set) var statusText = NSLocalizedString(
+        "settings.general.defaultBrowser.initialNotDefaultStatus",
+        value: "Astra Browser is not your default browser",
+        comment: "General settings - Initial status text before the current default-browser state is refreshed"
+    )
+    @Published private(set) var isLoading = true
+
+    func checkDefaultBrowser() {
+        isLoading = true
+        isDefaultBrowser = isAstraBrowserDefault()
+        updateStatusText()
+        isLoading = false
+    }
+
+    func setAsDefault() async {
+        await setAstraBrowserAsDefault()
+        checkDefaultBrowser()
+    }
+
+    static func isDefaultBrowser(
+        applicationBundleIdentifier: String,
+        handlerBundleIdentifiers: [String?]
+    ) -> Bool {
+        handlerBundleIdentifiers.count == webSchemes.count &&
+            handlerBundleIdentifiers.allSatisfy { $0 == applicationBundleIdentifier }
+    }
+
+    private func isAstraBrowserDefault() -> Bool {
+        guard let bundleIdentifier = Bundle.main.bundleIdentifier else {
+            return false
+        }
+        return Self.isDefaultBrowser(
+            applicationBundleIdentifier: bundleIdentifier,
+            handlerBundleIdentifiers: Self.webSchemes.map(defaultBundleIdentifier(for:))
+        )
+    }
+
+    private func setAstraBrowserAsDefault() async {
+        guard let bundleIdentifier = Bundle.main.bundleIdentifier else {
+            return
+        }
+
+        for scheme in Self.webSchemes {
+            // macOS commonly links both web schemes after the first approved
+            // request. Re-check each scheme to repair partial registration
+            // without showing a redundant system confirmation.
+            guard defaultBundleIdentifier(for: scheme) != bundleIdentifier else {
+                continue
+            }
+            do {
+                try await NSWorkspace.shared.setDefaultApplication(
+                    at: Bundle.main.bundleURL,
+                    toOpenURLsWithScheme: scheme
+                )
+            } catch {
+                AppLogError("Failed to set the default \(scheme) handler: \(error.localizedDescription)")
+                return
+            }
+        }
+    }
+
+    private func defaultBundleIdentifier(for scheme: String) -> String? {
+        guard let url = URL(string: "\(scheme)://example.com"),
+              let applicationURL = LSCopyDefaultApplicationURLForURL(
+                url as CFURL,
+                .all,
+                nil
+              )?.takeRetainedValue() else {
+            return nil
+        }
+        return Bundle(url: applicationURL as URL)?.bundleIdentifier
+    }
+
+    private func updateStatusText() {
+        statusText = isDefaultBrowser
+            ? NSLocalizedString(
+                "settings.general.defaultBrowser.defaultStatus",
+                value: "Astra Browser is your default browser",
+                comment: "General settings - Status text when Astra Browser is the default browser"
+            )
+            : NSLocalizedString(
+                "settings.general.defaultBrowser.notDefaultStatus",
+                value: "Astra Browser is not your default browser",
+                comment: "General settings - Status text when Astra Browser is not the default browser"
+            )
+    }
+}
+
 struct GeneralSettingView: View {
     @ObservedObject private var settingsPresentation = SettingsPresentationState.shared
 
@@ -47,6 +140,7 @@ struct GeneralSettingView: View {
                 }
                 AppearanceSectionView()
                 BrowsingSectionView()
+                DefaultBrowserSettingsSectionView()
                 ProfileSectionView()
                 DeveloperModeSectionView()
             }
@@ -670,6 +764,57 @@ private struct BrowsingSectionView: View {
             .activeWindowController?
             .browserState
             .createTab("chrome://settings")
+    }
+}
+
+private struct DefaultBrowserSettingsSectionView: View {
+    @StateObject private var viewModel = DefaultBrowserViewModel()
+
+    var body: some View {
+        GeneralSectionView(
+            title: NSLocalizedString(
+                "settings.general.defaultBrowser.sectionTitle",
+                value: "Default browser",
+                comment: "General settings - Default browser section title"
+            )
+        ) {
+            GeneralContainerView {
+                HStack(alignment: .center, spacing: 12) {
+                    Text(viewModel.statusText)
+                        .font(.system(size: 13))
+                        .themedForeground(.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Spacer(minLength: 12)
+
+                    if viewModel.isLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Button(
+                            NSLocalizedString(
+                                "settings.general.defaultBrowser.setDefaultButton",
+                                value: "Set as default",
+                                comment: "General settings - Button to set Astra Browser as default browser"
+                            )
+                        ) {
+                            Task {
+                                await viewModel.setAsDefault()
+                            }
+                        }
+                        .disabled(viewModel.isDefaultBrowser)
+                    }
+                }
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .onAppear {
+            viewModel.checkDefaultBrowser()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            viewModel.checkDefaultBrowser()
+        }
     }
 }
 

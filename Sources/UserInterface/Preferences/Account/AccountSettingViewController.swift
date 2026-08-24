@@ -46,11 +46,9 @@ class AccountSettingViewController: NSViewController, SettingsPane {
     private let profileCardView = ProfileCardView()
 
     // Right side - Settings sections
-    private let defaultBrowserView: DefaultBrowserSectionView
     private let accountView: AccountCardView
     private let shareView: ShareSectionView
 
-    private let defaultBrowserViewModel = DefaultBrowserViewModel()
     private let accountViewModel = AccountViewModel()
     private let shareViewModel = ShareViewModel()
     
@@ -75,14 +73,12 @@ class AccountSettingViewController: NSViewController, SettingsPane {
     }
 
     init() {
-        self.defaultBrowserView = DefaultBrowserSectionView(viewModel: defaultBrowserViewModel)
         self.accountView = AccountCardView(viewModel: accountViewModel)
         self.shareView = ShareSectionView(viewModel: shareViewModel)
         super.init(nibName: nil, bundle: nil)
     }
 
     required init?(coder: NSCoder) {
-        self.defaultBrowserView = DefaultBrowserSectionView(viewModel: defaultBrowserViewModel)
         self.accountView = AccountCardView(viewModel: accountViewModel)
         self.shareView = ShareSectionView(viewModel: shareViewModel)
         super.init(coder: coder)
@@ -120,8 +116,6 @@ class AccountSettingViewController: NSViewController, SettingsPane {
         AppLogDebug("👁️ [AccountSettings] viewWillAppear called")
 
         updateAccessPresentation()
-        defaultBrowserViewModel.checkDefaultBrowser()
-
         guard ApplicationState.shared.isAuthenticated else {
             AppLogDebug("👁️ [AccountSettings] Account is not authenticated, skipping account data load")
             return
@@ -145,11 +139,6 @@ class AccountSettingViewController: NSViewController, SettingsPane {
 
     private func setupUI() {
         #if PHI_OSS_BUILD
-        view.addSubview(defaultBrowserView)
-        defaultBrowserView.snp.makeConstraints { make in
-            make.top.equalToSuperview().offset(36)
-            make.left.right.equalToSuperview().inset(36)
-        }
         #else
         // Profile card on the left
         view.addSubview(profileCardView)
@@ -184,17 +173,10 @@ class AccountSettingViewController: NSViewController, SettingsPane {
             make.height.equalTo(92)
         }
 
-        // Default browser section
-        rightContainer.addSubview(defaultBrowserView)
-        defaultBrowserView.snp.makeConstraints { make in
-            make.top.equalTo(accountView.snp.bottom).offset(20)
-            make.left.right.equalToSuperview()
-        }
-
         // Share section
         rightContainer.addSubview(shareView)
         shareView.snp.makeConstraints { make in
-            make.top.equalTo(defaultBrowserView.snp.bottom).offset(20)
+            make.top.equalTo(accountView.snp.bottom).offset(20)
             make.left.right.equalToSuperview()
             make.height.equalTo(74)
             make.bottom.equalToSuperview()
@@ -366,94 +348,6 @@ class AccountSettingViewController: NSViewController, SettingsPane {
 
 
 // MARK: - ViewModels
-
-class DefaultBrowserViewModel: ObservableObject {
-    static let webSchemes = ["http", "https"]
-
-    @Published var isDefaultBrowser: Bool = false
-    @Published var statusText: String = NSLocalizedString("settings.account.defaultBrowser.initialNotDefaultStatus", value: "Astra Browser is not your default browser", comment: "Account settings - Initial status text before the current default-browser state is refreshed")
-    @Published var isLoading: Bool = true
-
-    init() {
-        // Wait for viewWillAppear so the status reflects external changes made
-        // while the settings window was closed.
-    }
-
-    func checkDefaultBrowser() {
-        isLoading = true
-        isDefaultBrowser = isPhiBrowserDefault()
-        updateStatusText()
-        isLoading = false
-    }
-
-    private func isPhiBrowserDefault() -> Bool {
-        guard let bundleIdentifier = Bundle.main.bundleIdentifier else {
-            return false
-        }
-        let handlers = Self.webSchemes.map(defaultBundleIdentifier(for:))
-        return Self.isDefaultBrowser(
-            applicationBundleIdentifier: bundleIdentifier,
-            handlerBundleIdentifiers: handlers
-        )
-    }
-
-    @MainActor
-    func setAsDefault() async {
-        await doSetAsDefaultBrowser()
-        checkDefaultBrowser()
-    }
-
-    private func doSetAsDefaultBrowser() async {
-        guard let bundleIdentifier = Bundle.main.bundleIdentifier else {
-            return
-        }
-
-        let appURL = Bundle.main.bundleURL
-        let workspace = NSWorkspace.shared
-        for scheme in Self.webSchemes {
-            // macOS commonly links both web schemes after the first approved
-            // request. Re-check before each call so the user is not shown a
-            // redundant system confirmation while still repairing a partial
-            // HTTP/HTTPS registration when necessary.
-            guard defaultBundleIdentifier(for: scheme) != bundleIdentifier else {
-                continue
-            }
-            do {
-                try await workspace.setDefaultApplication(
-                    at: appURL,
-                    toOpenURLsWithScheme: scheme
-                )
-            } catch {
-                AppLogError("Failed to set the default \(scheme) handler: \(error.localizedDescription)")
-                return
-            }
-        }
-    }
-
-    static func isDefaultBrowser(
-        applicationBundleIdentifier: String,
-        handlerBundleIdentifiers: [String?]
-    ) -> Bool {
-        handlerBundleIdentifiers.count == webSchemes.count &&
-            handlerBundleIdentifiers.allSatisfy { $0 == applicationBundleIdentifier }
-    }
-
-    private func defaultBundleIdentifier(for scheme: String) -> String? {
-        guard let url = URL(string: "\(scheme)://example.com"),
-              let applicationURL = LSCopyDefaultApplicationURLForURL(
-                url as CFURL,
-                .all,
-                nil
-              )?.takeRetainedValue() else {
-            return nil
-        }
-        return Bundle(url: applicationURL as URL)?.bundleIdentifier
-    }
-
-    private func updateStatusText() {
-        statusText = isDefaultBrowser ? NSLocalizedString("settings.account.defaultBrowser.defaultStatus", value: "Astra Browser is your default browser", comment: "Account settings - Status text when Astra Browser is the default browser") : NSLocalizedString("settings.account.defaultBrowser.notDefaultStatus", value: "Astra Browser is not your default browser", comment: "Account settings - Status text when Astra Browser is not the default browser")
-    }
-}
 
 class AccountViewModel: ObservableObject {
     private static let logoutTimeoutSeconds = 90
@@ -864,283 +758,6 @@ class ProfileCardView: NSView {
     
     @objc private func downloadProfileImage() {
         profileCardViewController.snapshotAndExport()
-    }
-}
-
-// MARK: - Default Browser Section View
-
-private final class VerticallyCenteredTextFieldCell: NSTextFieldCell {
-    override func drawingRect(forBounds rect: NSRect) -> NSRect {
-        var drawingRect = super.drawingRect(forBounds: rect)
-        let contentHeight = min(
-            ceil(cellSize(forBounds: rect).height),
-            drawingRect.height
-        )
-        drawingRect.origin.y += (drawingRect.height - contentHeight) / 2
-        drawingRect.size.height = contentHeight
-        return drawingRect
-    }
-}
-
-private final class WrappingButtonCell: NSButtonCell {
-    func singleLineTitleRect(forBounds rect: NSRect) -> NSRect {
-        super.titleRect(forBounds: rect)
-    }
-
-    func wrappedTitle(_ title: NSAttributedString) -> NSAttributedString {
-        let result = NSMutableAttributedString(attributedString: title)
-        guard result.length > 0 else {
-            return result
-        }
-
-        let existingStyle = result.attribute(
-            .paragraphStyle,
-            at: 0,
-            effectiveRange: nil
-        ) as? NSParagraphStyle
-        let paragraphStyle = existingStyle?.mutableCopy() as? NSMutableParagraphStyle
-            ?? NSMutableParagraphStyle()
-        paragraphStyle.alignment = alignment
-        paragraphStyle.lineBreakMode = .byWordWrapping
-        result.addAttribute(
-            .paragraphStyle,
-            value: paragraphStyle,
-            range: NSRange(location: 0, length: result.length)
-        )
-        return result
-    }
-
-    override func titleRect(forBounds rect: NSRect) -> NSRect {
-        let singleLineRect = singleLineTitleRect(forBounds: rect)
-        guard attributedTitle.length > 0, singleLineRect.width > 0 else {
-            return singleLineRect
-        }
-
-        let measuredRect = wrappedTitle(attributedTitle).boundingRect(
-            with: NSSize(width: singleLineRect.width, height: .greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading]
-        )
-        let height = min(ceil(measuredRect.height), max(0, rect.height - 8))
-        return NSRect(
-            x: singleLineRect.minX,
-            y: rect.midY - height / 2,
-            width: singleLineRect.width,
-            height: height
-        )
-    }
-
-    override func drawTitle(
-        _ title: NSAttributedString,
-        withFrame frame: NSRect,
-        in controlView: NSView
-    ) -> NSRect {
-        wrappedTitle(title).draw(
-            with: frame,
-            options: [.usesLineFragmentOrigin, .usesFontLeading]
-        )
-        return frame
-    }
-}
-
-class DefaultBrowserSectionView: SettingItemBackgroundView {
-    private enum Layout {
-        static let horizontalPadding: CGFloat = 12
-        static let verticalPadding: CGFloat = 8
-        static let spacing: CGFloat = 8
-        static let buttonMaxWidth: CGFloat = 145
-        static let fallbackWidth: CGFloat = 352
-        static let minimumControlHeight: CGFloat = 24
-    }
-
-    private let statusLabel = NSTextField(labelWithString: "")
-    private let setDefaultButton = NSButton()
-    private let loadingIndicator = NSProgressIndicator()
-
-    private let viewModel: DefaultBrowserViewModel
-    private var cancellables = Set<AnyCancellable>()
-    private var lastLayoutWidth: CGFloat = 0
-
-    init(viewModel: DefaultBrowserViewModel) {
-        self.viewModel = viewModel
-        super.init(frame: .zero)
-        setupUI()
-        bindViewModel()
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override var intrinsicContentSize: NSSize {
-        let availableWidth = bounds.width > 0 ? bounds.width : Layout.fallbackWidth
-        let buttonWidth = min(setDefaultButton.intrinsicContentSize.width, Layout.buttonMaxWidth)
-        let statusWidth = max(
-            1,
-            availableWidth
-                - Layout.horizontalPadding * 2
-                - Layout.spacing
-                - buttonWidth
-        )
-        let statusHeight = statusLabel.attributedStringValue.boundingRect(
-            with: NSSize(width: statusWidth, height: .greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading]
-        ).height
-        let buttonHeight = wrappedButtonHeight(for: buttonWidth)
-        let controlHeight = max(
-            Layout.minimumControlHeight,
-            ceil(statusHeight),
-            buttonHeight
-        )
-        return NSSize(
-            width: NSView.noIntrinsicMetric,
-            height: controlHeight + Layout.verticalPadding * 2
-        )
-    }
-
-    override func layout() {
-        let width = bounds.width
-        if abs(width - lastLayoutWidth) > 0.5 {
-            lastLayoutWidth = width
-            invalidateIntrinsicContentSize()
-        }
-        super.layout()
-    }
-
-    private func setupUI() {
-        statusLabel.cell = VerticallyCenteredTextFieldCell(textCell: "")
-        statusLabel.isEditable = false
-        statusLabel.isSelectable = false
-        statusLabel.isBezeled = false
-        statusLabel.drawsBackground = false
-        statusLabel.font = .systemFont(ofSize: 13)
-        statusLabel.textColor = .labelColor
-        statusLabel.lineBreakMode = .byWordWrapping
-        statusLabel.maximumNumberOfLines = 0
-        statusLabel.cell?.usesSingleLineMode = false
-        statusLabel.cell?.wraps = true
-        statusLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        addSubview(statusLabel)
-
-        // Loading indicator
-        loadingIndicator.style = .spinning
-        loadingIndicator.controlSize = .small
-        loadingIndicator.isDisplayedWhenStopped = false
-        addSubview(loadingIndicator)
-        
-        loadingIndicator.snp.makeConstraints { make in
-            make.right.equalToSuperview().offset(-12)
-            make.centerY.equalToSuperview()
-            make.width.height.equalTo(16)
-        }
-
-        let title = NSLocalizedString("settings.account.defaultBrowser.setDefaultButton", value: "Set as default", comment: "Account settings - Button to set Astra Browser as default browser")
-        setDefaultButton.cell = WrappingButtonCell(textCell: title)
-        setDefaultButton.title = title
-        setDefaultButton.toolTip = title
-        setDefaultButton.bezelStyle = .regularSquare
-        setDefaultButton.cell?.usesSingleLineMode = false
-        setDefaultButton.cell?.wraps = true
-        setDefaultButton.cell?.lineBreakMode = .byWordWrapping
-        setDefaultButton.image = NSImage(systemSymbolName: "heart.fill", accessibilityDescription: nil)
-        setDefaultButton.imagePosition = .imageLeading
-        setDefaultButton.setContentHuggingPriority(.required, for: .horizontal)
-        setDefaultButton.target = self
-        setDefaultButton.action = #selector(setDefaultTapped)
-        addSubview(setDefaultButton)
-
-        let buttonWidth = min(
-            setDefaultButton.intrinsicContentSize.width,
-            Layout.buttonMaxWidth
-        )
-        setDefaultButton.snp.makeConstraints { make in
-            make.right.equalToSuperview().offset(-Layout.horizontalPadding)
-            make.centerY.equalToSuperview()
-            make.top.greaterThanOrEqualToSuperview().inset(Layout.verticalPadding)
-            make.bottom.lessThanOrEqualToSuperview().inset(Layout.verticalPadding)
-            make.width.lessThanOrEqualTo(Layout.buttonMaxWidth)
-            make.height.equalTo(wrappedButtonHeight(for: buttonWidth))
-        }
-        
-        statusLabel.snp.makeConstraints { make in
-            make.left.equalToSuperview().offset(Layout.horizontalPadding)
-            make.top.bottom.equalToSuperview().inset(Layout.verticalPadding)
-            make.trailing.equalTo(setDefaultButton.snp.leading).offset(-Layout.spacing)
-        }
-        
-        // Initial state: show loading
-        updateLoadingState(isLoading: true)
-    }
-
-    private func bindViewModel() {
-        viewModel.$statusText
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] text in
-                self?.statusLabel.stringValue = text
-                self?.statusLabel.toolTip = text
-                self?.invalidateIntrinsicContentSize()
-            }
-            .store(in: &cancellables)
-
-        viewModel.$isDefaultBrowser
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] isDefault in
-                self?.setDefaultButton.isEnabled = !isDefault
-            }
-            .store(in: &cancellables)
-        
-        viewModel.$isLoading
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] isLoading in
-                self?.updateLoadingState(isLoading: isLoading)
-            }
-            .store(in: &cancellables)
-    }
-    
-    private func updateLoadingState(isLoading: Bool) {
-        if isLoading {
-            loadingIndicator.startAnimation(nil)
-            loadingIndicator.isHidden = false
-            setDefaultButton.isHidden = true
-            statusLabel.stringValue = ""
-        } else {
-            loadingIndicator.stopAnimation(nil)
-            loadingIndicator.isHidden = true
-            setDefaultButton.isHidden = false
-        }
-        invalidateIntrinsicContentSize()
-    }
-
-    private func wrappedButtonHeight(for width: CGFloat) -> CGFloat {
-        guard let cell = setDefaultButton.cell as? WrappingButtonCell else {
-            return setDefaultButton.intrinsicContentSize.height
-        }
-
-        let measurementBounds = NSRect(
-            x: 0,
-            y: 0,
-            width: width,
-            height: Layout.minimumControlHeight
-        )
-        let titleWidth = cell.singleLineTitleRect(forBounds: measurementBounds).width
-        guard titleWidth > 0 else {
-            return setDefaultButton.intrinsicContentSize.height
-        }
-
-        let titleHeight = cell.wrappedTitle(setDefaultButton.attributedTitle).boundingRect(
-            with: NSSize(width: titleWidth, height: .greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading]
-        ).height
-        return max(
-            setDefaultButton.intrinsicContentSize.height,
-            ceil(titleHeight) + 8
-        )
-    }
-
-    @MainActor
-    @objc private func setDefaultTapped() {
-        Task {
-           await viewModel.setAsDefault()
-        }
     }
 }
 

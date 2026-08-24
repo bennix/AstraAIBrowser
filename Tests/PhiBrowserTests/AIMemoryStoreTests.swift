@@ -3,6 +3,7 @@
 // Use of this source code is governed by an Apache license that can be
 // found in the LICENSE file.
 
+import CefKit
 import Foundation
 import XCTest
 @testable import Phi
@@ -25,6 +26,17 @@ final class AIMemoryStoreTests: XCTestCase {
             try? FileManager.default.removeItem(at: storageDirectory)
         }
         storageDirectory = nil
+    }
+
+    func testMemorySchemeSupportsSameOriginFetch() {
+        let options = AstraMemorySchemeHandler.customScheme.options
+
+        XCTAssertTrue(options.contains(.standard))
+        XCTAssertTrue(options.contains(.secure))
+        XCTAssertTrue(options.contains(.corsEnabled))
+        XCTAssertTrue(options.contains(.fetchEnabled))
+        XCTAssertFalse(options.contains(.local))
+        XCTAssertFalse(options.contains(.displayIsolated))
     }
 
     func testPersistsAndRetrievesRelevantVectors() async throws {

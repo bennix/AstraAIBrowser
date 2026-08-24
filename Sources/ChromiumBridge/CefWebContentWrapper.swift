@@ -1460,6 +1460,43 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         let arguments = CommandLine.arguments
         guard arguments.contains("--cef-smoke-test"), !didStartSmokeCheck else { return }
 
+        if arguments.contains("--cef-memory-api-smoke") {
+            guard !isLoading, browser != nil else { return }
+            didStartSmokeCheck = true
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let operation = """
+                try {
+                  const response = await fetch('/api/memories');
+                  const payload = await response.json();
+                  return JSON.stringify({
+                    ok: response.ok,
+                    status: response.status,
+                    isArray: Array.isArray(payload)
+                  });
+                } catch (error) {
+                  return JSON.stringify({
+                    ok: false,
+                    message: String(error && error.message ? error.message : error)
+                  });
+                }
+                """
+                let result = await evaluateJavaScriptResult(
+                    operation: operation,
+                    timeout: 8
+                ) ?? "unavailable"
+                let succeeded = result.contains("\"ok\":true")
+                    && result.contains("\"status\":200")
+                    && result.contains("\"isArray\":true")
+                let status = succeeded ? "passed" : "failed"
+                FileHandle.standardOutput.write(
+                    Data("[cef-smoke] memory API \(status): \(result)\n".utf8)
+                )
+                NSApp.terminate(nil)
+            }
+            return
+        }
+
         if arguments.contains("--cef-visual-automation-smoke") {
             guard !isLoading, browser != nil else { return }
             didStartSmokeCheck = true

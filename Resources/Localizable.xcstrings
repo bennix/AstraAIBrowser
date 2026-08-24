@@ -41147,8 +41147,8 @@
         }
       }
     },
-    "settings.account.defaultBrowser.defaultStatus" : {
-      "comment" : "Account settings - Status text when Astra Browser is the default browser",
+    "settings.general.defaultBrowser.defaultStatus" : {
+      "comment" : "General settings - Status text when Astra Browser is the default browser",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -41207,8 +41207,8 @@
         }
       }
     },
-    "settings.account.defaultBrowser.initialNotDefaultStatus" : {
-      "comment" : "Account settings - Initial status text before the current default-browser state is refreshed",
+    "settings.general.defaultBrowser.initialNotDefaultStatus" : {
+      "comment" : "General settings - Initial status text before the current default-browser state is refreshed",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -41267,8 +41267,8 @@
         }
       }
     },
-    "settings.account.defaultBrowser.notDefaultStatus" : {
-      "comment" : "Account settings - Status text when Astra Browser is not the default browser",
+    "settings.general.defaultBrowser.notDefaultStatus" : {
+      "comment" : "General settings - Status text when Astra Browser is not the default browser",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -41327,8 +41327,8 @@
         }
       }
     },
-    "settings.account.defaultBrowser.setDefaultButton" : {
-      "comment" : "Account settings - Button to set Astra Browser as default browser",
+    "settings.general.defaultBrowser.setDefaultButton" : {
+      "comment" : "General settings - Button to set Astra Browser as default browser",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "de" : {
@@ -41383,6 +41383,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設為預設瀏覽器"
+          }
+        }
+      }
+    },
+    "settings.general.defaultBrowser.sectionTitle" : {
+      "comment" : "General settings - Default browser section title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Default browser"
           }
         }
       }
