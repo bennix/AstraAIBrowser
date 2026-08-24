@@ -14,6 +14,36 @@ final class ZenMuxTests: XCTestCase {
     func testZenMuxBuildDoesNotRequireLegacyAuthentication() {
         XCTAssertFalse(PhiBuildCapabilities.supportsAuthentication)
         XCTAssertTrue(PhiBuildCapabilities.supportsAI)
+        XCTAssertFalse(PhiBuildCapabilities.supportsSoftwareUpdates)
+        XCTAssertFalse(PhiBuildCapabilities.supportsLegacyRollback)
+    }
+
+    func testBrowserAccountPrivacyDoesNotAssociateGoogleAccountsWithAstra() throws {
+        var configuration = CefConfiguration.default
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let defaultProfileURL = rootURL.appendingPathComponent("Default", isDirectory: true)
+        let preferencesURL = defaultProfileURL.appendingPathComponent("Preferences", isDirectory: false)
+        try FileManager.default.createDirectory(at: defaultProfileURL, withIntermediateDirectories: true)
+        try Data("{\"existing\":{\"value\":7}}".utf8).write(to: preferencesURL)
+
+        CefBrowserAccountPrivacyPolicy.apply(to: &configuration)
+        try CefBrowserAccountPrivacyPolicy.prepareProfile(at: rootURL)
+
+        XCTAssertTrue(
+            configuration.extraCommandLineSwitches.keys.contains(
+                CefBrowserAccountPrivacyPolicy.disableSyncSwitch
+            )
+        )
+        let data = try? Data(contentsOf: preferencesURL)
+        let preferences = data.flatMap {
+            try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
+        }
+        let signin = preferences?["signin"] as? [String: Any]
+        XCTAssertEqual(signin?["allowed"] as? Bool, false)
+        let existing = preferences?["existing"] as? [String: Any]
+        XCTAssertEqual(existing?["value"] as? Int, 7)
     }
 
     func testSupportedModelsMatchProviderConfiguration() {

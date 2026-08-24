@@ -3,6 +3,7 @@
 set -euo pipefail
 
 script_name="${0:t}"
+project_root="${0:A:h:h}"
 
 usage() {
   >&2 echo "Usage: $script_name --app '/path/to/Astra Browser.app' [--output /path/to/Astra-Browser.dmg] [--profile keychain-profile] [--apple-id email --team-id id] [--identity 'Developer ID Application: ...']"
@@ -114,6 +115,14 @@ fi
   >&2 echo "The output path must end in .dmg."
   exit 64
 }
+
+release_build="$(basename "$output_path" | sed -nE 's/^Astra-Browser-build([0-9]+)\.dmg$/\1/p')"
+verification_arguments=(--app "$app_path")
+if [[ -n "$release_build" ]]; then
+  verification_arguments+=(--release-build "$release_build")
+fi
+"$project_root/scripts/verify_astra_release.sh" "${verification_arguments[@]}"
+
 if [[ -e "$output_path" ]]; then
   >&2 echo "Refusing to overwrite existing output: $output_path"
   exit 73

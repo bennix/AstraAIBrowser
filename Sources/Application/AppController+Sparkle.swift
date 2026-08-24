@@ -16,12 +16,14 @@ extension AppController: SPUUpdaterDelegate {
     static var debugSparkle = false
     
     @MainActor @objc func checkForUpdate(_ sender: Any?) {
+        guard PhiBuildCapabilities.supportsSoftwareUpdates else { return }
         guard let updater, updater.canCheckForUpdates else { return }
         updater.checkForUpdates()
     }
     
     @MainActor
     func setupSparkle() {
+        guard PhiBuildCapabilities.supportsSoftwareUpdates else { return }
         let userDriver = PhiSparkleUserDriver()
         let updater = SPUUpdater(
             hostBundle: Bundle.main,

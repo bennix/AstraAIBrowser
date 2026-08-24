@@ -468,15 +468,17 @@ extension AppController {
                 #if !PHI_OSS_BUILD
                 subMenu.items.removeAll { $0.tag == AppController.checkForUpdateItemTag }
 
-                for (index, item) in subMenu.items.enumerated() {
-                    if item.tag == CommandWrapper.IDC_OPTIONS.rawValue {
-                        let checkForUpdateItem = NSMenuItem(title: NSLocalizedString("app.phiMenu.checkForUpdatesMenuItem", value: "Check for Update...", comment: "Astra Browser menu - Menu item to check for app updates"),
-                                                           action: #selector(checkForUpdate(_:)),
-                                                           keyEquivalent: "")
-                        checkForUpdateItem.tag = AppController.checkForUpdateItemTag
-                        checkForUpdateItem.target = self
-                        subMenu.insertItem(checkForUpdateItem, at: index + 1)
-                        break
+                if PhiBuildCapabilities.supportsSoftwareUpdates {
+                    for (index, item) in subMenu.items.enumerated() {
+                        if item.tag == CommandWrapper.IDC_OPTIONS.rawValue {
+                            let checkForUpdateItem = NSMenuItem(title: NSLocalizedString("app.phiMenu.checkForUpdatesMenuItem", value: "Check for Update...", comment: "Astra Browser menu - Menu item to check for app updates"),
+                                                               action: #selector(checkForUpdate(_:)),
+                                                               keyEquivalent: "")
+                            checkForUpdateItem.tag = AppController.checkForUpdateItemTag
+                            checkForUpdateItem.target = self
+                            subMenu.insertItem(checkForUpdateItem, at: index + 1)
+                            break
+                        }
                     }
                 }
                 #endif
@@ -613,7 +615,9 @@ extension AppController {
                 userDataSeparator.tag = AppController.manageUserDataHelpSeparatorTag
                 subMenu.addItem(userDataSeparator)
 
-                subMenu.addItem(makeTimeMachineBackupsMenuItem())
+                if PhiBuildCapabilities.supportsLegacyRollback {
+                    subMenu.addItem(makeTimeMachineBackupsMenuItem())
+                }
 
                 let manageUserDataTitle = NSLocalizedString("app.helpMenu.manageUserData", value: "Manage User Data", comment: "Help menu - Parent menu item for exporting and importing Astra Browser user data backup")
                 let manageUserDataItem = NSMenuItem(title: manageUserDataTitle, action: nil, keyEquivalent: "")
@@ -1298,6 +1302,7 @@ extension AppController {
     }
 
     @objc func restoreTimeMachineBackup(_ sender: Any?) {
+        guard PhiBuildCapabilities.supportsLegacyRollback else { return }
         guard let menuItem = sender as? NSMenuItem,
               let backupIDString = menuItem.representedObject as? String,
               let backupID = UUID(uuidString: backupIDString) else {

@@ -16,7 +16,7 @@
     "features.pageControl.body": "助手可检查当前标签页并执行经确认的浏览器操作，同时 Chromium 浏览体验始终内嵌在 Astra 中。",
     "features.youtube.title": "减少等待 YouTube 广告",
     "features.youtube.body": "YouTube 将当前播放标记为广告时，Astra 会临时使用 8 倍速，并在正片开始后恢复原播放速度。",
-    "download.summary": "Build 28 修复 Grok 登录后因媒体兼容切换而丢失会话的问题，并保留 X OAuth 弹窗与原始页面的关联；现有 WebRTC 与静默音频指纹防护继续启用。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 29 已彻底断开旧 Phi 更新与回滚通道，采用持续递增的 Astra 构建标识，并在公证前强制校验 Astra 图标；同时关闭浏览器级 Google 账号关联与同步，Gmail、YouTube 等网页登录不受影响。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

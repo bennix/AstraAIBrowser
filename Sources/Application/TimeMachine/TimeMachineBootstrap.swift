@@ -8,10 +8,12 @@ import Foundation
 @objc(TimeMachineBootstrap)
 final class TimeMachineBootstrap: NSObject {
     @objc static func recoverPendingRestoreIfNeeded() -> Bool {
-        TimeMachineStartupRecoveryGate().recoverPendingRestoreIfNeeded()
+        guard PhiBuildCapabilities.supportsLegacyRollback else { return false }
+        return TimeMachineStartupRecoveryGate().recoverPendingRestoreIfNeeded()
     }
 
     @objc static func prepareBackupIfNeeded() {
+        guard PhiBuildCapabilities.supportsLegacyRollback else { return }
         guard let currentBuild = Int(SystemUtils.buildNumber) else {
             AppLogError("[TimeMachine] Skipping backup because build number is not an integer: \(SystemUtils.buildNumber)")
             return

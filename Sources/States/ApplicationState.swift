@@ -9,9 +9,13 @@ enum PhiBuildCapabilities {
     #if PHI_OSS_BUILD || ASTRA_ZENMUX_BUILD
     static let supportsAuthentication = false
     static let supportsAI = true
+    static let supportsSoftwareUpdates = false
+    static let supportsLegacyRollback = false
     #else
     static let supportsAuthentication = true
     static let supportsAI = true
+    static let supportsSoftwareUpdates = true
+    static let supportsLegacyRollback = true
     #endif
 }
 

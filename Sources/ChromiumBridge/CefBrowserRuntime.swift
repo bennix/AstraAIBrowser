@@ -79,6 +79,46 @@ enum CefWebRTCPrivacyPolicy {
     }
 }
 
+enum CefBrowserAccountPrivacyPolicy {
+    static let disableSyncSwitch = "disable-sync"
+
+    static func apply(to configuration: inout CefConfiguration) {
+        configuration.extraCommandLineSwitches.updateValue(nil, forKey: disableSyncSwitch)
+    }
+
+    static func prepareProfile(
+        at rootURL: URL,
+        fileManager: FileManager = .default
+    ) throws {
+        // Chromium browser sign-in is separate from website authentication.
+        // Seed the request-context preference before CEF reads the profile so
+        // Gmail and YouTube cookies remain usable without attaching the Google
+        // account to Astra or activating browser sync.
+        let defaultProfileURL = rootURL.appendingPathComponent("Default", isDirectory: true)
+        let preferencesURL = defaultProfileURL.appendingPathComponent("Preferences", isDirectory: false)
+        try fileManager.createDirectory(
+            at: defaultProfileURL,
+            withIntermediateDirectories: true
+        )
+
+        var preferences: [String: Any] = [:]
+        if fileManager.fileExists(atPath: preferencesURL.path) {
+            let data = try Data(contentsOf: preferencesURL)
+            guard let decoded = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            preferences = decoded
+        }
+
+        var signin = preferences["signin"] as? [String: Any] ?? [:]
+        signin["allowed"] = false
+        preferences["signin"] = signin
+
+        let data = try JSONSerialization.data(withJSONObject: preferences)
+        try data.write(to: preferencesURL, options: .atomic)
+    }
+}
+
 enum AudioFingerprintPrivacyPolicy {
     static let javaScript = """
     (() => {
@@ -776,6 +816,8 @@ private final class CefBrowserWindow: NSWindow {
             configuration.defaultRuntimeStyle = .chrome
             configuration.userAgentProduct = SupportedBrowserUserAgent.chromiumProduct
             configuration.documentStartJavaScript = AudioFingerprintPrivacyPolicy.javaScript
+            CefBrowserAccountPrivacyPolicy.apply(to: &configuration)
+            try CefBrowserAccountPrivacyPolicy.prepareProfile(at: root)
             // Gmail rejects unbranded Chromium Client Hints. Prefer the UA
             // string, which reports a current Chrome product token. Preserve
             // CEF's compatibility exclusions when adding this feature.

@@ -42,6 +42,11 @@ CI log.
 Archive the `PhiBrowser-release` scheme in Xcode and export the app with
 Developer ID distribution. Before packaging, verify the export:
 
+Use the Astra build epoch for `CFBundleVersion`: public Build N must use
+`10000 + N` (for example, Build 29 uses `10029`). The epoch keeps every Astra
+release newer than the legacy Phi 1.6.0 build 616 that used the same bundle
+identifier. Astra releases must not contain Phi's Sparkle feed metadata.
+
 Bundle the CEF runtime and sign the app with the dedicated Developer ID
 entitlements. Do not reuse the development-team entitlements because their
 restricted App Group and Keychain groups are not valid for this certificate.
@@ -58,6 +63,9 @@ scripts/bundle_cef_runtime.sh \
 Then verify the signed app:
 
 ```sh
+scripts/verify_astra_release.sh \
+  --app "/path/to/Astra Browser.app" \
+  --release-build 29
 codesign --verify --deep --strict --verbose=2 "/path/to/Astra Browser.app"
 spctl --assess --type execute --verbose=2 "/path/to/Astra Browser.app"
 ```
@@ -74,10 +82,15 @@ scripts/notarize_dmg.sh \
 The helper never overwrites an existing DMG. It automatically selects the
 first available `Developer ID Application` identity, or accepts an explicit
 identity through `--identity` or `DEVELOPER_ID_APPLICATION`.
+When the output follows `Astra-Browser-buildN.dmg`, the helper also verifies
+the matching Astra build epoch, app icon, and absence of Phi updater metadata
+before creating the image.
 
 Successful completion means all of these checks passed:
 
 - the app has a valid Developer ID signature;
+- the bundle uses `AstraIcon` and contains no legacy Phi app icon;
+- the release contains neither Phi's OTA channel nor its legacy rollback policy;
 - the signed app launched and rendered a local CEF smoke-test page;
 - the DMG has a timestamped Developer ID signature;
 - Apple accepted the notary submission;

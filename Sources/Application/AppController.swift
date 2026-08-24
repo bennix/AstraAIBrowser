@@ -121,7 +121,9 @@ import PostHog
         //        ASWebAuthenticationSessionWebBrowserSessionManager.shared.sessionHandler = self
         
         #if !PHI_OSS_BUILD
-        setupSparkle()
+        if PhiBuildCapabilities.supportsSoftwareUpdates {
+            setupSparkle()
+        }
         #endif
         setupKinfisherCache()
         
