@@ -225,7 +225,13 @@ enum AudioFingerprintPrivacyPolicy {
       if (typeof AudioNode === "function") {
         const nativeConnect = AudioNode.prototype.connect;
         const deferredConnections = [];
+        const deferredConnectionKeys = new WeakMap();
         const upstreamSources = new WeakMap();
+        const maximumDeferredConnections = 256;
+        const activationBatchSize = 16;
+        let deferredConnectionIndex = 0;
+        let activationTaskScheduled = false;
+        let audioOutputActivated = false;
         const hasUserActivation = () => globalThis.navigator?.userActivation?.hasBeenActive === true;
         const rememberConnection = (source, destination) => {
           if (!(destination instanceof AudioNode)) {
@@ -260,10 +266,24 @@ enum AudioFingerprintPrivacyPolicy {
         };
         const shouldDeferOutput = (source, destination) => {
           const context = source?.context;
-          if (!context || destination !== context.destination || hasUserActivation()) {
+          if (!context || destination !== context.destination || audioOutputActivated || hasUserActivation()) {
             return false;
           }
           return true;
+        };
+        const connectionKey = (args) => args.map((value) => `${typeof value}:${String(value)}`).join("|");
+        const deferConnection = (source, destination, args) => {
+          const key = connectionKey(args);
+          let keys = deferredConnectionKeys.get(source);
+          if (!keys) {
+            keys = new Set();
+            deferredConnectionKeys.set(source, keys);
+          }
+          if (keys.has(key) || deferredConnections.length >= maximumDeferredConnections) {
+            return;
+          }
+          keys.add(key);
+          deferredConnections.push({ source, destination, args, key });
         };
 
         Object.defineProperty(AudioNode.prototype, "connect", {
@@ -274,7 +294,7 @@ enum AudioFingerprintPrivacyPolicy {
               return destination;
             }
             if (shouldDeferOutput(this, destination)) {
-              deferredConnections.push({ source: this, destination, args });
+              deferConnection(this, destination, args);
               return destination;
             }
             return nativeConnect.call(this, destination, ...args);
@@ -284,12 +304,23 @@ enum AudioFingerprintPrivacyPolicy {
           writable: true
         });
 
-        const activateAudioOutput = (event) => {
-          if (!event || event.isTrusted !== true) {
+        const scheduleActivationTask = (callback) => {
+          if (typeof globalThis.setTimeout === "function") {
+            globalThis.setTimeout(callback, 0);
             return;
           }
-          while (deferredConnections.length > 0) {
-            const connection = deferredConnections.shift();
+          Promise.resolve().then(callback);
+        };
+        const drainDeferredConnections = () => {
+          activationTaskScheduled = false;
+          const batchEnd = Math.min(
+            deferredConnectionIndex + activationBatchSize,
+            deferredConnections.length
+          );
+          while (deferredConnectionIndex < batchEnd) {
+            const connection = deferredConnections[deferredConnectionIndex];
+            deferredConnectionIndex += 1;
+            deferredConnectionKeys.get(connection.source)?.delete(connection.key);
             if (hasSilentGainUpstream(connection.source)) {
               continue;
             }
@@ -303,6 +334,29 @@ enum AudioFingerprintPrivacyPolicy {
               // Ignore graphs that the page discarded before activation.
             }
           }
+          if (deferredConnectionIndex < deferredConnections.length) {
+            scheduleDeferredConnections();
+            return;
+          }
+          deferredConnections.length = 0;
+          deferredConnectionIndex = 0;
+        };
+        const scheduleDeferredConnections = () => {
+          if (activationTaskScheduled || deferredConnectionIndex >= deferredConnections.length) {
+            return;
+          }
+          activationTaskScheduled = true;
+          scheduleActivationTask(drainDeferredConnections);
+        };
+        const activateAudioOutput = (event) => {
+          if (!event || event.isTrusted !== true || audioOutputActivated) {
+            return;
+          }
+          audioOutputActivated = true;
+          for (const eventName of ["pointerdown", "keydown", "touchstart"]) {
+            globalThis.removeEventListener?.(eventName, activateAudioOutput, true);
+          }
+          scheduleDeferredConnections();
         };
         for (const eventName of ["pointerdown", "keydown", "touchstart"]) {
           globalThis.addEventListener?.(eventName, activateAudioOutput, {

@@ -42,7 +42,8 @@ The policy:
 - tracks the WebAudio processing graph and prevents a chain with an upstream
   zero-valued `GainNode` from connecting to `AudioContext.destination`;
 - defers other pre-activation WebAudio output until a trusted pointer, keyboard,
-  or touch event; and
+  or touch event, coalesces repeated connections, applies a strict queue bound,
+  and restores legitimate output in small asynchronous batches; and
 - leaves `HTMLAudioElement`, `HTMLVideoElement`, WebRTC permission handling,
   and browser automation APIs unchanged.
 
@@ -74,9 +75,10 @@ policy's ownership.
 
 The release test suite covers Canvas and WebGL perturbation, GPU masking,
 protected-font concealment, hardware normalization, Audio readback
-perturbation, trusted activation, zero-gain processing chains, WebRTC policy,
-YouTube playback policy, and the document-start script transport. A real CEF
-smoke page verifies the policy in Chromium rather than only in JavaScriptCore.
+perturbation, trusted activation, zero-gain processing chains, repeated and
+oversized WebAudio connection queues, WebRTC policy, YouTube playback policy,
+and the document-start script transport. A real CEF smoke page verifies the
+policy in Chromium rather than only in JavaScriptCore.
 
 ## References
 

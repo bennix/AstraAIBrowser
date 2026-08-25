@@ -105,12 +105,58 @@ final class AudioFingerprintPrivacyPolicyTests: XCTestCase {
         XCTAssertNil(exception?.toString())
     }
 
+    func testPolicyCoalescesRepeatedDeferredConnections() throws {
+        let context = try XCTUnwrap(JSContext())
+        var exception: JSValue?
+        context.exceptionHandler = { _, value in exception = value }
+        context.evaluateScript(Self.webAudioTestEnvironment)
+        context.evaluateScript(AudioFingerprintPrivacyPolicy.javaScript)
+
+        XCTAssertEqual(
+            context.evaluateScript("testRepeatedDeferredConnections(50000)")?.toInt32(),
+            0
+        )
+        XCTAssertEqual(context.evaluateScript("testTrustedActivation()")?.toInt32(), 0)
+        XCTAssertEqual(context.evaluateScript("testRunScheduledTasks()")?.toInt32(), 1)
+        XCTAssertEqual(context.evaluateScript("testListenerCount()")?.toInt32(), 0)
+        XCTAssertNil(exception?.toString())
+    }
+
+    func testPolicyBoundsAndBatchesUniqueDeferredConnections() throws {
+        let context = try XCTUnwrap(JSContext())
+        var exception: JSValue?
+        context.exceptionHandler = { _, value in exception = value }
+        context.evaluateScript(Self.webAudioTestEnvironment)
+        context.evaluateScript(AudioFingerprintPrivacyPolicy.javaScript)
+
+        XCTAssertEqual(
+            context.evaluateScript("testUniqueDeferredConnections(1000)")?.toInt32(),
+            0
+        )
+        XCTAssertEqual(context.evaluateScript("testTrustedActivation()")?.toInt32(), 0)
+        XCTAssertEqual(context.evaluateScript("testRunScheduledTasks()")?.toInt32(), 256)
+        XCTAssertGreaterThan(
+            context.evaluateScript("scheduledTaskCount")?.toInt32() ?? 0,
+            1
+        )
+        XCTAssertNil(exception?.toString())
+    }
+
     private static let webAudioTestEnvironment = """
     globalThis.window = globalThis;
     globalThis.location = { protocol: 'https:' };
     globalThis.navigator = { userActivation: { hasBeenActive: false } };
     globalThis.testListeners = {};
     globalThis.addEventListener = (name, callback) => { testListeners[name] = callback; };
+    globalThis.removeEventListener = (name, callback) => {
+      if (testListeners[name] === callback) delete testListeners[name];
+    };
+    globalThis.scheduledTasks = [];
+    globalThis.scheduledTaskCount = 0;
+    globalThis.setTimeout = (callback) => {
+      scheduledTasks.push(callback);
+      scheduledTaskCount += 1;
+    };
     globalThis.document = { addEventListener: globalThis.addEventListener };
     globalThis.crypto = { getRandomValues(values) { values[0] = 123456789; return values; } };
     globalThis.nativeConnectCount = 0;
@@ -151,7 +197,29 @@ final class AudioFingerprintPrivacyPolicyTests: XCTestCase {
       return nativeConnectCount;
     };
     globalThis.testTrustedActivation = () => {
-      testListeners.pointerdown({ isTrusted: true });
+      testListeners.pointerdown?.({ isTrusted: true });
+      return nativeConnectCount;
+    };
+    globalThis.testRunScheduledTasks = () => {
+      while (scheduledTasks.length > 0) scheduledTasks.shift()();
+      return nativeConnectCount;
+    };
+    globalThis.testListenerCount = () => Object.keys(testListeners).length;
+    globalThis.testRepeatedDeferredConnections = (count) => {
+      nativeConnectCount = 0;
+      navigator.userActivation.hasBeenActive = false;
+      const context = new AudioContext();
+      const gain = new GainNode(context, 1);
+      for (let index = 0; index < count; index += 1) gain.connect(context.destination);
+      return nativeConnectCount;
+    };
+    globalThis.testUniqueDeferredConnections = (count) => {
+      nativeConnectCount = 0;
+      navigator.userActivation.hasBeenActive = false;
+      const context = new AudioContext();
+      for (let index = 0; index < count; index += 1) {
+        new GainNode(context, 1).connect(context.destination);
+      }
       return nativeConnectCount;
     };
     globalThis.testSilentProcessingChain = () => {

@@ -7,7 +7,7 @@
     "features.privacy.title": "默认保护 WebRTC 隐私",
     "features.privacy.body": "阻止不经过代理的 WebRTC 直连；网站请求摄像头或麦克风时，必须由用户明确决定是否仅允许本次访问。",
     "features.fingerprintPrivacy.title": "跨维度浏览器指纹防护",
-    "features.fingerprintPrivacy.body": "Astra 对 Canvas、WebGL 和 WebAudio 读取结果进行扰动，隐藏精确 GPU 信息，阻止直接 API 与字宽探针枚举受保护的本地及中文字体，并统一硬件与浏览器语言信号，同时保持标准媒体播放可用。",
+    "features.fingerprintPrivacy.body": "Astra 对 Canvas、WebGL 和 WebAudio 读取结果进行扰动，隐藏精确 GPU 信息，阻止枚举受保护的本地及中文字体，并统一硬件与浏览器语言信号。Build 44 对合法 WebAudio 输出进行去重、限量和异步恢复，避免隐私防护卡住页面的第一次交互。",
     "features.visualContext.title": "视觉 AI 上下文",
     "features.visualContext.body": "可在提问区截取用户当前看到的网页渲染结果，包括标准视频在截图瞬间的画面，并可通过缩略图确认或删除。",
     "features.richAnswers.title": "丰富的技术内容渲染",
@@ -24,7 +24,7 @@
     "features.browserOwnership.body": "通用设置可让 Astra 完整接管 HTTP 与 HTTPS。其他 Mac 应用打开的链接会进入 Astra 内嵌的 Chromium 标签页，网站检测到的浏览器语言也会与 Astra 界面语言保持一致。",
     "features.history.title": "完整保留浏览历史",
     "features.history.body": "Astra 将浏览历史保存在持久化 Chromium 配置中，可从原生“历史记录”菜单和“通用”设置查看或清除，也可按 Command-Y 打开完整记录。",
-    "download.summary": "Build 43 将原生“历史记录”菜单和“通用”设置直接连接到当前持久化 Chromium 配置，可按 Command-Y 查看已保存的访问记录，也能从两个入口清除浏览数据；同时保留 Build 42 的本地 AI 记忆和 Markdown 导出改进。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 44 修复 WebAudio 指纹防护在页面第一次可信交互时阻塞渲染进程的问题。合法的延迟音频输出会去重、限制数量并分批异步恢复，静音指纹图仍保持断开。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {
