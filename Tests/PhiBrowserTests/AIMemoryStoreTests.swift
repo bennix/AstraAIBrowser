@@ -39,6 +39,53 @@ final class AIMemoryStoreTests: XCTestCase {
         XCTAssertFalse(options.contains(.displayIsolated))
     }
 
+    func testMemoryPageIncludesRichRenderingAndMarkdownExportControls() async throws {
+        let handler = AstraMemorySchemeHandler(
+            store: AIMemoryStore(),
+            storageDirectoryProvider: { [storageDirectory] in storageDirectory! }
+        )
+        let response = await handler.response(for: CefSchemeRequest(
+            url: URL(string: URLProcessor.browserMemoryURL),
+            urlString: URLProcessor.browserMemoryURL,
+            method: "GET",
+            headers: [:],
+            body: nil
+        ))
+        let html = try XCTUnwrap(String(data: response.body, encoding: .utf8))
+
+        XCTAssertEqual(response.status, 200)
+        XCTAssertTrue(html.contains("function renderMarkdown(source)"))
+        XCTAssertTrue(html.contains("className = 'table-scroll'"))
+        XCTAssertTrue(html.contains("id=\"export\""))
+        XCTAssertTrue(html.contains("/api/formula"))
+    }
+
+    @MainActor
+    func testMemoryFormulaEndpointRendersLocalPNG() async throws {
+        let handler = AstraMemorySchemeHandler(
+            store: AIMemoryStore(),
+            storageDirectoryProvider: { [storageDirectory] in storageDirectory! }
+        )
+        var components = URLComponents(string: "astra://memory/api/formula")!
+        components.queryItems = [
+            URLQueryItem(name: "latex", value: #"\frac{x^2}{2}"#),
+            URLQueryItem(name: "display", value: "true"),
+            URLQueryItem(name: "appearance", value: "light"),
+        ]
+        let url = try XCTUnwrap(components.url)
+        let response = await handler.response(for: CefSchemeRequest(
+            url: url,
+            urlString: url.absoluteString,
+            method: "GET",
+            headers: [:],
+            body: nil
+        ))
+
+        XCTAssertEqual(response.status, 200)
+        XCTAssertEqual(response.mimeType, "image/png")
+        XCTAssertTrue(response.body.starts(with: [0x89, 0x50, 0x4E, 0x47]))
+    }
+
     func testPersistsAndRetrievesRelevantVectors() async throws {
         let store = AIMemoryStore()
         let concise = try await store.add(
@@ -118,6 +165,43 @@ final class AIMemoryStoreTests: XCTestCase {
             XCTFail("Expected oversized text to be rejected")
         } catch AIMemoryStoreError.textTooLong {
         }
+    }
+
+    func testExportsOneOrSeveralMemoriesAsMarkdownFiles() async throws {
+        let store = AIMemoryStore()
+        let first = try await store.add(
+            "# First\n\n| Item | Value |\n| --- | --- |\n| Formula | $x^2$ |",
+            storageDirectory: storageDirectory
+        )
+        let second = try await store.add(
+            "# Second\n\n$$\\frac{1}{2}$$",
+            storageDirectory: storageDirectory
+        )
+
+        let singleURL = storageDirectory.appendingPathComponent("Selected memory.md")
+        let singleFiles = try await store.export(
+            ids: [first.id],
+            to: singleURL,
+            storageDirectory: storageDirectory
+        )
+        XCTAssertEqual(singleFiles, [singleURL])
+        XCTAssertEqual(try String(contentsOf: singleURL, encoding: .utf8), first.text)
+
+        let exportDirectory = storageDirectory.appendingPathComponent(
+            "Memory export",
+            isDirectory: true
+        )
+        let multipleFiles = try await store.export(
+            ids: [second.id, first.id],
+            to: exportDirectory,
+            storageDirectory: storageDirectory
+        )
+        XCTAssertEqual(multipleFiles.count, 2)
+        XCTAssertEqual(
+            Set(try multipleFiles.map { try String(contentsOf: $0, encoding: .utf8) }),
+            Set([first.text, second.text])
+        )
+        XCTAssertTrue(multipleFiles.allSatisfy { $0.pathExtension == "md" })
     }
 
     func testExpiredConversationRequiresSummaryBeforeDeletion() async throws {

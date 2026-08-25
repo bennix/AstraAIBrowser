@@ -11754,6 +11754,18 @@
         }
       }
     },
+    "app.historyMenu.showFullHistory" : {
+      "comment" : "History menu - Opens the complete Chromium browsing history page",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show Full History"
+          }
+        }
+      }
+    },
     "app.logExport.failure.dismissButton" : {
       "comment" : "Log export - Failure alert dismiss button",
       "extractionState" : "extracted_with_value",
@@ -12290,6 +12302,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "書籤"
+          }
+        }
+      }
+    },
+    "app.mainMenu.history" : {
+      "comment" : "Main menu - Top-level History menu title in the application menu bar",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "History"
           }
         }
       }
@@ -35588,6 +35612,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "彈出顯示"
+          }
+        }
+      }
+    },
+    "memory.export.multiplePanel.message" : {
+      "comment" : "Local AI Memory - Explanation in the folder picker used for multiple memory export",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Choose a folder for the selected Markdown files."
+          }
+        }
+      }
+    },
+    "memory.export.multiplePanel.title" : {
+      "comment" : "Local AI Memory - Folder picker title for exporting several memories as Markdown files",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Export Memories"
+          }
+        }
+      }
+    },
+    "memory.export.panel.exportButton" : {
+      "comment" : "Local AI Memory - Primary button in the single or multiple memory export panel",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Export"
+          }
+        }
+      }
+    },
+    "memory.export.singlePanel.title" : {
+      "comment" : "Local AI Memory - Save panel title for exporting one memory as a Markdown file",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Export Memory"
           }
         }
       }

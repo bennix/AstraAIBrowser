@@ -28,6 +28,7 @@ struct AIMemoryMatch: Equatable, Sendable {
 enum AIMemoryStoreError: LocalizedError {
     case emptyText
     case textTooLong
+    case memoryNotFound
     case database(String)
 
     var errorDescription: String? {
@@ -36,6 +37,8 @@ enum AIMemoryStoreError: LocalizedError {
             return "Memory text cannot be empty."
         case .textTooLong:
             return "A memory can contain at most 4,000 characters."
+        case .memoryNotFound:
+            return "The selected memory could not be found."
         case .database(let message):
             return "The local memory database could not be updated: \(message)"
         }
@@ -87,6 +90,48 @@ actor AIMemoryStore {
                 records.append(record)
             }
             return records
+        }
+    }
+
+    func records(
+        ids: [UUID],
+        storageDirectory: URL
+    ) throws -> [AIMemoryRecord] {
+        guard !ids.isEmpty else { return [] }
+        let requestedIDs = Set(ids)
+        let recordsByID = Dictionary(
+            uniqueKeysWithValues: try list(storageDirectory: storageDirectory)
+                .filter { requestedIDs.contains($0.id) }
+                .map { ($0.id, $0) }
+        )
+        return ids.compactMap { recordsByID[$0] }
+    }
+
+    func export(
+        ids: [UUID],
+        to destinationURL: URL,
+        storageDirectory: URL
+    ) throws -> [URL] {
+        let records = try records(ids: ids, storageDirectory: storageDirectory)
+        guard !records.isEmpty else { throw AIMemoryStoreError.memoryNotFound }
+
+        if records.count == 1, let record = records.first {
+            try writeExport(record, to: destinationURL)
+            return [destinationURL]
+        }
+
+        try fileManager.createDirectory(
+            at: destinationURL,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
+        return try records.map { record in
+            let exportURL = destinationURL.appendingPathComponent(
+                "memory-\(record.id.uuidString).md",
+                isDirectory: false
+            )
+            try writeExport(record, to: exportURL)
+            return exportURL
         }
     }
 
@@ -455,6 +500,14 @@ actor AIMemoryStore {
     ) throws {
         _ = try prepareVault(storageDirectory: storageDirectory)
         let url = markdownURL(for: record, storageDirectory: storageDirectory)
+        try Data(record.text.utf8).write(to: url, options: .atomic)
+        try? fileManager.setAttributes(
+            [.posixPermissions: 0o600],
+            ofItemAtPath: url.path
+        )
+    }
+
+    private func writeExport(_ record: AIMemoryRecord, to url: URL) throws {
         try Data(record.text.utf8).write(to: url, options: .atomic)
         try? fileManager.setAttributes(
             [.posixPermissions: 0o600],

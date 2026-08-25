@@ -268,6 +268,7 @@ extension AppController {
     static let improveTranslationsItemTag = 500028
     static let bookmarksMenuItemTag = 500010
     static let bookmarksMenuIdentifier = NSUserInterfaceItemIdentifier("phi.bookmarks.menu")
+    static let historyMenuIdentifier = NSUserInterfaceItemIdentifier("astra.history.menu")
     static let spacesNewProfileItemTag = 500015
     static let spacesDeleteProfileParentItemTag = 500016
     static let viewMenuPhiSectionSeparatorTag = 500023
@@ -319,6 +320,7 @@ extension AppController {
         }
 
         ensureNativeMainMenuBaselineIfNeeded(in: mainMenu)
+        installHistoryMenuIfNeeded(in: mainMenu)
 
         var hasBookmarksMenu = false
         for menuItem in mainMenu.items {
@@ -965,6 +967,44 @@ extension AppController {
             mainMenu.insertItem(menuItem, at: windowIndex)
         } else {
             mainMenu.addItem(menuItem)
+        }
+    }
+
+    /// CefSwift's Chrome runtime persists browsing history in the active
+    /// Chromium profile but does not always install the native macOS History
+    /// menu. Expose the existing Chromium history surface without creating a
+    /// second history store.
+    private func installHistoryMenuIfNeeded(in mainMenu: NSMenu) {
+        guard ChromiumMainMenuRole.history.item(in: mainMenu) == nil else { return }
+
+        let title = NSLocalizedString(
+            "app.mainMenu.history",
+            value: "History",
+            comment: "Main menu - Top-level History menu title in the application menu bar"
+        )
+        let menu = NSMenu(title: title)
+        menu.identifier = AppController.historyMenuIdentifier
+        addChromiumCommand(
+            to: menu,
+            title: NSLocalizedString(
+                "app.historyMenu.showFullHistory",
+                value: "Show Full History",
+                comment: "History menu - Opens the complete Chromium browsing history page"
+            ),
+            tag: CommandWrapper.IDC_SHOW_HISTORY.rawValue,
+            keyEquivalent: "y"
+        )
+
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.tag = ChromiumMainMenuRole.history.rawValue
+        item.submenu = menu
+
+        if let viewIndex = ChromiumMainMenuRole.view.index(in: mainMenu) {
+            mainMenu.insertItem(item, at: viewIndex + 1)
+        } else if let windowIndex = ChromiumMainMenuRole.window.index(in: mainMenu) {
+            mainMenu.insertItem(item, at: windowIndex)
+        } else {
+            mainMenu.addItem(item)
         }
     }
 
