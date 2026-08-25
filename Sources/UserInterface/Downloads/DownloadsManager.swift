@@ -1149,6 +1149,7 @@ class DownloadsManager: ObservableObject {
     }
 
     private var cefProgressSamples: [String: (date: Date, receivedBytes: Int64)] = [:]
+    @MainActor private var isChoosingMediaCandidate = false
     private lazy var mediaDownloadCoordinator = MainActor.assumeIsolated {
         MediaDownloadCoordinator(manager: self)
     }
@@ -1173,6 +1174,9 @@ class DownloadsManager: ObservableObject {
             let candidates = await provider?.mediaDownloadCandidates(for: pageURL) ?? []
             let selectedCandidate: MediaDownloadCandidate?
             if candidates.count > 1 {
+                guard !self.isChoosingMediaCandidate else { return }
+                self.isChoosingMediaCandidate = true
+                defer { self.isChoosingMediaCandidate = false }
                 guard let selection = await self.chooseMediaCandidate(from: candidates) else { return }
                 selectedCandidate = selection
             } else {
@@ -1224,6 +1228,7 @@ class DownloadsManager: ObservableObject {
         }
     }
 
+    @MainActor
     private func chooseMediaCandidate(
         from candidates: [MediaDownloadCandidate]
     ) async -> MediaDownloadCandidate? {
