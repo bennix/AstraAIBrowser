@@ -432,9 +432,9 @@ enum MediaDownloadFormatPolicy {
             let selector: String
             if let maximumHeight = quality.maximumHeight {
                 if ffmpegDirectory != nil {
-                    selector = "bv*[height<=\(maximumHeight)]+ba/b[height<=\(maximumHeight)]"
+                    selector = "bv*[height<=?\(maximumHeight)]+ba/b[height<=?\(maximumHeight)]"
                 } else {
-                    selector = "b[ext=mp4][height<=\(maximumHeight)]/b[height<=\(maximumHeight)]"
+                    selector = "b[ext=mp4][height<=?\(maximumHeight)]/b[height<=?\(maximumHeight)]"
                 }
             } else {
                 selector = ffmpegDirectory == nil ? "b[ext=mp4]/b" : "bv*+ba/b"

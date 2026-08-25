@@ -89,24 +89,24 @@ final class YouTubeAdPlaybackPolicyTests: XCTestCase {
         )
     }
 
-    func testMediaDownloadFormatPolicyLimitsMergedVideoHeight() {
+    func testMediaDownloadFormatPolicyLimitsKnownMergedVideoHeightAndAllowsUnknownHeight() {
         let arguments = MediaDownloadFormatPolicy.arguments(
             kind: .video,
             quality: .p1080,
             ffmpegDirectory: URL(fileURLWithPath: "/tmp/ffmpeg")
         )
 
-        XCTAssertTrue(arguments.contains("bv*[height<=1080]+ba/b[height<=1080]"))
+        XCTAssertTrue(arguments.contains("bv*[height<=?1080]+ba/b[height<=?1080]"))
     }
 
-    func testMediaDownloadFormatPolicyLimitsSingleFileVideoHeight() {
+    func testMediaDownloadFormatPolicyLimitsKnownSingleFileHeightAndAllowsUnknownHeight() {
         XCTAssertEqual(
             MediaDownloadFormatPolicy.arguments(
                 kind: .video,
                 quality: .p720,
                 ffmpegDirectory: nil
             ),
-            ["--format", "b[ext=mp4][height<=720]/b[height<=720]"]
+            ["--format", "b[ext=mp4][height<=?720]/b[height<=?720]"]
         )
     }
 
