@@ -18,12 +18,24 @@ protocol BrowserAutomationProviding: AnyObject {
     func performBrowserAutomation(_ action: BrowserAutomationAction) async -> BrowserAutomationResult
 }
 
+struct MediaDownloadCandidate: Codable, Hashable, Sendable {
+    enum Kind: String, Codable, Sendable {
+        case video
+        case audio
+    }
+
+    let url: URL
+    let title: String
+    let kind: Kind
+    let durationSeconds: Double?
+}
+
 protocol MediaSessionCookieProviding: AnyObject {
     @MainActor
     func mediaSessionCookies(for url: URL) async -> [HTTPCookie]
 
     @MainActor
-    func mediaDownloadCandidates(for pageURL: URL) async -> [URL]
+    func mediaDownloadCandidates(for pageURL: URL) async -> [MediaDownloadCandidate]
 }
 
 enum BrowserAutomationInteractionPolicy {
@@ -2151,18 +2163,28 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         return await browser?.cookies(for: url) ?? []
     }
 
-    func mediaDownloadCandidates(for pageURL: URL) async -> [URL] {
+    func mediaDownloadCandidates(for pageURL: URL) async -> [MediaDownloadCandidate] {
         let operation = #"""
         const candidates = [];
         const seen = new Set();
-        const add = (value) => {
-          if (!value || typeof value !== 'string') return;
+        const add = (value, title, kind, durationSeconds) => {
+          if (!value || typeof value !== 'string') return false;
           try {
             const url = new URL(value, location.href);
-            if (!['http:', 'https:'].includes(url.protocol) || seen.has(url.href)) return;
+            if (!['http:', 'https:'].includes(url.protocol) || seen.has(url.href)) return false;
             seen.add(url.href);
-            candidates.push(url.href);
-          } catch (_) {}
+            candidates.push({
+              url: url.href,
+              title: typeof title === 'string' ? title : '',
+              kind: kind === 'audio' ? 'audio' : 'video',
+              durationSeconds: Number.isFinite(durationSeconds) && durationSeconds > 0
+                ? durationSeconds
+                : null
+            });
+            return true;
+          } catch (_) {
+            return false;
+          }
         };
         const visible = (element) => {
           const rect = element.getBoundingClientRect();
@@ -2179,38 +2201,54 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             const secondRect = second.getBoundingClientRect();
             return secondRect.width * secondRect.height - firstRect.width * firstRect.height;
           });
-        for (const media of mediaElements) {
-          add(media.currentSrc);
-          add(media.src);
-          for (const source of media.querySelectorAll('source[src]')) add(source.src);
+        for (let index = 0; index < mediaElements.length; index += 1) {
+          const media = mediaElements[index];
           const container = media.closest('article, [role="article"], [data-testid="tweet"]') ||
             media.parentElement;
+          const pageLinks = [];
           for (const anchor of container ? container.querySelectorAll('a[href]') : []) {
             const href = anchor.href || '';
-            if (/\/status\/\d+|\/watch\?v=|\/video\/|\/bangumi\/play\/|\/v\/ac\d+/i.test(href)) {
-              add(href);
+            if (/\/status\/\d+|\/watch\?v=|\/shorts\/|\/video\/|\/bangumi\/play\/|\/v\/ac\d+/i.test(href)) {
+              pageLinks.push(href);
             }
+          }
+          const directSources = [media.currentSrc, media.src]
+            .concat(Array.from(media.querySelectorAll('source[src]')).map((source) => source.src))
+            .filter((value) => typeof value === 'string' && /^https?:/i.test(value));
+          const rawTitle = media.getAttribute('aria-label') || media.getAttribute('title') ||
+            (container ? (container.innerText || container.textContent || '') : '');
+          const title = rawTitle.replace(/\s+/g, ' ').trim().slice(0, 140);
+          const kind = media instanceof HTMLAudioElement ? 'audio' : 'video';
+          const duration = Number(media.duration);
+          const pageURL = pageLinks[0];
+          const primaryURL = pageURL || directSources[0];
+          if (!add(primaryURL, title, kind, duration) && directSources[0]) {
+            add(directSources[0], title, kind, duration);
           }
         }
         const mediaResource = /\.(m3u8|mpd|mp4|m4v|mov|webm|mp3|m4a|aac|ogg|opus)(?:$|[?#])/i;
-        for (const entry of performance.getEntriesByType('resource').slice().reverse()) {
-          if (entry.initiatorType === 'video' || entry.initiatorType === 'audio' ||
-              mediaResource.test(entry.name)) {
-            add(entry.name);
+        if (candidates.length === 0) {
+          for (const entry of performance.getEntriesByType('resource').slice().reverse()) {
+            if (entry.initiatorType === 'video' || entry.initiatorType === 'audio' ||
+                mediaResource.test(entry.name)) {
+              const kind = /\.(mp3|m4a|aac|ogg|opus)(?:$|[?#])/i.test(entry.name)
+                ? 'audio'
+                : 'video';
+              add(entry.name, '', kind, null);
+            }
           }
         }
-        return JSON.stringify(candidates.slice(0, 16));
+        return JSON.stringify(candidates.slice(0, 12));
         """#
         guard let result = await evaluateJavaScriptResult(operation: operation, timeout: 5),
               let data = result.data(using: .utf8),
-              let values = try? JSONDecoder().decode([String].self, from: data) else { return [] }
+              let values = try? JSONDecoder().decode([MediaDownloadCandidate].self, from: data) else { return [] }
         var seen = Set<String>()
-        return values.compactMap { value in
-            guard let url = URL(string: value),
-                  ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
-                  url != pageURL,
-                  seen.insert(url.absoluteString).inserted else { return nil }
-            return url
+        return values.compactMap { candidate in
+            guard ["http", "https"].contains(candidate.url.scheme?.lowercased() ?? ""),
+                  candidate.url != pageURL,
+                  seen.insert(candidate.url.absoluteString).inserted else { return nil }
+            return candidate
         }
     }
 

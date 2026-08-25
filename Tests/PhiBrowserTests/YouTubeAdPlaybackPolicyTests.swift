@@ -121,6 +121,42 @@ final class YouTubeAdPlaybackPolicyTests: XCTestCase {
         )
     }
 
+    func testMediaDownloadProgressPolicyParsesLiveToolOutput() throws {
+        let progress = try XCTUnwrap(
+            MediaDownloadProgressPolicy.parse(
+                "__ASTRA_PROGRESS__:4193280:11829048:2403078.150274201"
+            )
+        )
+
+        XCTAssertEqual(progress.receivedBytes, 4_193_280)
+        XCTAssertEqual(progress.totalBytes, 11_829_048)
+        XCTAssertEqual(progress.speed, 2_403_078)
+    }
+
+    func testMediaDownloadProgressPolicyTreatsUnavailableSpeedAsZero() throws {
+        let progress = try XCTUnwrap(
+            MediaDownloadProgressPolicy.parse("__ASTRA_PROGRESS__:1024:11829048:NA")
+        )
+
+        XCTAssertEqual(progress.receivedBytes, 1_024)
+        XCTAssertEqual(progress.totalBytes, 11_829_048)
+        XCTAssertEqual(progress.speed, 0)
+    }
+
+    func testMediaDownloadCandidateDecodesPageDescriptor() throws {
+        let data = Data(
+            #"[{"url":"https://x.com/user/status/123","title":"Post with video","kind":"video","durationSeconds":42.5}]"#.utf8
+        )
+
+        let candidate = try XCTUnwrap(
+            JSONDecoder().decode([MediaDownloadCandidate].self, from: data).first
+        )
+        XCTAssertEqual(candidate.url.absoluteString, "https://x.com/user/status/123")
+        XCTAssertEqual(candidate.title, "Post with video")
+        XCTAssertEqual(candidate.kind, .video)
+        XCTAssertEqual(candidate.durationSeconds, 42.5)
+    }
+
     func testPlaybackRateDefaultsToEightTimes() {
         XCTAssertEqual(YouTubeAdPlaybackPolicy.adPlaybackRate, 8)
         XCTAssertTrue(

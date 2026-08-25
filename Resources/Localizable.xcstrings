@@ -31251,6 +31251,31 @@
       "extractionState" : "extracted_with_value",
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Save Video" } } }
     },
+    "downloads.media.selectionDialog.cancelButton" : {
+      "comment" : "Media download dialog - Button that cancels media selection",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Cancel" } } }
+    },
+    "downloads.media.selectionDialog.confirmButton" : {
+      "comment" : "Media download dialog - Button that confirms the selected media item",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Download" } } }
+    },
+    "downloads.media.selectionDialog.message" : {
+      "comment" : "Media download dialog - Explanation shown before choosing one of several detected media items",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "This page contains multiple media items. Choose which one to save." } } }
+    },
+    "downloads.media.selectionDialog.title" : {
+      "comment" : "Media download dialog - Title shown when the current page contains multiple media items",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Choose Media" } } }
+    },
+    "downloads.media.selectionDialog.untitledItem" : {
+      "comment" : "Media download dialog - Fallback label for an unnamed detected media item; placeholder is its one-based position",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Media %d" } } }
+    },
     "downloads.media.toolUnavailableError" : {
       "comment" : "Downloads list - Failure text when the private media helper is missing",
       "extractionState" : "extracted_with_value",

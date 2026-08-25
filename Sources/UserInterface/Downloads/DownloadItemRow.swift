@@ -207,39 +207,51 @@ struct DownloadItemRow: View {
     
     @ViewBuilder
     private var progressInfo: some View {
-        if isHovered {
-            HStack(spacing: 4) {
-                if !item.formattedProgress.isEmpty {
-                    Text(item.formattedProgress)
-                        .font(.system(size: 11))
-                        .foregroundColor(Color.phiPrimary.opacity(0.5))
+        VStack(alignment: .leading, spacing: 3) {
+            if isHovered {
+                HStack(spacing: 4) {
+                    if !item.formattedProgress.isEmpty {
+                        Text(item.formattedProgress)
+                            .font(.system(size: 11))
+                            .foregroundColor(Color.phiPrimary.opacity(0.5))
+                    }
+
+                    if !item.formattedSpeed.isEmpty && !item.isPaused {
+                        Text("・")
+                            .font(.system(size: 11))
+                            .foregroundColor(Color.phiPrimary.opacity(0.5))
+
+                        Text(item.formattedSpeed)
+                            .font(.system(size: 11))
+                            .foregroundColor(Color.phiPrimary.opacity(0.5))
+                    }
+
+                    if item.isPaused {
+                        Text(NSLocalizedString("downloads.item.status.pausedIndicator", value: "・Paused", comment: "Download item row - Status indicator when download is paused"))
+                            .font(.system(size: 11))
+                            .foregroundColor(Color.orange.opacity(0.8))
+                    }
                 }
-                
-                if !item.formattedSpeed.isEmpty && !item.isPaused {
-                    Text("・")
-                        .font(.system(size: 11))
-                        .foregroundColor(Color.phiPrimary.opacity(0.5))
-                    
-                    Text(item.formattedSpeed)
-                        .font(.system(size: 11))
-                        .foregroundColor(Color.phiPrimary.opacity(0.5))
-                }
-                
-                if item.isPaused {
-                    Text(NSLocalizedString("downloads.item.status.pausedIndicator", value: "・Paused", comment: "Download item row - Status indicator when download is paused"))
-                        .font(.system(size: 11))
-                        .foregroundColor(Color.orange.opacity(0.8))
-                }
-            }
-        } else {
-            Spacer()
                 .frame(height: 11)
-            PhiProgressView(
-                progress: item.percentComplete >= 0 ? Double(item.percentComplete) / 100.0 : 0,
-                style: .linear,
-                progressColor: Color.phiPrimary
-            )
-            .frame(height: 3)
+            } else {
+                Spacer()
+                    .frame(height: 11)
+            }
+
+            if item.percentComplete >= 0 {
+                PhiProgressView(
+                    progress: Double(item.percentComplete) / 100.0,
+                    style: .linear,
+                    progressColor: Color.phiPrimary
+                )
+                .frame(height: 3)
+            } else {
+                ProgressView()
+                    .progressViewStyle(.linear)
+                    .controlSize(.mini)
+                    .tint(Color.phiPrimary)
+                    .frame(height: 3)
+            }
         }
     }
     

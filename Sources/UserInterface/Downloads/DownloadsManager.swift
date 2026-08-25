@@ -453,6 +453,23 @@ enum MediaDownloadFormatPolicy {
     }
 }
 
+enum MediaDownloadProgressPolicy {
+    static func parse(_ line: String) -> (
+        receivedBytes: Int64,
+        totalBytes: Int64,
+        speed: Int64
+    )? {
+        guard line.hasPrefix("__ASTRA_PROGRESS__:") else { return nil }
+        let values = line.dropFirst("__ASTRA_PROGRESS__:".count)
+            .split(separator: ":", omittingEmptySubsequences: false)
+        guard values.count >= 3 else { return nil }
+        func number(_ value: Substring) -> Int64 {
+            Int64(Double(value.trimmingCharacters(in: .whitespaces)) ?? 0)
+        }
+        return (number(values[0]), number(values[1]), number(values[2]))
+    }
+}
+
 enum MediaDownloadPolicy {
     enum Decision: Equatable {
         case allow
@@ -789,7 +806,7 @@ private final class MediaDownloadCoordinator {
                 lineHandler: { [weak self, weak item] line in
                     Task { @MainActor in
                         guard let self, let item else { return }
-                        if let progress = Self.parseProgress(line) {
+                        if let progress = MediaDownloadProgressPolicy.parse(line) {
                             item.updateMediaProgress(
                                 receivedBytes: progress.receivedBytes,
                                 totalBytes: progress.totalBytes,
@@ -928,21 +945,6 @@ private final class MediaDownloadCoordinator {
         return candidate
     }
 
-    private static func parseProgress(_ line: String) -> (
-        receivedBytes: Int64,
-        totalBytes: Int64,
-        speed: Int64
-    )? {
-        guard line.hasPrefix("__ASTRA_PROGRESS__:") else { return nil }
-        let values = line.dropFirst("__ASTRA_PROGRESS__:".count)
-            .split(separator: ":", omittingEmptySubsequences: false)
-        guard values.count >= 3 else { return nil }
-        func number(_ value: Substring) -> Int64 {
-            Int64(Double(value.trimmingCharacters(in: .whitespaces)) ?? 0)
-        }
-        return (number(values[0]), number(values[1]), number(values[2]))
-    }
-
     private static func finalFileURL(in output: Data) -> URL? {
         guard let text = String(data: output, encoding: .utf8) else { return nil }
         for line in text.split(whereSeparator: \.isNewline).reversed() {
@@ -1001,30 +1003,146 @@ class DownloadsManager: ObservableObject {
               ["http", "https"].contains(pageURL.scheme?.lowercased() ?? "") else { return }
 
         let title = tab.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let item = DownloadItem(
-            mediaID: UUID(),
-            fileName: title.isEmpty ? (pageURL.host ?? "Media") : title,
-            pageURL: pageURL,
-            mimeType: kind.mimeType
-        )
-        downloads.insert(item, at: 0)
-        updateTotalProgress()
-        downloadEventPublisher.send(DownloadEvent(eventType: .created, downloadItem: item))
-
-        Task { @MainActor [weak self, weak tab, weak item] in
-            guard let self, let tab, let item else { return }
+        Task { @MainActor [weak self, weak tab] in
+            guard let self, let tab else { return }
             let provider = tab.webContentWrapper as? MediaSessionCookieProviding
             let candidates = await provider?.mediaDownloadCandidates(for: pageURL) ?? []
-            let cookies = await provider?.mediaSessionCookies(for: pageURL) ?? []
+            let selectedCandidate: MediaDownloadCandidate?
+            if candidates.count > 1 {
+                guard let selection = await self.chooseMediaCandidate(from: candidates) else { return }
+                selectedCandidate = selection
+            } else {
+                selectedCandidate = candidates.first
+            }
+
+            let selectedTitle = selectedCandidate?.title
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let itemTitle: String
+            if let selectedTitle, !selectedTitle.isEmpty {
+                itemTitle = String(selectedTitle.prefix(120))
+            } else {
+                itemTitle = title.isEmpty ? (pageURL.host ?? "Media") : title
+            }
+            let item = DownloadItem(
+                mediaID: UUID(),
+                fileName: itemTitle,
+                pageURL: pageURL,
+                mimeType: kind.mimeType
+            )
+            self.downloads.insert(item, at: 0)
+            self.updateTotalProgress()
+            self.downloadEventPublisher.send(
+                DownloadEvent(eventType: .created, downloadItem: item)
+            )
+
+            var sourceURLs: [URL] = []
+            if let selectedCandidate {
+                sourceURLs.append(selectedCandidate.url)
+            }
+            if !sourceURLs.contains(pageURL) {
+                sourceURLs.append(pageURL)
+            }
+
+            var cookies = await provider?.mediaSessionCookies(for: pageURL) ?? []
+            if let selectedURL = selectedCandidate?.url,
+               selectedURL.host?.caseInsensitiveCompare(pageURL.host ?? "") != .orderedSame {
+                let selectedCookies = await provider?.mediaSessionCookies(for: selectedURL) ?? []
+                cookies = Self.mergingCookies(cookies, selectedCookies)
+            }
             guard item.state == .inProgress else { return }
             self.mediaDownloadCoordinator.start(
                 item: item,
-                sourceURLs: [pageURL] + candidates,
+                sourceURLs: sourceURLs,
                 kind: kind,
                 quality: quality,
                 cookies: cookies
             )
         }
+    }
+
+    private func chooseMediaCandidate(
+        from candidates: [MediaDownloadCandidate]
+    ) async -> MediaDownloadCandidate? {
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = NSLocalizedString(
+            "downloads.media.selectionDialog.title",
+            value: "Choose Media",
+            comment: "Media download dialog - Title shown when the current page contains multiple media items"
+        )
+        alert.informativeText = NSLocalizedString(
+            "downloads.media.selectionDialog.message",
+            value: "This page contains multiple media items. Choose which one to save.",
+            comment: "Media download dialog - Explanation shown before choosing one of several detected media items"
+        )
+
+        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 440, height: 28))
+        for (index, candidate) in candidates.enumerated() {
+            popup.addItem(withTitle: Self.mediaCandidateMenuTitle(candidate, index: index))
+        }
+        popup.selectItem(at: 0)
+        alert.accessoryView = popup
+        alert.addButton(withTitle: NSLocalizedString(
+            "downloads.media.selectionDialog.confirmButton",
+            value: "Download",
+            comment: "Media download dialog - Button that confirms the selected media item"
+        ))
+        alert.addButton(withTitle: NSLocalizedString(
+            "downloads.media.selectionDialog.cancelButton",
+            value: "Cancel",
+            comment: "Media download dialog - Button that cancels media selection"
+        ))
+
+        let response: NSApplication.ModalResponse
+        if let window = browserState?.windowController?.window {
+            response = await alert.beginSheetModal(for: window)
+        } else {
+            response = alert.runModal()
+        }
+        guard response == .alertFirstButtonReturn,
+              candidates.indices.contains(popup.indexOfSelectedItem) else { return nil }
+        return candidates[popup.indexOfSelectedItem]
+    }
+
+    private static func mediaCandidateMenuTitle(
+        _ candidate: MediaDownloadCandidate,
+        index: Int
+    ) -> String {
+        let fallback = String(
+            format: NSLocalizedString(
+                "downloads.media.selectionDialog.untitledItem",
+                value: "Media %d",
+                comment: "Media download dialog - Fallback label for an unnamed detected media item; placeholder is its one-based position"
+            ),
+            index + 1
+        )
+        let compactTitle = candidate.title
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = compactTitle.isEmpty ? fallback : String(compactTitle.prefix(90))
+        let kind = candidate.kind == .audio
+            ? MediaDownloadKind.audio.displayName
+            : MediaDownloadKind.video.displayName
+        guard let duration = candidate.durationSeconds,
+              duration.isFinite,
+              duration > 0 else {
+            return "\(index + 1). \(title) — \(kind)"
+        }
+        let totalSeconds = Int(duration.rounded())
+        let durationText = String(format: "%d:%02d", totalSeconds / 60, totalSeconds % 60)
+        return "\(index + 1). \(title) — \(kind) · \(durationText)"
+    }
+
+    private static func mergingCookies(
+        _ first: [HTTPCookie],
+        _ second: [HTTPCookie]
+    ) -> [HTTPCookie] {
+        var cookies: [String: HTTPCookie] = [:]
+        for cookie in first + second {
+            let key = "\(cookie.domain.lowercased())\t\(cookie.path)\t\(cookie.name)"
+            cookies[key] = cookie
+        }
+        return Array(cookies.values)
     }
 
     fileprivate func mediaDownloadDidChange(
