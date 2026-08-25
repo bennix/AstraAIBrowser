@@ -19,10 +19,12 @@
     "features.mediaCompatibility.title": "不离开 Astra 的视频兼容",
     "features.mediaCompatibility.body": "YouTube 保持 Chromium 的 VP9/AV1 播放路径；B 站、AcFun 以及主流大陆视频网站需要 H.264、AAC 或 HLS 时，则使用内嵌的系统媒体引擎。",
     "features.localMemory.title": "本地第二大脑",
-    "features.localMemory.body": "Astra 将手动笔记和完整的用户/AI 对话保存到账号独立的 SQLite 向量索引，并镜像成可迁移的 Markdown 文件，在本机检索相关上下文。过期会话只有在摘要成功写回后才删除原记录。",
+    "features.localMemory.body": "Astra 将笔记和完整的用户/AI 对话保存到账号独立的本地向量索引，并镜像成可迁移的 Markdown 文件，在本机检索相关上下文。记忆内容支持 Markdown、可横向滚动的表格、本地 LaTeX 数学及化学公式渲染，并可将单条或多条记忆导出为 Markdown 文件。过期会话会先完成摘要，再删除原记录。",
     "features.browserOwnership.title": "原生链接与语言集成",
     "features.browserOwnership.body": "通用设置可让 Astra 完整接管 HTTP 与 HTTPS。其他 Mac 应用打开的链接会进入 Astra 内嵌的 Chromium 标签页，网站检测到的浏览器语言也会与 Astra 界面语言保持一致。",
-    "download.summary": "Build 34 可将其他 macOS 应用打开的链接直接送入 Astra 内嵌的 Chromium 标签页，并让网站语言检测与所选界面语言保持一致；同时保留 Build 33 的本地记忆、默认浏览器设置、隐私、扩展、AI、WebRTC 防泄漏及视频兼容改进。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "features.history.title": "完整保留浏览历史",
+    "features.history.body": "Astra 将浏览历史保存在持久化 Chromium 配置中，可从原生“历史记录”菜单或按 Command-Y 打开完整记录，无需另建一套历史数据库。",
+    "download.summary": "Build 42 新增完整的持久化浏览历史，并将本地 AI 记忆升级为更丰富、可迁移的知识库。记忆内容可渲染 Markdown 表格、数学 LaTeX 和化学公式，选中的单条或多条记忆可导出为 Markdown 文件。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {
