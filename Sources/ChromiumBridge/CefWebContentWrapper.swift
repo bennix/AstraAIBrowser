@@ -28,6 +28,21 @@ struct MediaDownloadCandidate: Codable, Hashable, Sendable {
     let title: String
     let kind: Kind
     let durationSeconds: Double?
+    let alternateURLs: [URL]?
+
+    init(
+        url: URL,
+        title: String,
+        kind: Kind,
+        durationSeconds: Double?,
+        alternateURLs: [URL]? = nil
+    ) {
+        self.url = url
+        self.title = title
+        self.kind = kind
+        self.durationSeconds = durationSeconds
+        self.alternateURLs = alternateURLs
+    }
 }
 
 protocol MediaSessionCookieProviding: AnyObject {
@@ -2167,19 +2182,32 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         let operation = #"""
         const candidates = [];
         const seen = new Set();
-        const add = (value, title, kind, durationSeconds) => {
+        const add = (value, title, kind, durationSeconds, alternateValues = []) => {
           if (!value || typeof value !== 'string') return false;
           try {
             const url = new URL(value, location.href);
             if (!['http:', 'https:'].includes(url.protocol) || seen.has(url.href)) return false;
             seen.add(url.href);
+            const alternateURLs = [];
+            const alternateSeen = new Set([url.href]);
+            for (const alternateValue of alternateValues) {
+              if (!alternateValue || typeof alternateValue !== 'string') continue;
+              try {
+                const alternateURL = new URL(alternateValue, location.href);
+                if (!['http:', 'https:'].includes(alternateURL.protocol) ||
+                    alternateSeen.has(alternateURL.href)) continue;
+                alternateSeen.add(alternateURL.href);
+                alternateURLs.push(alternateURL.href);
+              } catch (_) {}
+            }
             candidates.push({
               url: url.href,
               title: typeof title === 'string' ? title : '',
               kind: kind === 'audio' ? 'audio' : 'video',
               durationSeconds: Number.isFinite(durationSeconds) && durationSeconds > 0
                 ? durationSeconds
-                : null
+                : null,
+              alternateURLs
             });
             return true;
           } catch (_) {
@@ -2202,7 +2230,12 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             return secondRect.width * secondRect.height - firstRect.width * firstRect.height;
           });
         const mediaPagePattern = /\/status\/\d+|\/watch\?v=|\/shorts\/|\/video\/|\/bangumi\/play\/|\/v\/ac\d+/i;
-        const currentMediaPageURL = mediaPagePattern.test(location.href) ? location.href : null;
+        const mediaResource = /\.(m3u8|mpd|mp4|m4v|mov|webm|mp3|m4a|aac|ogg|opus)(?:$|[?#])/i;
+        const performanceSources = performance.getEntriesByType('resource').slice().reverse()
+          .filter((entry) => entry.initiatorType === 'video' || entry.initiatorType === 'audio' ||
+            mediaResource.test(entry.name))
+          .map((entry) => entry.name);
+        const currentMediaPageURL = location.href;
         for (let index = 0; index < mediaElements.length; index += 1) {
           const media = mediaElements[index];
           const container = media.closest('article, [role="article"], [data-testid="tweet"]') ||
@@ -2224,20 +2257,19 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
           const duration = Number(media.duration);
           const pageURL = pageLinks[0] || currentMediaPageURL;
           const primaryURL = pageURL || directSources[0];
-          if (!add(primaryURL, title, kind, duration) && directSources[0]) {
-            add(directSources[0], title, kind, duration);
+          const performanceFallbacks = mediaElements.length === 1 ? performanceSources : [];
+          const alternateURLs = (pageURL ? directSources : directSources.slice(1))
+            .concat(performanceFallbacks);
+          if (!add(primaryURL, title, kind, duration, alternateURLs) && directSources[0]) {
+            add(directSources[0], title, kind, duration, directSources.slice(1));
           }
         }
-        const mediaResource = /\.(m3u8|mpd|mp4|m4v|mov|webm|mp3|m4a|aac|ogg|opus)(?:$|[?#])/i;
         if (candidates.length === 0) {
-          for (const entry of performance.getEntriesByType('resource').slice().reverse()) {
-            if (entry.initiatorType === 'video' || entry.initiatorType === 'audio' ||
-                mediaResource.test(entry.name)) {
-              const kind = /\.(mp3|m4a|aac|ogg|opus)(?:$|[?#])/i.test(entry.name)
+          for (const resourceURL of performanceSources) {
+              const kind = /\.(mp3|m4a|aac|ogg|opus)(?:$|[?#])/i.test(resourceURL)
                 ? 'audio'
                 : 'video';
-              add(entry.name, '', kind, null);
-            }
+              add(resourceURL, '', kind, null);
           }
         }
         return JSON.stringify(candidates.slice(0, 12));
@@ -2248,7 +2280,6 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         var seen = Set<String>()
         return values.compactMap { candidate in
             guard ["http", "https"].contains(candidate.url.scheme?.lowercased() ?? ""),
-                  candidate.url != pageURL,
                   seen.insert(candidate.url.absoluteString).inserted else { return nil }
             return candidate
         }

@@ -131,6 +131,7 @@ final class YouTubeAdPlaybackPolicyTests: XCTestCase {
         XCTAssertEqual(progress.receivedBytes, 4_193_280)
         XCTAssertEqual(progress.totalBytes, 11_829_048)
         XCTAssertEqual(progress.speed, 2_403_078)
+        XCTAssertNil(progress.percent)
     }
 
     func testMediaDownloadProgressPolicyTreatsUnavailableSpeedAsZero() throws {
@@ -141,6 +142,34 @@ final class YouTubeAdPlaybackPolicyTests: XCTestCase {
         XCTAssertEqual(progress.receivedBytes, 1_024)
         XCTAssertEqual(progress.totalBytes, 11_829_048)
         XCTAssertEqual(progress.speed, 0)
+    }
+
+    func testMediaDownloadProgressPolicyParsesNumericPercentage() throws {
+        let progress = try XCTUnwrap(
+            MediaDownloadProgressPolicy.parse(
+                "__ASTRA_PROGRESS__:2048:NA:524288: 37.6%"
+            )
+        )
+
+        XCTAssertEqual(progress.receivedBytes, 2_048)
+        XCTAssertEqual(progress.totalBytes, 0)
+        XCTAssertEqual(progress.speed, 524_288)
+        XCTAssertEqual(progress.percent, 37)
+    }
+
+    func testMediaDownloadAttemptPolicyFallsBackToBestAvailableVideo() {
+        XCTAssertEqual(
+            MediaDownloadAttemptPolicy.qualities(for: .video, selectedQuality: .p720),
+            [.p720, .best]
+        )
+        XCTAssertEqual(
+            MediaDownloadAttemptPolicy.qualities(for: .video, selectedQuality: .best),
+            [.best]
+        )
+        XCTAssertEqual(
+            MediaDownloadAttemptPolicy.qualities(for: .audio, selectedQuality: .p720),
+            [.p720]
+        )
     }
 
     func testMediaDownloadSourcePolicyCanonicalizesYouTubeShorts() throws {
@@ -195,6 +224,28 @@ final class YouTubeAdPlaybackPolicyTests: XCTestCase {
         )
     }
 
+    func testMediaDownloadSourcePolicyTriesPlayerStreamsBeforePageFallback() throws {
+        let pageURL = try XCTUnwrap(URL(string: "https://example.com/watch/123"))
+        let mediaPageURL = try XCTUnwrap(URL(string: "https://example.com/video/123"))
+        let manifestURL = try XCTUnwrap(URL(string: "https://cdn.example.com/master.m3u8"))
+        let fileURL = try XCTUnwrap(URL(string: "https://cdn.example.com/video.mp4"))
+        let candidate = MediaDownloadCandidate(
+            url: mediaPageURL,
+            title: "Playable media",
+            kind: .video,
+            durationSeconds: 30,
+            alternateURLs: [manifestURL, fileURL]
+        )
+
+        XCTAssertEqual(
+            MediaDownloadSourcePolicy.orderedSourceURLs(
+                pageURL: pageURL,
+                selectedCandidate: candidate
+            ),
+            [mediaPageURL, manifestURL, fileURL, pageURL]
+        )
+    }
+
     func testMediaDownloadSourcePolicyCollectsCookiesForPageAndEverySource() throws {
         let pageURL = try XCTUnwrap(URL(string: "https://youtube.com/shorts/abc123"))
         let canonicalURL = try XCTUnwrap(URL(string: "https://www.youtube.com/watch?v=abc123"))
@@ -221,6 +272,7 @@ final class YouTubeAdPlaybackPolicyTests: XCTestCase {
         XCTAssertEqual(candidate.title, "Post with video")
         XCTAssertEqual(candidate.kind, .video)
         XCTAssertEqual(candidate.durationSeconds, 42.5)
+        XCTAssertNil(candidate.alternateURLs)
     }
 
     func testPlaybackRateDefaultsToEightTimes() {

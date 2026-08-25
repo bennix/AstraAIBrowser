@@ -249,14 +249,24 @@ class DownloadItem: ObservableObject, Identifiable {
     func updateMediaProgress(
         receivedBytes: Int64,
         totalBytes: Int64,
-        speed: Int64
+        speed: Int64,
+        percent: Int? = nil
     ) {
         self.receivedBytes = max(0, receivedBytes)
         self.totalBytes = max(0, totalBytes)
         self.currentSpeed = max(0, speed)
         if totalBytes > 0 {
             percentComplete = min(99, max(0, Int(receivedBytes * 100 / totalBytes)))
+        } else if let percent {
+            percentComplete = min(99, max(0, percent))
         }
+    }
+
+    func prepareForMediaDownloadAttempt() {
+        receivedBytes = 0
+        totalBytes = 0
+        percentComplete = -1
+        currentSpeed = 0
     }
 
     func finishMediaDownload(at fileURL: URL) {
@@ -457,7 +467,8 @@ enum MediaDownloadProgressPolicy {
     static func parse(_ line: String) -> (
         receivedBytes: Int64,
         totalBytes: Int64,
-        speed: Int64
+        speed: Int64,
+        percent: Int?
     )? {
         guard line.hasPrefix("__ASTRA_PROGRESS__:") else { return nil }
         let values = line.dropFirst("__ASTRA_PROGRESS__:".count)
@@ -466,7 +477,28 @@ enum MediaDownloadProgressPolicy {
         func number(_ value: Substring) -> Int64 {
             Int64(Double(value.trimmingCharacters(in: .whitespaces)) ?? 0)
         }
-        return (number(values[0]), number(values[1]), number(values[2]))
+        let percent: Int?
+        if values.count >= 4 {
+            let value = values[3]
+                .trimmingCharacters(in: .whitespaces)
+                .replacingOccurrences(of: "%", with: "")
+            percent = Double(value).map { min(99, max(0, Int($0))) }
+        } else {
+            percent = nil
+        }
+        return (number(values[0]), number(values[1]), number(values[2]), percent)
+    }
+}
+
+enum MediaDownloadAttemptPolicy {
+    static func qualities(
+        for kind: MediaDownloadKind,
+        selectedQuality: MediaDownloadQuality
+    ) -> [MediaDownloadQuality] {
+        guard kind == .video, selectedQuality != .best else {
+            return [selectedQuality]
+        }
+        return [selectedQuality, .best]
     }
 }
 
@@ -491,11 +523,14 @@ enum MediaDownloadSourcePolicy {
         selectedCandidate: MediaDownloadCandidate?
     ) -> [URL] {
         let canonicalURL = canonicalPageURL(pageURL)
+        let alternateURLs = selectedCandidate?.alternateURLs ?? []
         let candidates: [URL]
         if canonicalURL != pageURL {
-            candidates = [canonicalURL, selectedCandidate?.url, pageURL].compactMap { $0 }
+            candidates = [canonicalURL, selectedCandidate?.url]
+                .compactMap { $0 } + alternateURLs + [pageURL]
         } else {
-            candidates = [selectedCandidate?.url, pageURL].compactMap { $0 }
+            candidates = [selectedCandidate?.url]
+                .compactMap { $0 } + alternateURLs + [pageURL]
         }
         var seen = Set<String>()
         return candidates.filter { seen.insert($0.absoluteString).inserted }
@@ -670,6 +705,12 @@ private final class MediaToolProcess: @unchecked Sendable {
 
 @MainActor
 private final class MediaDownloadCoordinator {
+    private enum DownloadAttemptResult {
+        case completed(URL)
+        case failed(String?)
+        case cancelled
+    }
+
     private weak var manager: DownloadsManager?
     private var processes: [String: MediaToolProcess] = [:]
     private var cancelledIDs = Set<String>()
@@ -757,12 +798,28 @@ private final class MediaDownloadCoordinator {
             ? ["--cookies", cookieURL.path]
             : []
 
-        var selectedSourceURL: URL?
         var lastFailure: String?
         var foundDRM = false
+        var foundClearMedia = false
+        let downloadsDirectory = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let baseName = Self.uniqueBaseName(
+            title: item.fileName,
+            kind: kind,
+            quality: quality,
+            directory: downloadsDirectory
+        )
+        let ffmpegDirectory = Self.ffmpegURL()?.deletingLastPathComponent()
+        let qualities = MediaDownloadAttemptPolicy.qualities(
+            for: kind,
+            selectedQuality: quality
+        )
+        var attemptIndex = 0
+
         for sourceURL in sourceURLs {
             let metadataArguments = [
                 "--no-config", "--no-playlist", "--no-warnings", "--skip-download", "--dump-single-json",
+                "--referer", item.url,
             ] + cookieArguments + [sourceURL.absoluteString]
             do {
                 let metadataProcess = MediaToolProcess(
@@ -779,62 +836,115 @@ private final class MediaDownloadCoordinator {
                 }
                 switch MediaDownloadPolicy.decision(for: metadata.output) {
                 case .allow:
-                    selectedSourceURL = sourceURL
+                    foundClearMedia = true
                 case .rejectDRM:
                     foundDRM = true
+                    continue
                 case .rejectUnverified:
-                    break
+                    continue
                 }
-                if selectedSourceURL != nil { break }
             } catch {
                 guard !wasCancelled(item) else { return }
                 lastFailure = error.localizedDescription
+                continue
             }
-        }
-        guard let selectedSourceURL else {
-            if foundDRM {
-                fail(
-                    item,
-                    message: NSLocalizedString(
-                        "downloads.media.drmProtectedError",
-                        value: "DRM-protected media cannot be saved",
-                        comment: "Downloads list - Failure text when encrypted media is intentionally rejected"
-                    )
+
+            for attemptQuality in qualities {
+                attemptIndex += 1
+                item.prepareForMediaDownloadAttempt()
+                finishEvent(for: item, eventType: .updated)
+                let result = await runDownloadAttempt(
+                    item: item,
+                    toolURL: toolURL,
+                    sourceURL: sourceURL,
+                    pageURLString: item.url,
+                    kind: kind,
+                    quality: attemptQuality,
+                    ffmpegDirectory: ffmpegDirectory,
+                    cookieArguments: cookieArguments,
+                    workDirectory: workDirectory,
+                    attemptIndex: attemptIndex
                 )
-            } else {
-                fail(item, message: lastFailure)
+                switch result {
+                case .cancelled:
+                    return
+                case .failed(let message):
+                    lastFailure = message ?? lastFailure
+                case .completed(let temporaryFileURL):
+                    do {
+                        let destination = Self.uniqueMediaDestination(
+                            baseName: baseName,
+                            sourceFileURL: temporaryFileURL,
+                            directory: downloadsDirectory
+                        )
+                        try FileManager.default.moveItem(at: temporaryFileURL, to: destination)
+                        item.finishMediaDownload(at: destination)
+                        finishEvent(for: item, eventType: .completed)
+                        return
+                    } catch {
+                        lastFailure = error.localizedDescription
+                    }
+                }
             }
-            return
         }
 
-        let downloadsDirectory = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        let baseName = Self.uniqueBaseName(
-            title: item.fileName,
-            kind: kind,
-            quality: quality,
-            directory: downloadsDirectory
-        )
-        let outputTemplate = downloadsDirectory
-            .appendingPathComponent("\(baseName).%(ext)s")
+        if foundDRM && !foundClearMedia {
+            fail(
+                item,
+                message: NSLocalizedString(
+                    "downloads.media.drmProtectedError",
+                    value: "DRM-protected media cannot be saved",
+                    comment: "Downloads list - Failure text when encrypted media is intentionally rejected"
+                )
+            )
+        } else {
+            fail(item, message: lastFailure)
+        }
+    }
+
+    private func runDownloadAttempt(
+        item: DownloadItem,
+        toolURL: URL,
+        sourceURL: URL,
+        pageURLString: String,
+        kind: MediaDownloadKind,
+        quality: MediaDownloadQuality,
+        ffmpegDirectory: URL?,
+        cookieArguments: [String],
+        workDirectory: URL,
+        attemptIndex: Int
+    ) async -> DownloadAttemptResult {
+        let attemptDirectory = workDirectory
+            .appendingPathComponent("attempt-\(attemptIndex)", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(
+                at: attemptDirectory,
+                withIntermediateDirectories: true
+            )
+        } catch {
+            return .failed(error.localizedDescription)
+        }
+        let outputTemplate = attemptDirectory
+            .appendingPathComponent("media.%(ext)s")
             .path
         var arguments = [
             "--no-config",
             "--no-playlist",
             "--newline",
+            "--progress-delta", "0.2",
             "--concurrent-fragments", "4",
-            "--progress-template", "download:__ASTRA_PROGRESS__:%(progress.downloaded_bytes)s:%(progress.total_bytes,progress.total_bytes_estimate)s:%(progress.speed)s",
+            "--progress-template", "download:__ASTRA_PROGRESS__:%(progress.downloaded_bytes)s:%(progress.total_bytes,progress.total_bytes_estimate)s:%(progress.speed)s:%(progress._percent_str)s",
             "--print", "after_move:__ASTRA_FILE__:%(filepath)s",
             "--output", outputTemplate,
+            "--referer", pageURLString,
         ]
-        let ffmpegDirectory = Self.ffmpegURL()?.deletingLastPathComponent()
         arguments += MediaDownloadFormatPolicy.arguments(
             kind: kind,
             quality: quality,
             ffmpegDirectory: ffmpegDirectory
         )
         arguments += cookieArguments
-        arguments.append(selectedSourceURL.absoluteString)
+        arguments.append(sourceURL.absoluteString)
 
         do {
             let downloadProcess = MediaToolProcess(
@@ -847,7 +957,8 @@ private final class MediaDownloadCoordinator {
                             item.updateMediaProgress(
                                 receivedBytes: progress.receivedBytes,
                                 totalBytes: progress.totalBytes,
-                                speed: progress.speed
+                                speed: progress.speed,
+                                percent: progress.percent
                             )
                             self.finishEvent(for: item, eventType: .updated)
                         }
@@ -857,23 +968,20 @@ private final class MediaDownloadCoordinator {
             processes[item.id] = downloadProcess
             let result = try await downloadProcess.run()
             processes[item.id] = nil
-            guard !wasCancelled(item) else { return }
+            guard !wasCancelled(item) else { return .cancelled }
             let finalFileURL = Self.finalFileURL(in: result.output)
             guard result.exitCode == 0 else {
-                fail(item, message: MediaDownloadPolicy.failureSummary(in: result.output))
-                return
+                return .failed(MediaDownloadPolicy.failureSummary(in: result.output))
             }
             guard let finalFileURL,
                   FileManager.default.fileExists(atPath: finalFileURL.path) else {
-                fail(item)
-                return
+                return .failed(nil)
             }
-            item.finishMediaDownload(at: finalFileURL)
-            finishEvent(for: item, eventType: .completed)
+            return .completed(finalFileURL)
         } catch {
             processes[item.id] = nil
-            guard !wasCancelled(item) else { return }
-            fail(item)
+            guard !wasCancelled(item) else { return .cancelled }
+            return .failed(error.localizedDescription)
         }
     }
 
@@ -980,6 +1088,25 @@ private final class MediaDownloadCoordinator {
             suffix += 1
         }
         return candidate
+    }
+
+    private static func uniqueMediaDestination(
+        baseName: String,
+        sourceFileURL: URL,
+        directory: URL
+    ) -> URL {
+        let pathExtension = sourceFileURL.pathExtension
+        let fileName = pathExtension.isEmpty ? baseName : "\(baseName).\(pathExtension)"
+        var destination = directory.appendingPathComponent(fileName)
+        var suffix = 2
+        while FileManager.default.fileExists(atPath: destination.path) {
+            let suffixedName = pathExtension.isEmpty
+                ? "\(baseName) \(suffix)"
+                : "\(baseName) \(suffix).\(pathExtension)"
+            destination = directory.appendingPathComponent(suffixedName)
+            suffix += 1
+        }
+        return destination
     }
 
     private static func finalFileURL(in output: Data) -> URL? {
