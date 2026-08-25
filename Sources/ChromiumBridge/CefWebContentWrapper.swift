@@ -2201,6 +2201,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             const secondRect = second.getBoundingClientRect();
             return secondRect.width * secondRect.height - firstRect.width * firstRect.height;
           });
+        const mediaPagePattern = /\/status\/\d+|\/watch\?v=|\/shorts\/|\/video\/|\/bangumi\/play\/|\/v\/ac\d+/i;
+        const currentMediaPageURL = mediaPagePattern.test(location.href) ? location.href : null;
         for (let index = 0; index < mediaElements.length; index += 1) {
           const media = mediaElements[index];
           const container = media.closest('article, [role="article"], [data-testid="tweet"]') ||
@@ -2208,7 +2210,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
           const pageLinks = [];
           for (const anchor of container ? container.querySelectorAll('a[href]') : []) {
             const href = anchor.href || '';
-            if (/\/status\/\d+|\/watch\?v=|\/shorts\/|\/video\/|\/bangumi\/play\/|\/v\/ac\d+/i.test(href)) {
+            if (mediaPagePattern.test(href)) {
               pageLinks.push(href);
             }
           }
@@ -2220,7 +2222,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
           const title = rawTitle.replace(/\s+/g, ' ').trim().slice(0, 140);
           const kind = media instanceof HTMLAudioElement ? 'audio' : 'video';
           const duration = Number(media.duration);
-          const pageURL = pageLinks[0];
+          const pageURL = pageLinks[0] || currentMediaPageURL;
           const primaryURL = pageURL || directSources[0];
           if (!add(primaryURL, title, kind, duration) && directSources[0]) {
             add(directSources[0], title, kind, duration);

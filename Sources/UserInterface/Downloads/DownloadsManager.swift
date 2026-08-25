@@ -470,6 +470,43 @@ enum MediaDownloadProgressPolicy {
     }
 }
 
+enum MediaDownloadSourcePolicy {
+    static func canonicalPageURL(_ pageURL: URL) -> URL {
+        guard let host = pageURL.host?.lowercased(),
+              host == "youtube.com" || host.hasSuffix(".youtube.com") else { return pageURL }
+        let components = pageURL.pathComponents.filter { $0 != "/" }
+        guard components.count >= 2,
+              components[0].lowercased() == "shorts",
+              !components[1].isEmpty else { return pageURL }
+        var canonical = URLComponents()
+        canonical.scheme = "https"
+        canonical.host = "www.youtube.com"
+        canonical.path = "/watch"
+        canonical.queryItems = [URLQueryItem(name: "v", value: components[1])]
+        return canonical.url ?? pageURL
+    }
+
+    static func orderedSourceURLs(
+        pageURL: URL,
+        selectedCandidate: MediaDownloadCandidate?
+    ) -> [URL] {
+        let canonicalURL = canonicalPageURL(pageURL)
+        let candidates: [URL]
+        if canonicalURL != pageURL {
+            candidates = [canonicalURL, selectedCandidate?.url, pageURL].compactMap { $0 }
+        } else {
+            candidates = [selectedCandidate?.url, pageURL].compactMap { $0 }
+        }
+        var seen = Set<String>()
+        return candidates.filter { seen.insert($0.absoluteString).inserted }
+    }
+
+    static func cookieSourceURLs(pageURL: URL, sourceURLs: [URL]) -> [URL] {
+        var seen = Set<String>()
+        return ([pageURL] + sourceURLs).filter { seen.insert($0.absoluteString).inserted }
+    }
+}
+
 enum MediaDownloadPolicy {
     enum Decision: Equatable {
         case allow
@@ -1035,19 +1072,19 @@ class DownloadsManager: ObservableObject {
                 DownloadEvent(eventType: .created, downloadItem: item)
             )
 
-            var sourceURLs: [URL] = []
-            if let selectedCandidate {
-                sourceURLs.append(selectedCandidate.url)
-            }
-            if !sourceURLs.contains(pageURL) {
-                sourceURLs.append(pageURL)
-            }
+            let sourceURLs = MediaDownloadSourcePolicy.orderedSourceURLs(
+                pageURL: pageURL,
+                selectedCandidate: selectedCandidate
+            )
 
-            var cookies = await provider?.mediaSessionCookies(for: pageURL) ?? []
-            if let selectedURL = selectedCandidate?.url,
-               selectedURL.host?.caseInsensitiveCompare(pageURL.host ?? "") != .orderedSame {
-                let selectedCookies = await provider?.mediaSessionCookies(for: selectedURL) ?? []
-                cookies = Self.mergingCookies(cookies, selectedCookies)
+            var cookies: [HTTPCookie] = []
+            let cookieSourceURLs = MediaDownloadSourcePolicy.cookieSourceURLs(
+                pageURL: pageURL,
+                sourceURLs: sourceURLs
+            )
+            for cookieSourceURL in cookieSourceURLs {
+                let sourceCookies = await provider?.mediaSessionCookies(for: cookieSourceURL) ?? []
+                cookies = Self.mergingCookies(cookies, sourceCookies)
             }
             guard item.state == .inProgress else { return }
             self.mediaDownloadCoordinator.start(

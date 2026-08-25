@@ -31151,6 +31151,11 @@
         }
       }
     },
+    "downloads.item.status.preparing" : {
+      "comment" : "Download item row - Status shown while a media download is resolving its stream before byte progress is available",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Preparing…" } } }
+    },
     "downloads.item.status.pausedIndicator" : {
       "comment" : "Download item row - Status indicator when download is paused",
       "extractionState" : "extracted_with_value",

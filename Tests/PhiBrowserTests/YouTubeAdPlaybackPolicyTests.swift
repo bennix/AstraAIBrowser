@@ -143,6 +143,72 @@ final class YouTubeAdPlaybackPolicyTests: XCTestCase {
         XCTAssertEqual(progress.speed, 0)
     }
 
+    func testMediaDownloadSourcePolicyCanonicalizesYouTubeShorts() throws {
+        let pageURL = try XCTUnwrap(
+            URL(string: "https://www.youtube.com/shorts/abc123?feature=share")
+        )
+        let canonicalURL = MediaDownloadSourcePolicy.canonicalPageURL(pageURL)
+
+        XCTAssertEqual(canonicalURL.absoluteString, "https://www.youtube.com/watch?v=abc123")
+    }
+
+    func testMediaDownloadSourcePolicyPrefersCanonicalShortsPageOverTemporaryStream() throws {
+        let pageURL = try XCTUnwrap(URL(string: "https://youtube.com/shorts/abc123"))
+        let canonicalURL = try XCTUnwrap(URL(string: "https://www.youtube.com/watch?v=abc123"))
+        let streamURL = try XCTUnwrap(URL(string: "https://rr.example.googlevideo.com/videoplayback"))
+        let candidate = MediaDownloadCandidate(
+            url: streamURL,
+            title: "Short video",
+            kind: .video,
+            durationSeconds: 20
+        )
+
+        XCTAssertEqual(
+            MediaDownloadSourcePolicy.orderedSourceURLs(
+                pageURL: pageURL,
+                selectedCandidate: candidate
+            ),
+            [
+                canonicalURL,
+                streamURL,
+                pageURL,
+            ]
+        )
+    }
+
+    func testMediaDownloadSourcePolicyPreservesCandidateFirstForFeedPages() throws {
+        let pageURL = try XCTUnwrap(URL(string: "https://x.com/home"))
+        let postURL = try XCTUnwrap(URL(string: "https://x.com/user/status/123"))
+        let candidate = MediaDownloadCandidate(
+            url: postURL,
+            title: "Post with video",
+            kind: .video,
+            durationSeconds: 42
+        )
+
+        XCTAssertEqual(
+            MediaDownloadSourcePolicy.orderedSourceURLs(
+                pageURL: pageURL,
+                selectedCandidate: candidate
+            ),
+            [postURL, pageURL]
+        )
+    }
+
+    func testMediaDownloadSourcePolicyCollectsCookiesForPageAndEverySource() throws {
+        let pageURL = try XCTUnwrap(URL(string: "https://youtube.com/shorts/abc123"))
+        let canonicalURL = try XCTUnwrap(URL(string: "https://www.youtube.com/watch?v=abc123"))
+        let streamURL = try XCTUnwrap(URL(string: "https://rr.example.googlevideo.com/videoplayback"))
+
+        XCTAssertEqual(
+            MediaDownloadSourcePolicy.cookieSourceURLs(
+                pageURL: pageURL,
+                sourceURLs: [canonicalURL, streamURL, pageURL]
+            ),
+            [pageURL, canonicalURL, streamURL]
+        )
+    }
+
     func testMediaDownloadCandidateDecodesPageDescriptor() throws {
         let data = Data(
             #"[{"url":"https://x.com/user/status/123","title":"Post with video","kind":"video","durationSeconds":42.5}]"#.utf8

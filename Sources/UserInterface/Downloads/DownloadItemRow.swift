@@ -208,35 +208,39 @@ struct DownloadItemRow: View {
     @ViewBuilder
     private var progressInfo: some View {
         VStack(alignment: .leading, spacing: 3) {
-            if isHovered {
-                HStack(spacing: 4) {
-                    if !item.formattedProgress.isEmpty {
-                        Text(item.formattedProgress)
-                            .font(.system(size: 11))
-                            .foregroundColor(Color.phiPrimary.opacity(0.5))
-                    }
-
-                    if !item.formattedSpeed.isEmpty && !item.isPaused {
-                        Text("・")
-                            .font(.system(size: 11))
-                            .foregroundColor(Color.phiPrimary.opacity(0.5))
-
-                        Text(item.formattedSpeed)
-                            .font(.system(size: 11))
-                            .foregroundColor(Color.phiPrimary.opacity(0.5))
-                    }
-
-                    if item.isPaused {
-                        Text(NSLocalizedString("downloads.item.status.pausedIndicator", value: "・Paused", comment: "Download item row - Status indicator when download is paused"))
-                            .font(.system(size: 11))
-                            .foregroundColor(Color.orange.opacity(0.8))
-                    }
+            HStack(spacing: 4) {
+                if item.percentComplete >= 0 {
+                    Text(verbatim: "\(item.percentComplete)%")
+                } else if item.formattedProgress.isEmpty {
+                    Text(NSLocalizedString(
+                        "downloads.item.status.preparing",
+                        value: "Preparing…",
+                        comment: "Download item row - Status shown while a media download is resolving its stream before byte progress is available"
+                    ))
                 }
-                .frame(height: 11)
-            } else {
-                Spacer()
-                    .frame(height: 11)
+
+                if !item.formattedProgress.isEmpty {
+                    if item.percentComplete >= 0 {
+                        Text(verbatim: "·")
+                    }
+                    Text(item.formattedProgress)
+                }
+
+                if !item.formattedSpeed.isEmpty && !item.isPaused {
+                    Text(verbatim: "·")
+                    Text(item.formattedSpeed)
+                }
+
+                if item.isPaused {
+                    Text(NSLocalizedString("downloads.item.status.pausedIndicator", value: "・Paused", comment: "Download item row - Status indicator when download is paused"))
+                        .foregroundColor(Color.orange.opacity(0.8))
+                }
             }
+            .font(.system(size: 11))
+            .foregroundColor(Color.phiPrimary.opacity(0.5))
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(height: 11)
 
             if item.percentComplete >= 0 {
                 PhiProgressView(
