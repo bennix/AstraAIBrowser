@@ -11754,6 +11754,18 @@
         }
       }
     },
+    "app.historyMenu.clearBrowsingData" : {
+      "comment" : "History menu - Opens Chromium controls for clearing browsing history and related site data",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Clear Browsing Data…"
+          }
+        }
+      }
+    },
     "app.historyMenu.showFullHistory" : {
       "comment" : "History menu - Opens the complete Chromium browsing history page",
       "extractionState" : "extracted_with_value",
@@ -52652,6 +52664,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "其他瀏覽器設定"
+          }
+        }
+      }
+    },
+    "settings.general.browsingHistory.actionsTitle" : {
+      "comment" : "General settings - Row title for opening history and clearing browsing data",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "History and browsing data"
+          }
+        }
+      }
+    },
+    "settings.general.browsingHistory.clearButton" : {
+      "comment" : "General settings - Button that opens controls for clearing browsing history and related site data",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Clear browsing data…"
+          }
+        }
+      }
+    },
+    "settings.general.browsingHistory.sectionTitle" : {
+      "comment" : "General settings - Browsing history section title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Browsing history"
+          }
+        }
+      }
+    },
+    "settings.general.browsingHistory.viewButton" : {
+      "comment" : "General settings - Button that opens the complete browsing history",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "View history"
           }
         }
       }

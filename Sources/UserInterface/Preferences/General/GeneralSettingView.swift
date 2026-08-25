@@ -140,6 +140,9 @@ struct GeneralSettingView: View {
                 }
                 AppearanceSectionView()
                 BrowsingSectionView()
+                if !settingsPresentation.openedFromIncognito {
+                    BrowsingHistorySectionView()
+                }
                 DefaultBrowserSettingsSectionView()
                 ProfileSectionView()
                 DeveloperModeSectionView()
@@ -150,6 +153,50 @@ struct GeneralSettingView: View {
         }
         .themedBackground(PhiPreferences.fixedWindowBackground)
         .frame(width: 680, height: 561)
+    }
+}
+
+private struct BrowsingHistorySectionView: View {
+    var body: some View {
+        GeneralSectionView(
+            title: NSLocalizedString(
+                "settings.general.browsingHistory.sectionTitle",
+                value: "Browsing history",
+                comment: "General settings - Browsing history section title"
+            )
+        ) {
+            GeneralContainerView {
+                GeneralRowView(
+                    title: NSLocalizedString(
+                        "settings.general.browsingHistory.actionsTitle",
+                        value: "History and browsing data",
+                        comment: "General settings - Row title for opening history and clearing browsing data"
+                    )
+                ) {
+                    HStack(spacing: 8) {
+                        Button(
+                            NSLocalizedString(
+                                "settings.general.browsingHistory.viewButton",
+                                value: "View history",
+                                comment: "General settings - Button that opens the complete browsing history"
+                            )
+                        ) {
+                            CefBrowserRuntime.shared.openBrowserDataPage(.history)
+                        }
+
+                        Button(
+                            NSLocalizedString(
+                                "settings.general.browsingHistory.clearButton",
+                                value: "Clear browsing data\u{2026}",
+                                comment: "General settings - Button that opens controls for clearing browsing history and related site data"
+                            )
+                        ) {
+                            CefBrowserRuntime.shared.openBrowserDataPage(.clearBrowsingData)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

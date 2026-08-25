@@ -1257,6 +1257,15 @@ final class PhiBrowserTests: XCTestCase {
         )
     }
 
+    func testCefBrowserDataPagesUseProfileScopedChromiumDestinations() {
+        XCTAssertEqual(CefBrowserDataPage.history.rawValue, "chrome://history")
+        XCTAssertEqual(
+            CefBrowserDataPage.clearBrowsingData.rawValue,
+            "chrome://settings/clearBrowserData"
+        )
+        XCTAssertEqual(CefBrowserDataPage.allCases.count, 2)
+    }
+
     func testBookmarkMenuContentBuilderAddsBookmarkThisTabAndRecursiveBookmarks() {
         let previousOverrides = Shortcuts.overridedShortcuts
         defer { Shortcuts.overridedShortcuts = previousOverrides }

@@ -23,8 +23,8 @@
     "features.browserOwnership.title": "原生链接与语言集成",
     "features.browserOwnership.body": "通用设置可让 Astra 完整接管 HTTP 与 HTTPS。其他 Mac 应用打开的链接会进入 Astra 内嵌的 Chromium 标签页，网站检测到的浏览器语言也会与 Astra 界面语言保持一致。",
     "features.history.title": "完整保留浏览历史",
-    "features.history.body": "Astra 将浏览历史保存在持久化 Chromium 配置中，可从原生“历史记录”菜单或按 Command-Y 打开完整记录，无需另建一套历史数据库。",
-    "download.summary": "Build 42 新增完整的持久化浏览历史，并将本地 AI 记忆升级为更丰富、可迁移的知识库。记忆内容可渲染 Markdown 表格、数学 LaTeX 和化学公式，选中的单条或多条记忆可导出为 Markdown 文件。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "features.history.body": "Astra 将浏览历史保存在持久化 Chromium 配置中，可从原生“历史记录”菜单和“通用”设置查看或清除，也可按 Command-Y 打开完整记录。",
+    "download.summary": "Build 43 将原生“历史记录”菜单和“通用”设置直接连接到当前持久化 Chromium 配置，可按 Command-Y 查看已保存的访问记录，也能从两个入口清除浏览数据；同时保留 Build 42 的本地 AI 记忆和 Markdown 导出改进。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

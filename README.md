@@ -3,9 +3,9 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 42)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.42/Astra-Browser-build42.dmg)
+[Download Astra 1.0 (build 43)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.43/Astra-Browser-build43.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.42)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.43)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
@@ -16,7 +16,7 @@ and accepted by Apple's notarization service.
 - Chromium compatibility through the embedded CEF runtime.
 - Legacy `chrome://memory` and `phi://memory` links open Astra's local AI memory instead of Chromium's removed WebUI.
 - Local AI memory uses an account-scoped SQLite vector index, renders Markdown tables and LaTeX locally, exports one or several selected entries as Markdown files, remembers completed user/AI turns, and summarizes expired conversation memory before removing its source records.
-- Browsing history stays in each persistent Chromium profile, and the native History menu opens the complete history page with Command-Y.
+- Browsing history stays in each persistent Chromium profile; the native History menu, Command-Y, and General settings provide direct access to viewing or clearing it.
 - Account settings show whether Astra owns both HTTP and HTTPS and can request complete macOS default-browser ownership.
 - Links opened by other macOS apps enter Astra's embedded Chromium tabs, and exposed browser language follows Astra's selected interface language.
 - Integrated AI workspace for browsing and task assistance.

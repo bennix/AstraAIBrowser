@@ -269,6 +269,9 @@ extension AppController {
     static let bookmarksMenuItemTag = 500010
     static let bookmarksMenuIdentifier = NSUserInterfaceItemIdentifier("phi.bookmarks.menu")
     static let historyMenuIdentifier = NSUserInterfaceItemIdentifier("astra.history.menu")
+    static let historyShowAllItemTag = 500038
+    static let historyClearBrowsingDataItemTag = 500039
+    static let historyAstraSectionSeparatorTag = 500040
     static let spacesNewProfileItemTag = 500015
     static let spacesDeleteProfileParentItemTag = 500016
     static let viewMenuPhiSectionSeparatorTag = 500023
@@ -971,29 +974,31 @@ extension AppController {
     }
 
     /// CefSwift's Chrome runtime persists browsing history in the active
-    /// Chromium profile but does not always install the native macOS History
-    /// menu. Expose the existing Chromium history surface without creating a
-    /// second history store.
+    /// Chromium profile but does not always install working native macOS
+    /// History actions. Route Astra-owned items directly through BrowserState
+    /// so they use the active CEF request context instead of the absent legacy
+    /// framework bridge.
     private func installHistoryMenuIfNeeded(in mainMenu: NSMenu) {
-        guard ChromiumMainMenuRole.history.item(in: mainMenu) == nil else { return }
-
         let title = NSLocalizedString(
             "app.mainMenu.history",
             value: "History",
             comment: "Main menu - Top-level History menu title in the application menu bar"
         )
+
+        if let existingItem = ChromiumMainMenuRole.history.item(in: mainMenu) {
+            guard ChromiumLauncher.sharedInstance().bridge == nil
+                    || existingItem.submenu?.identifier == AppController.historyMenuIdentifier else {
+                return
+            }
+            let menu = existingItem.submenu ?? NSMenu(title: title)
+            existingItem.submenu = menu
+            installAstraHistoryActions(in: menu)
+            return
+        }
+
         let menu = NSMenu(title: title)
         menu.identifier = AppController.historyMenuIdentifier
-        addChromiumCommand(
-            to: menu,
-            title: NSLocalizedString(
-                "app.historyMenu.showFullHistory",
-                value: "Show Full History",
-                comment: "History menu - Opens the complete Chromium browsing history page"
-            ),
-            tag: CommandWrapper.IDC_SHOW_HISTORY.rawValue,
-            keyEquivalent: "y"
-        )
+        installAstraHistoryActions(in: menu)
 
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.tag = ChromiumMainMenuRole.history.rawValue
@@ -1006,6 +1011,57 @@ extension AppController {
         } else {
             mainMenu.addItem(item)
         }
+    }
+
+    private func installAstraHistoryActions(in menu: NSMenu) {
+        let astraTags: Set<Int> = [
+            AppController.historyShowAllItemTag,
+            AppController.historyClearBrowsingDataItemTag,
+            AppController.historyAstraSectionSeparatorTag,
+        ]
+        menu.items.removeAll { astraTags.contains($0.tag) }
+        let hasChromiumItems = !menu.items.isEmpty
+
+        let showHistoryItem = NSMenuItem(
+            title: NSLocalizedString(
+                "app.historyMenu.showFullHistory",
+                value: "Show Full History",
+                comment: "History menu - Opens the complete Chromium browsing history page"
+            ),
+            action: #selector(openBrowsingHistory(_:)),
+            keyEquivalent: "y"
+        )
+        showHistoryItem.tag = AppController.historyShowAllItemTag
+        showHistoryItem.target = self
+        showHistoryItem.keyEquivalentModifierMask = [.command]
+        menu.insertItem(showHistoryItem, at: 0)
+
+        let clearHistoryItem = NSMenuItem(
+            title: NSLocalizedString(
+                "app.historyMenu.clearBrowsingData",
+                value: "Clear Browsing Data\u{2026}",
+                comment: "History menu - Opens Chromium controls for clearing browsing history and related site data"
+            ),
+            action: #selector(openClearBrowsingData(_:)),
+            keyEquivalent: ""
+        )
+        clearHistoryItem.tag = AppController.historyClearBrowsingDataItemTag
+        clearHistoryItem.target = self
+        menu.insertItem(clearHistoryItem, at: 1)
+
+        if hasChromiumItems {
+            let separator = NSMenuItem.separator()
+            separator.tag = AppController.historyAstraSectionSeparatorTag
+            menu.insertItem(separator, at: 2)
+        }
+    }
+
+    @MainActor @objc func openBrowsingHistory(_ sender: Any?) {
+        CefBrowserRuntime.shared.openBrowserDataPage(.history)
+    }
+
+    @MainActor @objc func openClearBrowsingData(_ sender: Any?) {
+        CefBrowserRuntime.shared.openBrowserDataPage(.clearBrowsingData)
     }
 
     private func makeTimeMachineBackupsMenuItem() -> NSMenuItem {

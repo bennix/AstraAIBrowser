@@ -119,6 +119,11 @@ enum CefBrowserAccountPrivacyPolicy {
     }
 }
 
+enum CefBrowserDataPage: String, CaseIterable {
+    case history = "chrome://history"
+    case clearBrowsingData = "chrome://settings/clearBrowserData"
+}
+
 enum AudioFingerprintPrivacyPolicy {
     static let javaScript = """
     (() => {
@@ -1301,6 +1306,22 @@ private final class CefBrowserWindow: NSWindow {
                 focusAfterCreate: true
             )
         }
+    }
+
+    /// Opens profile-scoped Chromium data pages inside the active Astra
+    /// BrowserState. Routing through BrowserState is required in CEF builds:
+    /// the legacy framework bridge is absent, and a Chromium command dispatched
+    /// through it cannot select the active CEF request context.
+    func openBrowserDataPage(_ page: CefBrowserDataPage) {
+        if let controller = MainBrowserWindowControllersManager.shared.activeWindowController,
+           !controller.browserState.isIncognito {
+            controller.browserState.createTab(page.rawValue, focusAfterCreate: true)
+            controller.window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        openBrowserWindow(initialURL: page.rawValue)
     }
 
     /// Chrome runtime extension APIs may create a complete native Chromium
