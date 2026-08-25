@@ -218,8 +218,14 @@ for release_helper in "$app_path"/Contents/Helpers/*(N.); do
 done
 
 for media_tool in "$resources_dir"/MediaTools/*(N.); do
-  [[ -x "$media_tool" ]] && sign_target "$media_tool"
+  [[ -x "$media_tool" ]] && sign_target "$media_tool" true
 done
+if ! media_tool_version="$("$resources_dir/MediaTools/yt-dlp" --version 2>&1)"; then
+  >&2 echo "The signed media helper failed its launch check."
+  >&2 echo "$media_tool_version"
+  exit 65
+fi
+echo "Verified signed media helper: yt-dlp $media_tool_version"
 
 # Xcode leaves package frameworks signed for local development when the app is
 # built without signing. Re-sign every embedded framework explicitly so a

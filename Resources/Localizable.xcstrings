@@ -31216,10 +31216,25 @@
       "extractionState" : "extracted_with_value",
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Audio" } } }
     },
+    "downloads.media.bestAvailableQuality" : {
+      "comment" : "Downloads popover - Video quality option that selects the best available format",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Best Available" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "最高画質" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最佳可用画质" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "最佳可用畫質" } }
+      }
+    },
     "downloads.media.drmProtectedError" : {
       "comment" : "Downloads list - Failure text when encrypted media is intentionally rejected",
       "extractionState" : "extracted_with_value",
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "DRM-protected media cannot be saved" } } }
+    },
+    "downloads.media.genericFailureError" : {
+      "comment" : "Downloads list - Generic media saving failure text",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Media could not be saved" } } }
     },
     "downloads.media.saveAudioAction" : {
       "comment" : "Downloads popover - Action to save unencrypted audio from the current page",

@@ -392,6 +392,67 @@ enum MediaDownloadKind: String {
     }
 }
 
+enum MediaDownloadQuality: Int, CaseIterable, Identifiable {
+    case best = 0
+    case p2160 = 2160
+    case p1440 = 1440
+    case p1080 = 1080
+    case p720 = 720
+    case p480 = 480
+    case p360 = 360
+
+    var id: Int { rawValue }
+
+    var maximumHeight: Int? {
+        self == .best ? nil : rawValue
+    }
+
+    var displayName: String {
+        guard let maximumHeight else {
+            return NSLocalizedString(
+                "downloads.media.bestAvailableQuality",
+                value: "Best Available",
+                comment: "Downloads popover - Video quality option that selects the best available format"
+            )
+        }
+        return "\(maximumHeight)p"
+    }
+}
+
+enum MediaDownloadFormatPolicy {
+    static func arguments(
+        kind: MediaDownloadKind,
+        quality: MediaDownloadQuality,
+        ffmpegDirectory: URL?
+    ) -> [String] {
+        switch kind {
+        case .audio:
+            return ["--format", "ba[ext=m4a]/ba/b"]
+        case .video:
+            let selector: String
+            if let maximumHeight = quality.maximumHeight {
+                if ffmpegDirectory != nil {
+                    selector = "bv*[height<=\(maximumHeight)]+ba/b[height<=\(maximumHeight)]"
+                } else {
+                    selector = "b[ext=mp4][height<=\(maximumHeight)]/b[height<=\(maximumHeight)]"
+                }
+            } else {
+                selector = ffmpegDirectory == nil ? "b[ext=mp4]/b" : "bv*+ba/b"
+            }
+
+            var arguments: [String] = []
+            if let ffmpegDirectory {
+                arguments += ["--ffmpeg-location", ffmpegDirectory.path]
+            }
+            arguments += ["--format", selector]
+            if ffmpegDirectory != nil {
+                arguments += ["--merge-output-format", "mp4"]
+            }
+            return arguments
+        }
+    }
+}
+
 enum MediaDownloadPolicy {
     enum Decision: Equatable {
         case allow
@@ -417,6 +478,25 @@ enum MediaDownloadPolicy {
 
     static func metadataIndicatesDRM(_ data: Data) -> Bool {
         decision(for: data) == .rejectDRM
+    }
+
+    static func failureSummary(in data: Data) -> String? {
+        guard let output = String(data: data, encoding: .utf8) else { return nil }
+        for rawLine in output.split(whereSeparator: \.isNewline).reversed() {
+            let line = String(rawLine).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty else { continue }
+            let cleaned = line.replacingOccurrences(
+                of: "\\u{001B}\\[[0-9;]*m",
+                with: "",
+                options: .regularExpression
+            )
+            if let range = cleaned.range(of: "ERROR:", options: .caseInsensitive) {
+                let message = cleaned[range.upperBound...]
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                return message.isEmpty ? nil : String(message.prefix(240))
+            }
+        }
+        return nil
     }
 
     private static func metadataObject(in data: Data) -> [String: Any]? {
@@ -546,13 +626,20 @@ private final class MediaDownloadCoordinator {
 
     func start(
         item: DownloadItem,
-        pageURL: URL,
+        sourceURLs: [URL],
         kind: MediaDownloadKind,
+        quality: MediaDownloadQuality,
         cookies: [HTTPCookie]
     ) {
         Task { [weak self, weak item] in
             guard let self, let item else { return }
-            await self.perform(item: item, pageURL: pageURL, kind: kind, cookies: cookies)
+            await self.perform(
+                item: item,
+                sourceURLs: sourceURLs,
+                kind: kind,
+                quality: quality,
+                cookies: cookies
+            )
         }
     }
 
@@ -581,17 +668,20 @@ private final class MediaDownloadCoordinator {
 
     private func perform(
         item: DownloadItem,
-        pageURL: URL,
+        sourceURLs: [URL],
         kind: MediaDownloadKind,
+        quality: MediaDownloadQuality,
         cookies: [HTTPCookie]
     ) async {
         guard let toolURL = Self.ytDLPURL() else {
-            item.fileName = NSLocalizedString(
-                "downloads.media.toolUnavailableError",
-                value: "Media saver is unavailable in this build",
-                comment: "Downloads list - Failure text when the private media helper is missing"
+            fail(
+                item,
+                message: NSLocalizedString(
+                    "downloads.media.toolUnavailableError",
+                    value: "Media saver is unavailable in this build",
+                    comment: "Downloads list - Failure text when the private media helper is missing"
+                )
             )
-            fail(item)
             return
         }
 
@@ -613,45 +703,53 @@ private final class MediaDownloadCoordinator {
             ? ["--cookies", cookieURL.path]
             : []
 
-        let metadataArguments = [
-            "--no-config", "--no-playlist", "--no-warnings", "--skip-download", "--dump-single-json",
-        ] + cookieArguments + [pageURL.absoluteString]
-        do {
-            let metadataProcess = MediaToolProcess(
-                executableURL: toolURL,
-                arguments: metadataArguments,
-                lineHandler: { _ in }
-            )
-            processes[item.id] = metadataProcess
-            let metadata = try await metadataProcess.run()
-            guard !wasCancelled(item) else { return }
-            guard metadata.exitCode == 0 else {
-                fail(item)
-                return
-            }
-            switch MediaDownloadPolicy.decision(for: metadata.output) {
-            case .allow:
-                break
-            case .rejectDRM:
-                item.fileName = NSLocalizedString(
-                    "downloads.media.drmProtectedError",
-                    value: "DRM-protected media cannot be saved",
-                    comment: "Downloads list - Failure text when encrypted media is intentionally rejected"
+        var selectedSourceURL: URL?
+        var lastFailure: String?
+        var foundDRM = false
+        for sourceURL in sourceURLs {
+            let metadataArguments = [
+                "--no-config", "--no-playlist", "--no-warnings", "--skip-download", "--dump-single-json",
+            ] + cookieArguments + [sourceURL.absoluteString]
+            do {
+                let metadataProcess = MediaToolProcess(
+                    executableURL: toolURL,
+                    arguments: metadataArguments,
+                    lineHandler: { _ in }
                 )
-                fail(item)
-                return
-            case .rejectUnverified:
-                item.fileName = NSLocalizedString(
-                    "downloads.media.unverifiedError",
-                    value: "Media protection could not be verified",
-                    comment: "Downloads list - Failure text when media protection status cannot be verified"
-                )
-                fail(item)
-                return
+                processes[item.id] = metadataProcess
+                let metadata = try await metadataProcess.run()
+                guard !wasCancelled(item) else { return }
+                guard metadata.exitCode == 0 else {
+                    lastFailure = MediaDownloadPolicy.failureSummary(in: metadata.output) ?? lastFailure
+                    continue
+                }
+                switch MediaDownloadPolicy.decision(for: metadata.output) {
+                case .allow:
+                    selectedSourceURL = sourceURL
+                case .rejectDRM:
+                    foundDRM = true
+                case .rejectUnverified:
+                    break
+                }
+                if selectedSourceURL != nil { break }
+            } catch {
+                guard !wasCancelled(item) else { return }
+                lastFailure = error.localizedDescription
             }
-        } catch {
-            guard !wasCancelled(item) else { return }
-            fail(item)
+        }
+        guard let selectedSourceURL else {
+            if foundDRM {
+                fail(
+                    item,
+                    message: NSLocalizedString(
+                        "downloads.media.drmProtectedError",
+                        value: "DRM-protected media cannot be saved",
+                        comment: "Downloads list - Failure text when encrypted media is intentionally rejected"
+                    )
+                )
+            } else {
+                fail(item, message: lastFailure)
+            }
             return
         }
 
@@ -660,6 +758,7 @@ private final class MediaDownloadCoordinator {
         let baseName = Self.uniqueBaseName(
             title: item.fileName,
             kind: kind,
+            quality: quality,
             directory: downloadsDirectory
         )
         let outputTemplate = downloadsDirectory
@@ -674,21 +773,14 @@ private final class MediaDownloadCoordinator {
             "--print", "after_move:__ASTRA_FILE__:%(filepath)s",
             "--output", outputTemplate,
         ]
-        if kind == .video {
-            if let ffmpegURL = Self.ffmpegURL() {
-                arguments += [
-                    "--ffmpeg-location", ffmpegURL.deletingLastPathComponent().path,
-                    "--format", "bv*+ba/b",
-                    "--merge-output-format", "mp4",
-                ]
-            } else {
-                arguments += ["--format", "b[ext=mp4]/b"]
-            }
-        } else {
-            arguments += ["--format", "ba[ext=m4a]/ba/b"]
-        }
+        let ffmpegDirectory = Self.ffmpegURL()?.deletingLastPathComponent()
+        arguments += MediaDownloadFormatPolicy.arguments(
+            kind: kind,
+            quality: quality,
+            ffmpegDirectory: ffmpegDirectory
+        )
         arguments += cookieArguments
-        arguments.append(pageURL.absoluteString)
+        arguments.append(selectedSourceURL.absoluteString)
 
         do {
             let downloadProcess = MediaToolProcess(
@@ -713,8 +805,11 @@ private final class MediaDownloadCoordinator {
             processes[item.id] = nil
             guard !wasCancelled(item) else { return }
             let finalFileURL = Self.finalFileURL(in: result.output)
-            guard result.exitCode == 0,
-                  let finalFileURL,
+            guard result.exitCode == 0 else {
+                fail(item, message: MediaDownloadPolicy.failureSummary(in: result.output))
+                return
+            }
+            guard let finalFileURL,
                   FileManager.default.fileExists(atPath: finalFileURL.path) else {
                 fail(item)
                 return
@@ -736,8 +831,17 @@ private final class MediaDownloadCoordinator {
         return false
     }
 
-    private func fail(_ item: DownloadItem) {
+    private func fail(_ item: DownloadItem, message: String? = nil) {
         processes[item.id] = nil
+        if let message, !message.isEmpty {
+            item.fileName = message
+        } else {
+            item.fileName = NSLocalizedString(
+                "downloads.media.genericFailureError",
+                value: "Media could not be saved",
+                comment: "Downloads list - Generic media saving failure text"
+            )
+        }
         item.failMediaDownload(cancelled: false)
         finishEvent(for: item, eventType: .interrupted)
     }
@@ -803,13 +907,15 @@ private final class MediaDownloadCoordinator {
     private static func uniqueBaseName(
         title: String,
         kind: MediaDownloadKind,
+        quality: MediaDownloadQuality,
         directory: URL
     ) -> String {
         let invalid = CharacterSet(charactersIn: "/:\\?%*|\"<>")
         let cleanedTitle = title.components(separatedBy: invalid).joined(separator: "-")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let stem = String((cleanedTitle.isEmpty ? "media" : cleanedTitle).prefix(120))
-        let base = "\(stem) - \(kind.displayName)"
+        let qualitySuffix = kind == .video && quality != .best ? " \(quality.displayName)" : ""
+        let base = "\(stem) - \(kind.displayName)\(qualitySuffix)"
         let existingNames = Set(
             (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
         )
@@ -885,7 +991,10 @@ class DownloadsManager: ObservableObject {
         self.browserState = browserState
     }
 
-    func startMediaDownload(kind: MediaDownloadKind) {
+    func startMediaDownload(
+        kind: MediaDownloadKind,
+        quality: MediaDownloadQuality = .best
+    ) {
         guard let tab = browserState?.focusingTab,
               let rawURL = tab.url,
               let pageURL = URL(string: rawURL),
@@ -905,12 +1014,14 @@ class DownloadsManager: ObservableObject {
         Task { @MainActor [weak self, weak tab, weak item] in
             guard let self, let tab, let item else { return }
             let provider = tab.webContentWrapper as? MediaSessionCookieProviding
+            let candidates = await provider?.mediaDownloadCandidates(for: pageURL) ?? []
             let cookies = await provider?.mediaSessionCookies(for: pageURL) ?? []
             guard item.state == .inProgress else { return }
             self.mediaDownloadCoordinator.start(
                 item: item,
-                pageURL: pageURL,
+                sourceURLs: [pageURL] + candidates,
                 kind: kind,
+                quality: quality,
                 cookies: cookies
             )
         }

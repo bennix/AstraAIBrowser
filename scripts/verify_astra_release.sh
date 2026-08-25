@@ -108,6 +108,11 @@ done
   >&2 echo "Verified media helper is missing from the Astra release."
   exit 66
 }
+if ! media_tool_version="$("$resources_path/MediaTools/yt-dlp" --version 2>&1)"; then
+  >&2 echo "The signed media helper cannot launch in this Astra release."
+  >&2 echo "$media_tool_version"
+  exit 65
+fi
 
 legacy_icon="$(find "$resources_path" -iname 'PhiIcon*' -print -quit)"
 [[ -z "$legacy_icon" ]] || {

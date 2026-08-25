@@ -99,8 +99,28 @@ private struct DownloadsBottomBar: View {
             
             HStack {
                 Menu {
-                    Button {
-                        downloadsManager.startMediaDownload(kind: .video)
+                    Menu {
+                        Button {
+                            downloadsManager.startMediaDownload(
+                                kind: .video,
+                                quality: .best
+                            )
+                        } label: {
+                            Text(MediaDownloadQuality.best.displayName)
+                        }
+
+                        Divider()
+
+                        ForEach(MediaDownloadQuality.allCases.dropFirst()) { quality in
+                            Button {
+                                downloadsManager.startMediaDownload(
+                                    kind: .video,
+                                    quality: quality
+                                )
+                            } label: {
+                                Text(quality.displayName)
+                            }
+                        }
                     } label: {
                         Label(
                             NSLocalizedString(

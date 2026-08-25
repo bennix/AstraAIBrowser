@@ -61,6 +61,66 @@ final class YouTubeAdPlaybackPolicyTests: XCTestCase {
         )
     }
 
+    func testMediaDownloadPolicyExtractsToolFailure() {
+        let output = Data(
+            "warning\nERROR: [youtube] example: Sign in to confirm you are not a bot\n".utf8
+        )
+
+        XCTAssertEqual(
+            MediaDownloadPolicy.failureSummary(in: output),
+            "[youtube] example: Sign in to confirm you are not a bot"
+        )
+    }
+
+    func testMediaDownloadFormatPolicyUsesBestMergedVideoByDefault() {
+        let ffmpegDirectory = URL(fileURLWithPath: "/tmp/ffmpeg")
+
+        XCTAssertEqual(
+            MediaDownloadFormatPolicy.arguments(
+                kind: .video,
+                quality: .best,
+                ffmpegDirectory: ffmpegDirectory
+            ),
+            [
+                "--ffmpeg-location", "/tmp/ffmpeg",
+                "--format", "bv*+ba/b",
+                "--merge-output-format", "mp4",
+            ]
+        )
+    }
+
+    func testMediaDownloadFormatPolicyLimitsMergedVideoHeight() {
+        let arguments = MediaDownloadFormatPolicy.arguments(
+            kind: .video,
+            quality: .p1080,
+            ffmpegDirectory: URL(fileURLWithPath: "/tmp/ffmpeg")
+        )
+
+        XCTAssertTrue(arguments.contains("bv*[height<=1080]+ba/b[height<=1080]"))
+    }
+
+    func testMediaDownloadFormatPolicyLimitsSingleFileVideoHeight() {
+        XCTAssertEqual(
+            MediaDownloadFormatPolicy.arguments(
+                kind: .video,
+                quality: .p720,
+                ffmpegDirectory: nil
+            ),
+            ["--format", "b[ext=mp4][height<=720]/b[height<=720]"]
+        )
+    }
+
+    func testMediaDownloadFormatPolicyKeepsAudioIndependentFromVideoQuality() {
+        XCTAssertEqual(
+            MediaDownloadFormatPolicy.arguments(
+                kind: .audio,
+                quality: .p360,
+                ffmpegDirectory: URL(fileURLWithPath: "/tmp/ffmpeg")
+            ),
+            ["--format", "ba[ext=m4a]/ba/b"]
+        )
+    }
+
     func testPlaybackRateDefaultsToEightTimes() {
         XCTAssertEqual(YouTubeAdPlaybackPolicy.adPlaybackRate, 8)
         XCTAssertTrue(
