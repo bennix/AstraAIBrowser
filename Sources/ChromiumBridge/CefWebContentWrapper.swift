@@ -369,6 +369,10 @@ enum SystemMediaCompatibilityPolicy {
         return matches(host, domains: transientFallbackDomains)
     }
 
+    static func usesStallBasedAutomaticFallback(for url: URL) -> Bool {
+        allowsAutomaticFallback(for: url) && !usesTransientFallback(for: url)
+    }
+
     static func dataStoreIdentifier(forProfileId profileId: String) -> UUID {
         let digest = SHA256.hash(data: Data("Astra.SystemMedia.\(profileId)".utf8))
         var bytes = Array(digest.prefix(16))
@@ -474,6 +478,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     private(set) var browser: CefBrowser?
     private var chromeBrowser: CefChromeBrowser?
     private var systemMediaWebView: WKWebView?
+    private var isUsingTransientSystemMediaFallback = false
     private let hostView = HostView(frame: .zero)
     private var pendingURL: URL
     private let retainedProfile: CefProfile
@@ -701,6 +706,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         systemMediaWebView?.stopLoading()
         systemMediaWebView?.removeFromSuperview()
         systemMediaWebView = nil
+        isUsingTransientSystemMediaFallback = false
     }
 
     private func shouldUsePersistentWebKit(for url: URL) -> Bool {
@@ -900,6 +906,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         let destination = Self.cefURL(for: urlString)
         pendingURL = destination
         if shouldUsePersistentWebKit(for: destination) {
+            isUsingTransientSystemMediaFallback = false
             if let systemMediaWebView {
                 systemMediaWebView.load(URLRequest(url: destination))
             } else {
@@ -921,6 +928,9 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
               url.scheme?.lowercased() == "https" else { return }
         pendingURL = url
         urlString = url.absoluteString
+        isUsingTransientSystemMediaFallback = SystemMediaCompatibilityPolicy.usesTransientFallback(
+            for: url
+        )
         chromeBrowser?.nsWindow?.orderOut(nil)
         createSystemMediaWebView()
     }
@@ -1055,6 +1065,9 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
               let pageURL = URL(string: urlString ?? pendingURL.absoluteString),
               SystemMediaCompatibilityPolicy.allowsAutomaticFallback(for: pageURL) else { return }
         let prefix = Self.javaScriptLiteral(Self.mediaFallbackPrefix)
+        let usesStallBasedFallback = SystemMediaCompatibilityPolicy.usesStallBasedAutomaticFallback(
+            for: pageURL
+        )
         let script = """
         (function () {
           if (window.__astraMediaCompatibilityDetectionInstalled) return;
@@ -1062,6 +1075,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
           const probe = document.createElement('video');
           const missingH264 = !probe.canPlayType('video/mp4; codecs="avc1.42E01E"');
           const missingAAC = !probe.canPlayType('audio/mp4; codecs="mp4a.40.2"');
+          const usesStallBasedFallback = \(usesStallBasedFallback ? "true" : "false");
           if (!missingH264 && !missingAAC) return;
 
           let reported = false;
@@ -1104,14 +1118,15 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
               if (!isVisible(media)) continue;
               if (!firstSeen.has(media)) firstSeen.set(media, now);
               const unsupportedError = media.error && (media.error.code === 3 || media.error.code === 4);
-              const stalledUnsupportedMedia = declaresUnsupportedFormat(media) &&
+              const stalledUnsupportedMedia = usesStallBasedFallback &&
+                declaresUnsupportedFormat(media) &&
                 media.readyState <= HTMLMediaElement.HAVE_METADATA &&
                 now - firstSeen.get(media) >= 6000;
               const hasMediaRequest = Boolean(
                 media.currentSrc || media.src || media.querySelector('source[src]') ||
                 media.autoplay || !media.paused
               );
-              const stalledUnknownMedia = hasMediaRequest &&
+              const stalledUnknownMedia = usesStallBasedFallback && hasMediaRequest &&
                 media.readyState === HTMLMediaElement.HAVE_NOTHING &&
                 now - firstSeen.get(media) >= 10000;
               if (unsupportedError || stalledUnsupportedMedia || stalledUnknownMedia) {
@@ -3054,6 +3069,16 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         if navigationAction.targetFrame == nil {
             onOpenURLInNewTab?(destination, true)
             decisionHandler(.cancel)
+            return
+        }
+        if navigationAction.targetFrame?.isMainFrame == true,
+           isUsingTransientSystemMediaFallback,
+           SystemMediaCompatibilityPolicy.usesTransientFallback(for: destination) {
+            // The fallback web view must be allowed to finish the X/Twitter
+            // navigation that created it. Sending the same URL straight back
+            // to Chromium would retrigger media detection and create a reload
+            // loop between the two engines.
+            decisionHandler(.allow)
             return
         }
         if navigationAction.targetFrame?.isMainFrame == true,
