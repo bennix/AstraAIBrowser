@@ -44,6 +44,11 @@
       "extractionState" : "extracted_with_value",
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Update now" } } }
     },
+    "privacy.xSpamShield.badge.blockButton" : {
+      "comment" : "X spam shield - Button that blocks a discovered junk account with the signed-in X account",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Block" } } }
+    },
     "privacy.xSpamShield.badge.hideButton" : {
       "comment" : "X spam shield - Button that locally hides posts from a matched account",
       "extractionState" : "extracted_with_value",
@@ -55,14 +60,29 @@
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Junk account" } } }
     },
     "privacy.xSpamShield.status.guardLabel" : {
-      "comment" : "X spam shield - Floating status label shown while Astra checks visible accounts",
+      "comment" : "X spam shield - Floating status label; clicking it blocks discovered junk accounts",
       "extractionState" : "extracted_with_value",
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Guard" } } }
+    },
+    "privacy.xSpamShield.toast.blockFailed" : {
+      "comment" : "X spam shield - Toast shown when some discovered accounts could not be blocked",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Could not block all accounts. Try again later." } } }
+    },
+    "privacy.xSpamShield.toast.blockedMessage" : {
+      "comment" : "X spam shield - Confirmation after blocking an account with the signed-in X account; placeholder is the account handle",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Blocked @%@" } } }
     },
     "privacy.xSpamShield.toast.hiddenMessage" : {
       "comment" : "X spam shield - Confirmation after locally hiding an account; placeholder is the account handle",
       "extractionState" : "extracted_with_value",
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Posts from %@ are hidden" } } }
+    },
+    "privacy.xSpamShield.toast.signInToBlock" : {
+      "comment" : "X spam shield - Toast shown when the Guard pill is clicked without an X session",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Sign in to X to block these accounts" } } }
     },
     "privacy.xSpamShield.toast.undoButton" : {
       "comment" : "X spam shield - Button restoring posts that were just hidden locally",

@@ -777,16 +777,38 @@ final class ZenMuxTests: XCTestCase {
         let script = XSpamShieldWebPolicy.javaScript(
             guardLabel: "Guard",
             junkLabel: "Junk account",
-            hideLabel: "Hide",
+            hideLabel: "Block",
             undoLabel: "Undo",
-            hiddenMessage: "Posts from %@ are hidden"
+            hiddenMessage: "Blocked @%@",
+            signInMessage: "Sign in to X to block these accounts",
+            blockFailedMessage: "Could not block all accounts. Try again later."
         )
 
         XCTAssertTrue(script.contains("MutationObserver"))
         XCTAssertTrue(script.contains("astraXSpamShield"))
         XCTAssertTrue(script.contains("handler.postMessage({ type: 'scan', handles })"))
-        XCTAssertFalse(script.contains("fetch("))
+        XCTAssertFalse(script.contains("x.zuoluo.tv"))
         XCTAssertFalse(script.contains("XMLHttpRequest"))
+    }
+
+    func testXSpamShieldScriptBlocksDiscoveredAccountsFromGuardPill() {
+        let script = XSpamShieldWebPolicy.javaScript(
+            guardLabel: "Guard",
+            junkLabel: "Junk account",
+            hideLabel: "Block",
+            undoLabel: "Undo",
+            hiddenMessage: "Blocked @%@",
+            signInMessage: "Sign in to X to block these accounts",
+            blockFailedMessage: "Could not block all accounts. Try again later."
+        )
+
+        XCTAssertTrue(script.contains("/i/api/1.1/blocks/create.json"))
+        XCTAssertTrue(script.contains("blockDiscovered([match.handle])"))
+        XCTAssertTrue(script.contains("screen_name="))
+        XCTAssertTrue(script.contains("blockDiscovered"))
+        XCTAssertTrue(script.contains("done + '/' + total"))
+        XCTAssertTrue(script.contains("addEventListener('click'"))
+        XCTAssertFalse(script.contains("pointer-events:none"))
     }
 
     @MainActor

@@ -7,15 +7,18 @@ for a Chromium extension or a separate player overlay.
 ## Ownership
 
 - `SystemMediaCompatibilityPolicy` owns the X/Twitter engine route.
-- `XSpamShieldWebPolicy` owns passive DOM observation and the isolated badge,
-  hide, and undo surfaces inside X pages.
+- `XSpamShieldWebPolicy` owns passive DOM observation, the isolated Guard pill,
+  junk-account badge, and user-initiated X blocking inside X pages.
 - `XSpamShieldStore` owns local matching, the six-hour cache, whitelist
   precedence, and the user's locally hidden handle set.
 - `APIClient` owns all requests to the upstream public-list service.
 
 The page sends only visible public handles to native code. Native matching does
 not send those handles, page content, matches, or local actions over the
-network. Local hiding changes presentation only and does not call X APIs.
+network. Clicking Guard, or Block on a junk-account badge, blocks that account
+with the signed-in X account through the page session, shows `done/total`
+progress on the Guard pill, then hides those posts. Local Hide is no longer the
+primary action.
 
 ## Public-list integration
 
@@ -30,7 +33,7 @@ trigger the same update flow on demand and reports which source supplied the
 installed snapshot. The upstream project remains the source of the list,
 governance, audit trail, and appeals.
 
-The current implementation intentionally supports only passive matching and
-reversible local hiding. Native X mute or block actions are excluded because
-they mutate the user's account, invoke X automation controls, and require a
-separate consent and rate-limiting design.
+Blocking is opt-in: it starts only when the user clicks Guard or Block. Requests
+run sequentially with a short delay so X rate limits are less likely to trip.
+If the page has no X session, the UI shows a sign-in toast instead of sending
+block requests.

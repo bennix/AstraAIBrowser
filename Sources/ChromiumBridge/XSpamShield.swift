@@ -428,13 +428,17 @@ enum XSpamShieldWebPolicy {
         junkLabel: String,
         hideLabel: String,
         undoLabel: String,
-        hiddenMessage: String
+        hiddenMessage: String,
+        signInMessage: String,
+        blockFailedMessage: String
     ) -> String {
         let guardText = javaScriptLiteral(guardLabel)
         let junkText = javaScriptLiteral(junkLabel)
         let hideText = javaScriptLiteral(hideLabel)
         let undoText = javaScriptLiteral(undoLabel)
         let hiddenText = javaScriptLiteral(hiddenMessage)
+        let signInText = javaScriptLiteral(signInMessage)
+        let blockFailedText = javaScriptLiteral(blockFailedMessage)
         return """
         (() => {
           if (!/(^|\\.)x\\.com$|(^|\\.)twitter\\.com$/i.test(location.hostname)) return;
@@ -443,10 +447,13 @@ enum XSpamShieldWebPolicy {
 
           const handler = window.webkit?.messageHandlers?.\(messageHandlerName);
           if (!handler) return;
+          const guardLabel = \(guardText);
           const matched = new Map();
           const articleHandles = new WeakMap();
+          const blockedHandles = new Set();
+          const userIds = new Map();
           let scanTimer = null;
-          let hitCount = 0;
+          let blocking = false;
 
           const normalize = (value) => String(value || '').replace(/^@/, '').trim().toLowerCase();
           const authorHandle = (article) => {
@@ -464,61 +471,219 @@ enum XSpamShieldWebPolicy {
             }
             return '';
           };
+          const selfHandle = () => {
+            const profile = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
+            if (!profile?.href) return '';
+            try {
+              const parts = new URL(profile.href, location.href).pathname.split('/').filter(Boolean);
+              return normalize(parts[0] || '');
+            } catch (_) { return ''; }
+          };
+          const pendingHandles = () => {
+            const handles = [];
+            const seen = new Set();
+            const ownHandle = selfHandle();
+            document.querySelectorAll('article').forEach((article) => {
+              const handle = articleHandles.get(article) || authorHandle(article);
+              if (!handle || seen.has(handle) || blockedHandles.has(handle) || handle === ownHandle) return;
+              if (!matched.has(handle)) return;
+              captureUserId(article, handle);
+              seen.add(handle);
+              handles.push(handle);
+            });
+            return handles;
+          };
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
           const ensureStatus = () => {
             let host = document.getElementById('astra-x-spam-shield-status');
             if (host) return host.shadowRoot;
             host = document.createElement('div');
             host.id = 'astra-x-spam-shield-status';
-            host.style.cssText = 'position:fixed;z-index:2147483646;top:18px;right:22px;pointer-events:none';
+            host.style.cssText = 'position:fixed;z-index:2147483646;top:18px;right:22px';
             const root = host.attachShadow({ mode: 'open' });
             root.innerHTML = `<style>
               .pill{display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:999px;
                 background:rgba(255,255,255,.94);color:#0f1419;border:1px solid rgba(15,20,25,.12);
-                box-shadow:0 6px 24px rgba(0,0,0,.12);font:600 14px -apple-system,BlinkMacSystemFont,sans-serif}
-              .shield{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:#1687c9;color:white}
-            </style><div class="pill"><span class="shield">✓</span><span class="text"></span></div>`;
+                box-shadow:0 6px 24px rgba(0,0,0,.12);font:600 14px -apple-system,BlinkMacSystemFont,sans-serif;
+                user-select:none}
+              .pill.ready{cursor:pointer}
+              .pill.ready:hover{box-shadow:0 8px 28px rgba(0,0,0,.16)}
+              .pill.busy{cursor:progress}
+              .shield{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;
+                background:#1687c9;color:white;box-sizing:border-box}
+              .shield.busy{color:transparent;background:
+                radial-gradient(circle closest-side,#fff 54%,transparent 56% 100%),
+                conic-gradient(#1687c9 calc(var(--p,0)*1%),#d7e6f0 0)}
+            </style><div class="pill" role="button"><span class="shield">✓</span><span class="text" aria-live="polite"></span></div>`;
+            root.querySelector('.pill')?.addEventListener('click', () => { void blockDiscovered(); });
             (document.body || document.documentElement).appendChild(host);
             return root;
           };
 
-          const updateStatus = () => {
+          const updateStatus = (progress) => {
             const root = ensureStatus();
             const text = root?.querySelector('.text');
-            if (text) text.textContent = hitCount > 0 ? `\(guardText) ${hitCount}` : \(guardText);
+            const shield = root?.querySelector('.shield');
+            const pill = root?.querySelector('.pill');
+            if (!text || !shield || !pill) return;
+            if (progress) {
+              const total = progress.total || 0;
+              const done = progress.done || 0;
+              shield.classList.add('busy');
+              shield.textContent = '';
+              shield.style.setProperty('--p', String(total ? Math.round((done / total) * 100) : 0));
+              pill.classList.remove('ready');
+              pill.classList.add('busy');
+              text.textContent = guardLabel + ' ' + done + '/' + total;
+              return;
+            }
+            const pending = pendingHandles().length;
+            shield.classList.remove('busy');
+            shield.style.removeProperty('--p');
+            shield.textContent = '✓';
+            pill.classList.remove('busy');
+            pill.classList.toggle('ready', pending > 0 && !blocking);
+            text.textContent = pending > 0 ? guardLabel + ' ' + pending : guardLabel;
           };
 
-          const showUndo = (handle) => {
+          const showToast = (message, undoHandle) => {
             let host = document.getElementById('astra-x-spam-shield-toast');
             if (host) host.remove();
             host = document.createElement('div');
             host.id = 'astra-x-spam-shield-toast';
             host.style.cssText = 'position:fixed;z-index:2147483647;left:50%;bottom:28px;transform:translateX(-50%)';
             const root = host.attachShadow({ mode: 'open' });
-            const message = \(hiddenText).replace('%@', `@${handle}`);
+            const undoMarkup = undoHandle ? `<button>\(undoText)</button>` : '';
             root.innerHTML = `<style>
               .toast{display:flex;align-items:center;gap:16px;padding:12px 16px;border-radius:12px;background:#0f1419;color:white;
                 box-shadow:0 8px 30px rgba(0,0,0,.28);font:14px -apple-system,BlinkMacSystemFont,sans-serif}
               button{border:0;background:none;color:#55acee;font:700 14px inherit;cursor:pointer}
-            </style><div class="toast"><span>${message}</span><button>\(undoText)</button></div>`;
-            root.querySelector('button')?.addEventListener('click', () => {
-              handler.postMessage({ type: 'unhide', handle });
-              const match = matched.get(handle);
-              if (match) matched.set(handle, { ...match, isHidden: false });
-              document.querySelectorAll('article[data-astra-x-hidden="true"]').forEach((article) => {
-                if (articleHandles.get(article) === handle) {
-                  article.style.removeProperty('display');
-                  article.removeAttribute('data-astra-x-hidden');
-                }
+            </style><div class="toast"><span>${message}</span>${undoMarkup}</div>`;
+            if (undoHandle) {
+              root.querySelector('button')?.addEventListener('click', () => {
+                handler.postMessage({ type: 'unhide', handle: undoHandle });
+                const match = matched.get(undoHandle);
+                if (match) matched.set(undoHandle, { ...match, isHidden: false });
+                document.querySelectorAll('article[data-astra-x-hidden="true"]').forEach((article) => {
+                  if (articleHandles.get(article) === undoHandle) {
+                    article.style.removeProperty('display');
+                    article.removeAttribute('data-astra-x-hidden');
+                  }
+                });
+                host.remove();
+                updateStatus();
               });
-              host.remove();
-            });
+            }
             (document.body || document.documentElement).appendChild(host);
             setTimeout(() => host?.remove(), 5000);
           };
 
+          const hideHandle = (handle) => {
+            const match = matched.get(handle);
+            if (match) matched.set(handle, { ...match, isHidden: true });
+            handler.postMessage({ type: 'hide', handle });
+            document.querySelectorAll('article').forEach((candidate) => {
+              if (articleHandles.get(candidate) === handle) {
+                candidate.style.setProperty('display', 'none', 'important');
+                candidate.setAttribute('data-astra-x-hidden', 'true');
+              }
+            });
+          };
+
+          const captureUserId = (article, handle) => {
+            if (!handle || userIds.has(handle)) return;
+            for (const anchor of article.querySelectorAll('a[href]')) {
+              try {
+                const idMatch = new URL(anchor.href, location.href).pathname.match(/^\\/i\\/user\\/(\\d+)$/);
+                if (idMatch) {
+                  userIds.set(handle, idMatch[1]);
+                  return;
+                }
+              } catch (_) {}
+            }
+          };
+
+          const blockHandle = async (handle) => {
+            const csrfMatch = document.cookie.match(/(?:^|; )ct0=([^;]*)/);
+            const csrf = csrfMatch ? decodeURIComponent(csrfMatch[1]) : '';
+            if (!csrf) throw new Error('auth');
+            const userId = userIds.get(handle);
+            const response = await fetch('/i/api/1.1/blocks/create.json', {
+              method: 'POST',
+              credentials: 'include',
+              headers: {
+                authorization: 'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA',
+                'content-type': 'application/x-www-form-urlencoded',
+                'x-csrf-token': csrf,
+                'x-twitter-auth-type': 'OAuth2Session',
+                'x-twitter-active-user': 'yes'
+              },
+              body: userId
+                ? 'user_id=' + encodeURIComponent(userId)
+                : 'screen_name=' + encodeURIComponent(handle)
+            });
+            if (response.ok || response.status === 403) return;
+            if (response.status === 401) throw new Error('auth');
+            if (response.status === 429) throw new Error('rate');
+            throw new Error('block');
+          };
+
+          const blockDiscovered = async (requested) => {
+            if (blocking) return;
+            const ownHandle = selfHandle();
+            const handles = ((requested && requested.length) ? requested : pendingHandles()).filter((handle) => {
+              return handle && handle !== ownHandle && matched.has(handle) && !blockedHandles.has(handle);
+            });
+            if (!handles.length) return;
+            blocking = true;
+            let done = 0;
+            let failed = 0;
+            let consecutiveFailures = 0;
+            const total = handles.length;
+            updateStatus({ done, total });
+            for (const handle of handles) {
+              try {
+                await blockHandle(handle);
+                blockedHandles.add(handle);
+                hideHandle(handle);
+                consecutiveFailures = 0;
+              } catch (error) {
+                if (error && error.message === 'rate') {
+                  await sleep(8000);
+                  try {
+                    await blockHandle(handle);
+                    blockedHandles.add(handle);
+                    hideHandle(handle);
+                    consecutiveFailures = 0;
+                  } catch (_) {
+                    failed += 1;
+                    break;
+                  }
+                } else if (error && error.message === 'auth') {
+                  blocking = false;
+                  updateStatus();
+                  showToast(\(signInText));
+                  return;
+                } else {
+                  failed += 1;
+                  consecutiveFailures += 1;
+                  if (consecutiveFailures >= 3) break;
+                }
+              }
+              done += 1;
+              updateStatus({ done, total });
+              if (done < total) await sleep(1100);
+            }
+            blocking = false;
+            updateStatus();
+            if (failed) showToast(\(blockFailedText));
+            else if (total === 1) showToast(\(hiddenText).replace('%@', handles[0]));
+          };
+
           const decorate = (article, match) => {
             articleHandles.set(article, match.handle);
+            captureUserId(article, match.handle);
             if (match.isHidden) {
               article.style.setProperty('display', 'none', 'important');
               article.setAttribute('data-astra-x-hidden', 'true');
@@ -536,34 +701,33 @@ enum XSpamShieldWebPolicy {
                 border:1px solid #ffd1d1;color:#b42318;font:700 12px -apple-system,BlinkMacSystemFont,sans-serif}
               button{border:0;border-radius:999px;background:#d92d20;color:white;padding:4px 9px;font:700 12px -apple-system,BlinkMacSystemFont,sans-serif;cursor:pointer}
             </style><span class="badge"><span>\(junkText)</span><button>\(hideText)</button></span>`;
-            root.querySelector('button')?.addEventListener('click', () => {
-              handler.postMessage({ type: 'hide', handle: match.handle });
-              matched.set(match.handle, { ...match, isHidden: true });
-              document.querySelectorAll('article').forEach((candidate) => {
-                if (articleHandles.get(candidate) === match.handle) {
-                  candidate.style.setProperty('display', 'none', 'important');
-                  candidate.setAttribute('data-astra-x-hidden', 'true');
-                }
-              });
-              showUndo(match.handle);
+            root.querySelector('button')?.addEventListener('click', (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void blockDiscovered([match.handle]);
             });
             anchor.parentNode.insertBefore(host, anchor.nextSibling);
           };
 
           const apply = (matches) => {
-            for (const match of matches || []) matched.set(normalize(match.handle), match);
-            const hitHandles = new Set();
+            for (const match of matches || []) {
+              const handle = normalize(match.handle);
+              const previous = matched.get(handle);
+              matched.set(handle, {
+                ...match,
+                handle,
+                isHidden: blockedHandles.has(handle) || previous?.isHidden || match.isHidden
+              });
+            }
             document.querySelectorAll('article').forEach((article) => {
               const handle = authorHandle(article);
               if (!handle) return;
               articleHandles.set(article, handle);
               const match = matched.get(handle);
               if (!match) return;
-              hitHandles.add(handle);
               decorate(article, match);
             });
-            hitCount = hitHandles.size;
-            updateStatus();
+            if (!blocking) updateStatus();
           };
           window.__astraXSpamShieldApply = apply;
 
@@ -575,11 +739,12 @@ enum XSpamShieldWebPolicy {
               const handle = authorHandle(article);
               if (handle && !seen.has(handle)) {
                 seen.add(handle);
+                captureUserId(article, handle);
                 handles.push(handle);
               }
             });
             if (handles.length) handler.postMessage({ type: 'scan', handles });
-            else updateStatus();
+            else if (!blocking) updateStatus();
           };
           const scheduleScan = () => {
             if (scanTimer) return;

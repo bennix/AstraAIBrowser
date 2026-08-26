@@ -682,7 +682,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                     guardLabel: NSLocalizedString(
                         "privacy.xSpamShield.status.guardLabel",
                         value: "Guard",
-                        comment: "X spam shield - Floating status label shown while Astra checks visible accounts"
+                        comment: "X spam shield - Floating status label; clicking it blocks discovered junk accounts"
                     ),
                     junkLabel: NSLocalizedString(
                         "privacy.xSpamShield.badge.junkAccount",
@@ -690,9 +690,9 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                         comment: "X spam shield - Badge identifying an account found on the public junk-account list"
                     ),
                     hideLabel: NSLocalizedString(
-                        "privacy.xSpamShield.badge.hideButton",
-                        value: "Hide",
-                        comment: "X spam shield - Button that locally hides posts from a matched account"
+                        "privacy.xSpamShield.badge.blockButton",
+                        value: "Block",
+                        comment: "X spam shield - Button that blocks a discovered junk account with the signed-in X account"
                     ),
                     undoLabel: NSLocalizedString(
                         "privacy.xSpamShield.toast.undoButton",
@@ -700,9 +700,19 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                         comment: "X spam shield - Button restoring posts that were just hidden locally"
                     ),
                     hiddenMessage: NSLocalizedString(
-                        "privacy.xSpamShield.toast.hiddenMessage",
-                        value: "Posts from %@ are hidden",
-                        comment: "X spam shield - Confirmation after locally hiding an account; placeholder is the account handle"
+                        "privacy.xSpamShield.toast.blockedMessage",
+                        value: "Blocked @%@",
+                        comment: "X spam shield - Confirmation after blocking an account with the signed-in X account; placeholder is the account handle"
+                    ),
+                    signInMessage: NSLocalizedString(
+                        "privacy.xSpamShield.toast.signInToBlock",
+                        value: "Sign in to X to block these accounts",
+                        comment: "X spam shield - Toast shown when the Guard pill is clicked without an X session"
+                    ),
+                    blockFailedMessage: NSLocalizedString(
+                        "privacy.xSpamShield.toast.blockFailed",
+                        value: "Could not block all accounts. Try again later.",
+                        comment: "X spam shield - Toast shown when some discovered accounts could not be blocked"
                     )
                 ),
                 injectionTime: .atDocumentEnd,
