@@ -65,6 +65,35 @@ enum CefDisabledFeaturePolicy {
     }
 }
 
+enum CefWebStoreExtensionDownloadPolicy {
+    private static let trustedHosts = Set([
+        "clients2.google.com",
+        "clients2.googleusercontent.com",
+        "chromewebstore.google.com"
+    ])
+
+    static func extensionID(fileName: String, sourceURL: String) -> String? {
+        guard let url = URL(string: sourceURL),
+              let host = url.host?.lowercased(),
+              trustedHosts.contains(host),
+              fileName.lowercased().hasSuffix(".crx") else {
+            return nil
+        }
+        let candidate = fileName
+            .lowercased()
+            .split(whereSeparator: { $0 == "_" || $0 == "." || $0 == "-" })
+            .first
+            .map(String.init) ?? ""
+        guard candidate.count == 32,
+              candidate.unicodeScalars.allSatisfy({ scalar in
+                  scalar.value >= 97 && scalar.value <= 112
+              }) else {
+            return nil
+        }
+        return candidate
+    }
+}
+
 enum CefWebRTCPrivacyPolicy {
     static let commandLineSwitch = "webrtc-ip-handling-policy"
     static let forceCommandLineSwitch = "force-webrtc-ip-handling-policy"
@@ -486,7 +515,7 @@ enum FingerprintPrivacyPolicy {
             }
             const pixelCount = Math.floor(values.length / 4);
             const stride = Math.max(1, Math.floor(pixelCount / 8));
-            let pixel = (siteSeed ^ salt) % pixelCount;
+            let pixel = ((siteSeed ^ salt) >>> 0) % pixelCount;
             for (let count = 0; count < 8 && pixel < pixelCount; count += 1) {
               const channel = ((siteSeed >>> (count % 24)) + count) % 3;
               const index = pixel * 4 + channel;
@@ -662,19 +691,6 @@ enum FingerprintPrivacyPolicy {
             }
           };
           replaceSanitizedSetter(globalThis.CanvasRenderingContext2D?.prototype, "font", false);
-          replaceSanitizedSetter(globalThis.CSSStyleDeclaration?.prototype, "font", false);
-          replaceSanitizedSetter(globalThis.CSSStyleDeclaration?.prototype, "fontFamily", true);
-          replaceMethod(globalThis.CSSStyleDeclaration?.prototype, "setProperty", (nativeMethod) =>
-            function(name, value, priority) {
-              const normalizedName = String(name).toLowerCase();
-              const sanitizedValue = normalizedName === "font-family"
-                ? genericFontDeclaration(value, true)
-                : normalizedName === "font"
-                  ? genericFontDeclaration(value, false)
-                  : value;
-              return nativeMethod.call(this, name, sanitizedValue, priority);
-            }
-          );
 
           const fontFaceSetPrototype = globalThis.FontFaceSet?.prototype
             || Object.getPrototypeOf(globalThis.document?.fonts || null);
@@ -686,20 +702,47 @@ enum FingerprintPrivacyPolicy {
               return nativeMethod.call(this, font, text);
             }
           );
-          const sanitizeFontProbeElement = (element) => {
-            const declaration = element?.style?.fontFamily;
-            if (!containsHiddenFont(declaration)) {
-              return;
+          const cssStylePrototype = globalThis.CSSStyleDeclaration?.prototype;
+          const nativeGetPropertyValue = cssStylePrototype?.getPropertyValue;
+          const nativeGetPropertyPriority = cssStylePrototype?.getPropertyPriority;
+          const nativeSetProperty = cssStylePrototype?.setProperty;
+          const nativeRemoveProperty = cssStylePrototype?.removeProperty;
+          const measureWithoutProtectedFont = (element, measurement) => {
+            const style = element?.style;
+            if (!style
+                || typeof nativeGetPropertyValue !== "function"
+                || typeof nativeSetProperty !== "function") {
+              return measurement();
             }
+            const declaration = nativeGetPropertyValue.call(style, "font-family");
+            if (!containsHiddenFont(declaration)) {
+              return measurement();
+            }
+            const priority = typeof nativeGetPropertyPriority === "function"
+              ? nativeGetPropertyPriority.call(style, "font-family")
+              : "";
             const genericFamilies = String(declaration).toLowerCase().match(
               /(?:^|[,\s])(monospace|sans-serif|serif|system-ui)(?=\s*(?:,|$))/g
             );
             const fallback = genericFamilies?.at(-1)?.trim().replace(/^,/, "").trim()
               || "monospace";
             try {
-              element.style.fontFamily = fallback;
+              nativeSetProperty.call(style, "font-family", fallback, priority);
             } catch (_) {
-              // Leave layout measurement available if the style is immutable.
+              return measurement();
+            }
+            try {
+              return measurement();
+            } finally {
+              try {
+                if (declaration) {
+                  nativeSetProperty.call(style, "font-family", declaration, priority);
+                } else if (typeof nativeRemoveProperty === "function") {
+                  nativeRemoveProperty.call(style, "font-family");
+                }
+              } catch (_) {
+                // Preserve native layout behavior if the inline style is immutable.
+              }
             }
           };
           const replaceFontMetricGetter = (prototype, name) => {
@@ -720,8 +763,10 @@ enum FingerprintPrivacyPolicy {
               }
               Object.defineProperty(descriptorOwner, name, {
                 get() {
-                  sanitizeFontProbeElement(this);
-                  return descriptor.get.call(this);
+                  return measureWithoutProtectedFont(
+                    this,
+                    () => descriptor.get.call(this)
+                  );
                 },
                 configurable: true,
                 enumerable: descriptor.enumerable === true
@@ -734,8 +779,10 @@ enum FingerprintPrivacyPolicy {
           replaceFontMetricGetter(globalThis.HTMLElement?.prototype, "offsetHeight");
           replaceMethod(globalThis.Element?.prototype, "getBoundingClientRect", (nativeMethod) =>
             function(...args) {
-              sanitizeFontProbeElement(this);
-              return nativeMethod.apply(this, args);
+              return measureWithoutProtectedFont(
+                this,
+                () => nativeMethod.apply(this, args)
+              );
             }
           );
           if (globalThis.navigator && typeof globalThis.navigator.queryLocalFonts === "function") {

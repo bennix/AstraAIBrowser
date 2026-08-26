@@ -35,6 +35,33 @@ final class CefDisabledFeaturePolicyTests: XCTestCase {
     }
 }
 
+final class CefWebStoreExtensionDownloadPolicyTests: XCTestCase {
+    func testExtractsExtensionIDFromTrustedWebStoreDownload() {
+        XCTAssertEqual(
+            CefWebStoreExtensionDownloadPolicy.extensionID(
+                fileName: "AEOLDNECPHBKKCKEEDFGFCDCEKKLJDEA_0_6_0_0.crx",
+                sourceURL: "https://clients2.googleusercontent.com/crx/blobs/example"
+            ),
+            "aeoldnecphbkkckeedfgfcdcekkljdea"
+        )
+    }
+
+    func testRejectsUntrustedOrMalformedDownloads() {
+        XCTAssertNil(
+            CefWebStoreExtensionDownloadPolicy.extensionID(
+                fileName: "aeoldnecphbkkckeedfgfcdcekkljdea.crx",
+                sourceURL: "https://example.com/download"
+            )
+        )
+        XCTAssertNil(
+            CefWebStoreExtensionDownloadPolicy.extensionID(
+                fileName: "not-an-extension.crx",
+                sourceURL: "https://clients2.googleusercontent.com/crx/blobs/example"
+            )
+        )
+    }
+}
+
 final class CefWebRTCPrivacyPolicyTests: XCTestCase {
     func testPolicyDisablesNonProxiedUDP() {
         XCTAssertEqual(
@@ -280,8 +307,8 @@ final class FingerprintPrivacyPolicyTests: XCTestCase {
             false
         )
         XCTAssertEqual(
-            context.evaluateScript("testSanitizedFontFamily()")?.toString(),
-            "monospace"
+            context.evaluateScript("testFontFamilyAssignment()")?.toString(),
+            "PingFang SC, sans-serif"
         )
         XCTAssertNil(exception?.toString())
     }
@@ -346,13 +373,61 @@ final class FingerprintPrivacyPolicyTests: XCTestCase {
         context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
         context.evaluateScript("""
         globalThis.metricProbe = new HTMLElement();
-        Object.defineProperty(metricProbe.style, 'fontFamily', {
-          value: 'PingFang SC, monospace', writable: true, configurable: true
-        });
+        metricProbe.style.fontFamily = 'PingFang SC, monospace';
         """)
 
         XCTAssertEqual(context.evaluateScript("metricProbe.offsetWidth")?.toInt32(), 100)
-        XCTAssertEqual(context.evaluateScript("metricProbe.style.fontFamily")?.toString(), "monospace")
+        XCTAssertEqual(
+            context.evaluateScript("metricProbe.style.fontFamily")?.toString(),
+            "PingFang SC, monospace"
+        )
+        XCTAssertEqual(
+            context.evaluateScript("metricProbe.getBoundingClientRect().width")?.toInt32(),
+            100
+        )
+        XCTAssertNil(exception?.toString())
+    }
+
+    func testPolicyPreservesRepeatedDOMFontAssignments() throws {
+        let context = try XCTUnwrap(JSContext())
+        var exception: JSValue?
+        context.exceptionHandler = { _, value in exception = value }
+        context.evaluateScript(Self.browserSurfaceTestEnvironment)
+        context.evaluateScript("""
+        class Element {
+          getBoundingClientRect() { return { width: this.offsetWidth, height: 20 }; }
+        }
+        class HTMLElement extends Element {
+          constructor() { super(); this.style = new CSSStyleDeclaration(); }
+        }
+        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
+          get() { return this.style.fontFamily.includes('PingFang') ? 200 : 100; },
+          configurable: true,
+          enumerable: true
+        });
+        Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+          get() { return 20; }, configurable: true, enumerable: true
+        });
+        globalThis.Element = Element;
+        globalThis.HTMLElement = HTMLElement;
+        """)
+        context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
+
+        let result = context.evaluateScript("""
+        (() => {
+          const element = new HTMLElement();
+          const expected = 'PingFang SC, monospace';
+          for (let index = 0; index < 50000; index += 1) {
+            element.style.fontFamily = expected;
+            if (element.style.fontFamily !== expected || element.offsetWidth !== 100) {
+              return false;
+            }
+          }
+          return element.style.fontFamily === expected;
+        })()
+        """)
+
+        XCTAssertEqual(result?.toBool(), true)
         XCTAssertNil(exception?.toString())
     }
 
@@ -443,7 +518,20 @@ final class FingerprintPrivacyPolicyTests: XCTestCase {
       constructor() { this.fontValue = ''; this.fontFamilyValue = ''; }
     }
     class CSSStyleDeclaration extends CSSStyleProperties {
-      setProperty(name, value) { this[name] = value; }
+      setProperty(name, value) {
+        if (name === 'font-family') { this.fontFamily = value; return; }
+        this[name] = value;
+      }
+      getPropertyValue(name) {
+        if (name === 'font-family') { return this.fontFamily; }
+        return this[name] || '';
+      }
+      getPropertyPriority() { return ''; }
+      removeProperty(name) {
+        const value = this.getPropertyValue(name);
+        this.setProperty(name, '');
+        return value;
+      }
     }
     Object.defineProperty(CSSStyleProperties.prototype, 'font', {
       get() { return this.fontValue; },
@@ -468,7 +556,7 @@ final class FingerprintPrivacyPolicyTests: XCTestCase {
     }
     globalThis.WebGLRenderingContext = WebGLRenderingContext;
 
-    globalThis.testSanitizedFontFamily = () => {
+    globalThis.testFontFamilyAssignment = () => {
       const style = new CSSStyleDeclaration();
       style.fontFamily = 'PingFang SC, sans-serif';
       return style.fontFamily;

@@ -97,17 +97,30 @@ enum BrowserWindowOpenPolicy {
 }
 
 enum WebResourceCompatibilityPolicy {
+    private static let supportedDomains = [
+        "126.com",
+        "126.net",
+        "163.com",
+        "acfun.cn",
+        "bilibili.com",
+        "iyf.tv",
+        "iqiyi.com",
+        "mgtv.com",
+        "qq.com",
+        "youku.com",
+    ]
+
     static func permitsPageMutation(for url: URL) -> Bool {
         guard url.scheme?.lowercased() == "https",
-              url.host != nil else { return false }
+              let host = url.host?.lowercased() else { return false }
 
-        // Identity pages depend on an unmodified DOM and opener/postMessage
-        // channel to return OAuth results to the relying site. Resource repair
-        // must never rewrite executable elements inside those documents.
-        if BrowserWindowOpenPolicy.isIdentityProviderURL(url) {
-            return false
+        // Resource rewriting is a compatibility workaround for media sites
+        // that publish lazy or mixed-content asset URLs. Running it on every
+        // HTTPS page needlessly rewrites large application DOMs and can starve
+        // a renderer during navigation.
+        return supportedDomains.contains { domain in
+            host == domain || host.hasSuffix(".\(domain)")
         }
-        return true
     }
 }
 
@@ -223,7 +236,7 @@ enum YouTubeAdPlaybackPolicy {
 }
 
 enum SupportedBrowserUserAgent {
-    static let chromiumProduct = "Chrome/148.0.7778.218"
+    static let chromiumProduct = "Chrome/151.0.7922.174"
 
     static var safariApplicationName: String {
         "Version/\(safariVersion) Safari/605.1.15"
@@ -306,10 +319,8 @@ enum SystemMediaCompatibilityPolicy {
         "pptv.com",
         "tv.cctv.com",
         "tv.sohu.com",
-        "twitter.com",
         "v.qq.com",
         "weibo.com",
-        "x.com",
         "yahoo.com",
         "yangshipin.cn",
         "yfsp.tv",
@@ -320,6 +331,11 @@ enum SystemMediaCompatibilityPolicy {
 
     private static let chromiumOnlyDomains = [
         "grok.com",
+    ]
+
+    private static let transientFallbackDomains = [
+        "twitter.com",
+        "x.com",
     ]
 
     private static func matches(_ host: String, domains: [String]) -> Bool {
@@ -342,8 +358,15 @@ enum SystemMediaCompatibilityPolicy {
 
     static func rememberDetectedMediaIncompatibility(for url: URL) {
         guard allowsAutomaticFallback(for: url),
-              let host = url.host?.lowercased() else { return }
+              let host = url.host?.lowercased(),
+              !matches(host, domains: transientFallbackDomains) else { return }
         detectedDomains.insert(host)
+    }
+
+    static func usesTransientFallback(for url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "https",
+              let host = url.host?.lowercased() else { return false }
+        return matches(host, domains: transientFallbackDomains)
     }
 
     static func dataStoreIdentifier(forProfileId profileId: String) -> UUID {
@@ -598,7 +621,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
 
         var options = CefChromeBrowserOptions()
         options.isFrameless = true
-        options.showsChromeToolbar = false
+        options.showsChromeToolbar = true
         options.initialBounds = chromeOverlayFrame()
         options.profile = retainedProfile
         let chromeBrowser = CefChromeBrowser.create(
@@ -1933,6 +1956,15 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                       return fontProbe.offsetWidth !== genericWidths[family];
                     })
                   );
+                  let fontAssignmentsPreserved = true;
+                  for (let index = 0; index < 10000; index += 1) {
+                    fontProbe.style.fontFamily = '"PingFang SC", monospace';
+                    void fontProbe.offsetWidth;
+                    if (!fontProbe.style.fontFamily.includes('PingFang SC')) {
+                      fontAssignmentsPreserved = false;
+                      break;
+                    }
+                  }
                   fontProbe.remove();
                   return JSON.stringify({
                     installed: globalThis.__astraFingerprintPrivacyInstalled === true,
@@ -1942,6 +1974,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                     pingFangVisible: document.fonts.check('16px "PingFang SC"'),
                     hiraginoVisible: document.fonts.check('16px "Hiragino Sans GB"'),
                     protectedFontsDetected,
+                    fontAssignmentsPreserved,
                     hardwareConcurrency: navigator.hardwareConcurrency,
                     deviceMemory: navigator.deviceMemory ?? null,
                     colorDepth: screen.colorDepth,

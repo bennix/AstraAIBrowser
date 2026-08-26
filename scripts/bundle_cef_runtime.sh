@@ -108,7 +108,8 @@ swift build \
 
 helper_bin_dir="$(swift build --package-path "$cef_swift_root" --scratch-path "$helper_scratch_path" --configuration "$configuration" --show-bin-path)"
 helper_executable="$helper_bin_dir/cef-helper"
-framework_source="$(find "$cef_swift_root/.cef/dist" -path "*_${cef_platform}_minimal/Release/Chromium Embedded Framework.framework" -type d -print -quit)"
+cef_version="$(/usr/bin/plutil -extract cef raw -o - "$cef_swift_root/CEF_VERSION.json")"
+framework_source="$cef_swift_root/.cef/dist/${cef_version}_${cef_platform}_minimal/Release/Chromium Embedded Framework.framework"
 
 [[ -x "$helper_executable" ]] || {
   >&2 echo "CEF helper executable was not produced: $helper_executable"

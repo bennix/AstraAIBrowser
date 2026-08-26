@@ -664,7 +664,7 @@ final class ZenMuxTests: XCTestCase {
 
         XCTAssertEqual(BrowserWindowOpenPolicy.action(for: request), .handled)
         XCTAssertTrue(BrowserWindowOpenPolicy.shouldHandleNewTabInApp(for: regularURL))
-        XCTAssertTrue(WebResourceCompatibilityPolicy.permitsPageMutation(for: regularURL))
+        XCTAssertFalse(WebResourceCompatibilityPolicy.permitsPageMutation(for: regularURL))
     }
 
     func testResourceCompatibilityDoesNotMutateGoogleIdentityPages() {
@@ -677,22 +677,42 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertFalse(WebResourceCompatibilityPolicy.permitsPageMutation(
             for: URL(string: "https://accounts.youtube.com/accounts/SetSID")!
         ))
-        XCTAssertTrue(WebResourceCompatibilityPolicy.permitsPageMutation(
+        XCTAssertFalse(WebResourceCompatibilityPolicy.permitsPageMutation(
             for: URL(string: "https://www.google.com/search?q=test")!
         ))
         XCTAssertTrue(WebResourceCompatibilityPolicy.permitsPageMutation(
             for: URL(string: "https://www.163.com/")!
         ))
+        XCTAssertTrue(WebResourceCompatibilityPolicy.permitsPageMutation(
+            for: URL(string: "https://www.bilibili.com/video/BV1test")!
+        ))
+        XCTAssertTrue(WebResourceCompatibilityPolicy.permitsPageMutation(
+            for: URL(string: "https://www.acfun.cn/v/ac1")!
+        ))
     }
 
     @MainActor
-    func testXUsesSystemMediaEngine() {
-        XCTAssertTrue(SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(
+    func testXRemainsInChromiumSoExtensionsCanRun() {
+        let xURL = URL(string: "https://x.com/example/status/1")!
+        let twitterURL = URL(string: "https://mobile.twitter.com/example/status/1")!
+
+        XCTAssertTrue(SystemMediaCompatibilityPolicy.allowsAutomaticFallback(for: xURL))
+        XCTAssertTrue(SystemMediaCompatibilityPolicy.allowsAutomaticFallback(for: twitterURL))
+        XCTAssertTrue(SystemMediaCompatibilityPolicy.usesTransientFallback(for: xURL))
+        XCTAssertTrue(SystemMediaCompatibilityPolicy.usesTransientFallback(for: twitterURL))
+        XCTAssertFalse(SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(
             for: URL(string: "https://x.com/example/status/1")!
         ))
-        XCTAssertTrue(SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(
+        XCTAssertFalse(SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(
             for: URL(string: "https://mobile.twitter.com/example/status/1")!
         ))
+        XCTAssertFalse(WebContentEnginePolicy.usesPersistentWebKit(
+            for: xURL,
+            profileId: LocalStore.defaultProfileId,
+            allowsCredentialStorage: true
+        ))
+        SystemMediaCompatibilityPolicy.rememberDetectedMediaIncompatibility(for: xURL)
+        XCTAssertFalse(SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(for: xURL))
     }
 
     @MainActor

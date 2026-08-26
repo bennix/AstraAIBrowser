@@ -23,6 +23,10 @@ import SwiftUI
     /// created on the Mac side, keyed by Chromium tab guid. Drained by
     /// `BrowserState.handleNewTabFromChromium` when the tab appears.
     private var pendingCrashBuffer: [Int: CrashPageData] = [:]
+    /// Official Web Store CRX downloads redirected into Chromium's extension
+    /// installer, keyed by the transient download guid until it terminates.
+    private var interceptedWebStoreDownloads: [String: String] = [:]
+    private var pendingWebStoreExtensionInstalls = Set<String>()
 
     /// True while a backup import is creating Chromium profiles; read via the
     /// bridge by preinstalled apps to defer extension preinstall. Main-thread only.
@@ -128,6 +132,13 @@ extension PhiChromiumCoordinator: PhiChromiumBridgeDelegate {
     }
 
     func downloadEventOccurred(_ eventType: DownloadEventType, guid: String, downloadItem: (any DownloadItemWrapper)?) {
+        if interceptWebStoreExtensionDownload(
+            eventType: eventType,
+            guid: guid,
+            downloadItem: downloadItem
+        ) {
+            return
+        }
         let eventName: String
         switch eventType {
         case .created: eventName = "CREATED"
@@ -157,6 +168,42 @@ extension PhiChromiumCoordinator: PhiChromiumBridgeDelegate {
                 wrapper: downloadItem
             )
         }
+    }
+
+    private func interceptWebStoreExtensionDownload(
+        eventType: DownloadEventType,
+        guid: String,
+        downloadItem: (any DownloadItemWrapper)?
+    ) -> Bool {
+        if interceptedWebStoreDownloads[guid] != nil {
+            switch eventType {
+            case .completed, .cancelled, .interrupted, .removed, .destroyed:
+                interceptedWebStoreDownloads.removeValue(forKey: guid)
+            default:
+                break
+            }
+            return true
+        }
+        guard eventType == .created,
+              let downloadItem,
+              let extensionID = CefWebStoreExtensionDownloadPolicy.extensionID(
+                fileName: downloadItem.fileNameToReportUser,
+                sourceURL: downloadItem.url
+              ),
+              let controller = MainBrowserWindowControllersManager.shared.activeWindowController,
+              let bridge = ChromiumLauncher.sharedInstance().bridge else {
+            return false
+        }
+
+        interceptedWebStoreDownloads[guid] = extensionID
+        if pendingWebStoreExtensionInstalls.insert(extensionID).inserted {
+            bridge.installExtensions(
+                withIds: [extensionID],
+                windowId: Int64(controller.windowId)
+            )
+        }
+        bridge.cancelDownload(withGuid: guid, windowId: Int64(controller.windowId))
+        return true
     }
     
     func keyEquivalentOverride(forCommand commandId: Int32) -> [String : Any]? {
@@ -1479,6 +1526,13 @@ extension PhiChromiumCoordinator {
     }
 
     func extensionInstallResult(_ extensionId: String, status: String) {
+        pendingWebStoreExtensionInstalls.remove(extensionId)
+        AppLogInfo("[Extensions] Web Store install \(extensionId): \(status)")
+        DispatchQueue.main.async {
+            for controller in MainBrowserWindowControllersManager.shared.getAllWindows() {
+                controller.browserState.extensionManager.refreshExtensions()
+            }
+        }
     }
 
 }
