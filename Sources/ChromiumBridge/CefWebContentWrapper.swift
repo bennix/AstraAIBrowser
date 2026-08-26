@@ -331,9 +331,10 @@ enum SystemMediaCompatibilityPolicy {
 
     private static let chromiumOnlyDomains = [
         "grok.com",
-    ]
-
-    private static let transientFallbackDomains = [
+        // X extensions are attached to the Chromium page. Replacing the full
+        // page after a delayed media error removes those extensions and can
+        // create a visible reload cycle, so individual media failures must
+        // remain contained within Chromium.
         "twitter.com",
         "x.com",
     ]
@@ -358,19 +359,12 @@ enum SystemMediaCompatibilityPolicy {
 
     static func rememberDetectedMediaIncompatibility(for url: URL) {
         guard allowsAutomaticFallback(for: url),
-              let host = url.host?.lowercased(),
-              !matches(host, domains: transientFallbackDomains) else { return }
+              let host = url.host?.lowercased() else { return }
         detectedDomains.insert(host)
     }
 
-    static func usesTransientFallback(for url: URL) -> Bool {
-        guard url.scheme?.lowercased() == "https",
-              let host = url.host?.lowercased() else { return false }
-        return matches(host, domains: transientFallbackDomains)
-    }
-
     static func usesStallBasedAutomaticFallback(for url: URL) -> Bool {
-        allowsAutomaticFallback(for: url) && !usesTransientFallback(for: url)
+        allowsAutomaticFallback(for: url)
     }
 
     static func dataStoreIdentifier(forProfileId profileId: String) -> UUID {
@@ -478,7 +472,6 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     private(set) var browser: CefBrowser?
     private var chromeBrowser: CefChromeBrowser?
     private var systemMediaWebView: WKWebView?
-    private var isUsingTransientSystemMediaFallback = false
     private let hostView = HostView(frame: .zero)
     private var pendingURL: URL
     private let retainedProfile: CefProfile
@@ -706,7 +699,6 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         systemMediaWebView?.stopLoading()
         systemMediaWebView?.removeFromSuperview()
         systemMediaWebView = nil
-        isUsingTransientSystemMediaFallback = false
     }
 
     private func shouldUsePersistentWebKit(for url: URL) -> Bool {
@@ -906,7 +898,6 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         let destination = Self.cefURL(for: urlString)
         pendingURL = destination
         if shouldUsePersistentWebKit(for: destination) {
-            isUsingTransientSystemMediaFallback = false
             if let systemMediaWebView {
                 systemMediaWebView.load(URLRequest(url: destination))
             } else {
@@ -928,9 +919,6 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
               url.scheme?.lowercased() == "https" else { return }
         pendingURL = url
         urlString = url.absoluteString
-        isUsingTransientSystemMediaFallback = SystemMediaCompatibilityPolicy.usesTransientFallback(
-            for: url
-        )
         chromeBrowser?.nsWindow?.orderOut(nil)
         createSystemMediaWebView()
     }
@@ -3069,16 +3057,6 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         if navigationAction.targetFrame == nil {
             onOpenURLInNewTab?(destination, true)
             decisionHandler(.cancel)
-            return
-        }
-        if navigationAction.targetFrame?.isMainFrame == true,
-           isUsingTransientSystemMediaFallback,
-           SystemMediaCompatibilityPolicy.usesTransientFallback(for: destination) {
-            // The fallback web view must be allowed to finish the X/Twitter
-            // navigation that created it. Sending the same URL straight back
-            // to Chromium would retrigger media detection and create a reload
-            // loop between the two engines.
-            decisionHandler(.allow)
             return
         }
         if navigationAction.targetFrame?.isMainFrame == true,

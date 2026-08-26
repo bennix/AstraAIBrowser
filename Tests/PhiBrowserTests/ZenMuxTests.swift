@@ -696,10 +696,8 @@ final class ZenMuxTests: XCTestCase {
         let xURL = URL(string: "https://x.com/example/status/1")!
         let twitterURL = URL(string: "https://mobile.twitter.com/example/status/1")!
 
-        XCTAssertTrue(SystemMediaCompatibilityPolicy.allowsAutomaticFallback(for: xURL))
-        XCTAssertTrue(SystemMediaCompatibilityPolicy.allowsAutomaticFallback(for: twitterURL))
-        XCTAssertTrue(SystemMediaCompatibilityPolicy.usesTransientFallback(for: xURL))
-        XCTAssertTrue(SystemMediaCompatibilityPolicy.usesTransientFallback(for: twitterURL))
+        XCTAssertFalse(SystemMediaCompatibilityPolicy.allowsAutomaticFallback(for: xURL))
+        XCTAssertFalse(SystemMediaCompatibilityPolicy.allowsAutomaticFallback(for: twitterURL))
         XCTAssertFalse(SystemMediaCompatibilityPolicy.usesStallBasedAutomaticFallback(for: xURL))
         XCTAssertFalse(SystemMediaCompatibilityPolicy.usesStallBasedAutomaticFallback(for: twitterURL))
         XCTAssertFalse(SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(
@@ -722,7 +720,6 @@ final class ZenMuxTests: XCTestCase {
         let mediaURL = URL(string: "https://www.163.com/video/article")!
 
         XCTAssertTrue(SystemMediaCompatibilityPolicy.allowsAutomaticFallback(for: mediaURL))
-        XCTAssertFalse(SystemMediaCompatibilityPolicy.usesTransientFallback(for: mediaURL))
         XCTAssertTrue(SystemMediaCompatibilityPolicy.usesStallBasedAutomaticFallback(for: mediaURL))
     }
 
