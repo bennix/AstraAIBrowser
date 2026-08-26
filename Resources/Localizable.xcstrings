@@ -29,11 +29,6 @@
       "extractionState" : "extracted_with_value",
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Play in Astra" } } }
     },
-    "media.compatibility.player.windowTitle" : {
-      "comment" : "System media player - Window title shown while playing an X video",
-      "extractionState" : "extracted_with_value",
-      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Astra Media Player" } } }
-    },
     "privacy.mediaPermission.allowOnceButton" : {
       "comment" : "Media permission prompt - Button granting camera or microphone access for the current request only",
       "extractionState" : "extracted_with_value",

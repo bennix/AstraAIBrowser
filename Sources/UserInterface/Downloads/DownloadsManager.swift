@@ -1222,9 +1222,7 @@ class DownloadsManager: ObservableObject {
 
     private var cefProgressSamples: [String: (date: Date, receivedBytes: Int64)] = [:]
     @MainActor private var isChoosingMediaCandidate = false
-    private lazy var mediaDownloadCoordinator = MainActor.assumeIsolated {
-        MediaDownloadCoordinator(manager: self)
-    }
+    @MainActor private lazy var mediaDownloadCoordinator = MediaDownloadCoordinator(manager: self)
     
     init(browserState: BrowserState? = nil) {
         self.browserState = browserState
@@ -1300,6 +1298,7 @@ class DownloadsManager: ObservableObject {
         }
     }
 
+    @MainActor
     func resolveSystemPlaybackURL(
         for pageURL: URL,
         cookies: [HTTPCookie]

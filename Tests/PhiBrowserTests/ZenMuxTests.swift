@@ -733,6 +733,122 @@ final class ZenMuxTests: XCTestCase {
         ))
     }
 
+    func testXSystemMediaPlaybackRequestDecodesInlineGeometry() throws {
+        let data = Data("""
+        {
+          "pageURL": "https://x.com/example/status/123456789",
+          "left": 20,
+          "top": 30,
+          "width": 400,
+          "height": 300,
+          "viewportWidth": 800,
+          "viewportHeight": 640,
+          "visible": true,
+          "userInitiated": false
+        }
+        """.utf8)
+
+        let request = try JSONDecoder().decode(XSystemMediaPlaybackRequest.self, from: data)
+
+        XCTAssertEqual(request.pageURL.absoluteString, "https://x.com/example/status/123456789")
+        XCTAssertTrue(request.hasValidGeometry)
+        XCTAssertFalse(request.userInitiated)
+    }
+
+    func testXSystemMediaPlaybackLayoutMapsDOMCoordinatesToScreen() {
+        let request = XSystemMediaPlaybackRequest(
+            pageURL: URL(string: "https://x.com/example/status/123456789")!,
+            left: 20,
+            top: 30,
+            width: 400,
+            height: 300,
+            viewportWidth: 800,
+            viewportHeight: 640,
+            visible: true,
+            userInitiated: false
+        )
+
+        let layout = XSystemMediaPlaybackLayoutPolicy.layout(
+            for: request,
+            chromeOverlayFrame: CGRect(x: 100, y: 200, width: 800, height: 700)
+        )
+
+        XCTAssertEqual(layout?.mediaFrame, CGRect(x: 120, y: 510, width: 400, height: 300))
+        XCTAssertEqual(layout?.visibleFrame, CGRect(x: 120, y: 510, width: 400, height: 300))
+    }
+
+    func testXSystemMediaPlaybackLayoutClipsPartiallyVisibleVideo() {
+        let request = XSystemMediaPlaybackRequest(
+            pageURL: URL(string: "https://mobile.twitter.com/example/status/123456789/video/1")!,
+            left: -40,
+            top: 560,
+            width: 400,
+            height: 220,
+            viewportWidth: 800,
+            viewportHeight: 640,
+            visible: true,
+            userInitiated: false
+        )
+
+        let layout = XSystemMediaPlaybackLayoutPolicy.layout(
+            for: request,
+            chromeOverlayFrame: CGRect(x: 100, y: 200, width: 800, height: 700)
+        )
+
+        XCTAssertEqual(layout?.mediaFrame, CGRect(x: 60, y: 60, width: 400, height: 220))
+        XCTAssertEqual(layout?.visibleFrame, CGRect(x: 100, y: 200, width: 360, height: 80))
+    }
+
+    func testXSystemMediaPlaybackLayoutRejectsHiddenAndInvalidRequests() {
+        let hiddenRequest = XSystemMediaPlaybackRequest(
+            pageURL: URL(string: "https://x.com/example/status/123456789")!,
+            left: 0,
+            top: 0,
+            width: 400,
+            height: 300,
+            viewportWidth: 800,
+            viewportHeight: 640,
+            visible: false,
+            userInitiated: false
+        )
+        let invalidRequest = XSystemMediaPlaybackRequest(
+            pageURL: URL(string: "https://example.com/example/status/123456789")!,
+            left: 0,
+            top: 0,
+            width: 400,
+            height: 300,
+            viewportWidth: 800,
+            viewportHeight: 640,
+            visible: true,
+            userInitiated: false
+        )
+        let oversizedRequest = XSystemMediaPlaybackRequest(
+            pageURL: URL(string: "https://x.com/example/status/123456789")!,
+            left: 0,
+            top: 0,
+            width: 1_000_000,
+            height: 300,
+            viewportWidth: 800,
+            viewportHeight: 640,
+            visible: true,
+            userInitiated: false
+        )
+        let overlayFrame = CGRect(x: 100, y: 200, width: 800, height: 700)
+
+        XCTAssertNil(XSystemMediaPlaybackLayoutPolicy.layout(
+            for: hiddenRequest,
+            chromeOverlayFrame: overlayFrame
+        ))
+        XCTAssertNil(XSystemMediaPlaybackLayoutPolicy.layout(
+            for: invalidRequest,
+            chromeOverlayFrame: overlayFrame
+        ))
+        XCTAssertNil(XSystemMediaPlaybackLayoutPolicy.layout(
+            for: oversizedRequest,
+            chromeOverlayFrame: overlayFrame
+        ))
+    }
+
     @MainActor
     func testPersistentMediaFallbackStillUsesStallDetection() {
         let mediaURL = URL(string: "https://www.163.com/video/article")!

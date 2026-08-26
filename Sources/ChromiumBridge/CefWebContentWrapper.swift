@@ -392,6 +392,69 @@ enum XSystemMediaPlaybackPolicy {
     }
 }
 
+struct XSystemMediaPlaybackRequest: Decodable, Equatable {
+    let pageURL: URL
+    let left: Double
+    let top: Double
+    let width: Double
+    let height: Double
+    let viewportWidth: Double
+    let viewportHeight: Double
+    let visible: Bool
+    let userInitiated: Bool
+
+    var hasValidGeometry: Bool {
+        let values = [left, top, width, height, viewportWidth, viewportHeight]
+        guard values.allSatisfy(\.isFinite),
+              width > 0,
+              height > 0,
+              viewportWidth > 0,
+              viewportHeight > 0,
+              viewportWidth <= 32_768,
+              viewportHeight <= 32_768 else { return false }
+        return width <= viewportWidth * 8
+            && height <= viewportHeight * 8
+            && abs(left) <= viewportWidth * 8
+            && abs(top) <= viewportHeight * 8
+    }
+}
+
+struct XSystemMediaPlaybackLayout: Equatable {
+    let mediaFrame: CGRect
+    let visibleFrame: CGRect
+}
+
+enum XSystemMediaPlaybackLayoutPolicy {
+    static func layout(
+        for request: XSystemMediaPlaybackRequest,
+        chromeOverlayFrame: CGRect
+    ) -> XSystemMediaPlaybackLayout? {
+        guard request.visible,
+              request.hasValidGeometry,
+              XSystemMediaPlaybackPolicy.supports(request.pageURL),
+              chromeOverlayFrame.width > 1,
+              chromeOverlayFrame.height > 1 else { return nil }
+
+        let viewportFrame = CGRect(
+            x: chromeOverlayFrame.minX,
+            y: chromeOverlayFrame.minY,
+            width: min(CGFloat(request.viewportWidth), chromeOverlayFrame.width),
+            height: min(CGFloat(request.viewportHeight), chromeOverlayFrame.height)
+        )
+        let mediaFrame = CGRect(
+            x: chromeOverlayFrame.minX + CGFloat(request.left),
+            y: chromeOverlayFrame.minY + CGFloat(request.viewportHeight - request.top - request.height),
+            width: CGFloat(request.width),
+            height: CGFloat(request.height)
+        )
+        let visibleFrame = mediaFrame.intersection(viewportFrame)
+        guard !visibleFrame.isNull,
+              visibleFrame.width >= 120,
+              visibleFrame.height >= 70 else { return nil }
+        return XSystemMediaPlaybackLayout(mediaFrame: mediaFrame, visibleFrame: visibleFrame)
+    }
+}
+
 enum VisiblePageCaptureRoute: Equatable {
     case systemMedia
     case chromium
@@ -455,55 +518,75 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     }
 
     @MainActor
-    private final class SystemMediaPlayerHost: NSObject, NSWindowDelegate {
+    private final class InlineSystemMediaPlayerHost: NSObject {
+        private final class PlayerWindow: NSWindow {
+            override var canBecomeKey: Bool { true }
+            override var canBecomeMain: Bool { false }
+        }
+
         let sourcePageURL: URL
         let player: AVPlayer
         let window: NSWindow
-        var onClose: (() -> Void)?
+        private let playerView: AVPlayerView
+        private let containerView: NSView
 
-        init(sourcePageURL: URL, mediaURL: URL, title: String) {
+        init(sourcePageURL: URL, mediaURL: URL) {
             self.sourcePageURL = sourcePageURL
             player = AVPlayer(url: mediaURL)
-            let playerView = AVPlayerView(frame: .zero)
+            playerView = AVPlayerView(frame: .zero)
             playerView.player = player
             playerView.controlsStyle = .floating
             playerView.videoGravity = .resizeAspect
-            window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 960, height: 600),
-                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            containerView = NSView(frame: .zero)
+            containerView.wantsLayer = true
+            containerView.layer?.backgroundColor = NSColor.black.cgColor
+            containerView.layer?.masksToBounds = true
+            containerView.addSubview(playerView)
+            window = PlayerWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 1, height: 1),
+                styleMask: [.borderless],
                 backing: .buffered,
                 defer: false
             )
             super.init()
-            window.title = title
-            window.delegate = self
-            window.contentView = playerView
+            window.backgroundColor = .black
+            window.contentView = containerView
+            window.hasShadow = false
+            window.isOpaque = true
             window.isReleasedWhenClosed = false
+            window.acceptsMouseMovedEvents = true
+            window.collectionBehavior.insert(.fullScreenAuxiliary)
         }
 
-        func show(relativeTo parent: NSWindow?) {
-            if let parent {
-                let parentFrame = parent.frame
-                let playerFrame = window.frame
-                window.setFrameOrigin(NSPoint(
-                    x: parentFrame.midX - playerFrame.width / 2,
-                    y: parentFrame.midY - playerFrame.height / 2
-                ))
-                if window.parent !== parent {
-                    window.parent?.removeChildWindow(window)
-                    parent.addChildWindow(window, ordered: .above)
-                }
-            } else {
-                window.center()
+        func show(layout: XSystemMediaPlaybackLayout, relativeTo parent: NSWindow) {
+            if window.parent !== parent {
+                window.parent?.removeChildWindow(window)
+                parent.addChildWindow(window, ordered: .above)
             }
-            window.makeKeyAndOrderFront(nil)
-            player.play()
+            window.setFrame(layout.visibleFrame, display: true)
+            containerView.frame = NSRect(origin: .zero, size: layout.visibleFrame.size)
+            playerView.frame = CGRect(
+                x: layout.mediaFrame.minX - layout.visibleFrame.minX,
+                y: layout.mediaFrame.minY - layout.visibleFrame.minY,
+                width: layout.mediaFrame.width,
+                height: layout.mediaFrame.height
+            )
+            window.orderFront(nil)
+            if player.rate == 0 {
+                player.play()
+            }
         }
 
-        func windowWillClose(_ notification: Notification) {
+        func hide() {
             player.pause()
             window.parent?.removeChildWindow(window)
-            onClose?()
+            window.orderOut(nil)
+        }
+
+        func close() {
+            hide()
+            player.replaceCurrentItem(with: nil)
+            window.close()
         }
     }
 
@@ -554,8 +637,11 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     private var nativePopupTimeout: DispatchWorkItem?
     private var pendingConsoleEvaluations: [String: PendingConsoleEvaluation] = [:]
     private var systemMediaPopupHosts: [ObjectIdentifier: SystemMediaPopupHost] = [:]
-    private var systemMediaPlayerHost: SystemMediaPlayerHost?
-    private var isResolvingXSystemMediaPlayback = false
+    private var systemMediaPlayerHost: InlineSystemMediaPlayerHost?
+    private var latestXSystemMediaPlaybackRequest: XSystemMediaPlaybackRequest?
+    private var xSystemMediaPlaybackResolutionToken: UUID?
+    private var xSystemMediaPlaybackResolutionURL: URL?
+    private var automaticallyFailedXSystemMediaPlaybackURLs = Set<URL>()
 
     var onActivate: (() -> Void)?
     var onClose: (() -> Void)?
@@ -803,9 +889,11 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                 overlay.setFrame(frame, display: true)
             }
             overlay.orderFront(nil)
+            updateInlineXSystemMediaPlayer()
         } else {
             overlay.parent?.removeChildWindow(overlay)
             overlay.orderOut(nil)
+            systemMediaPlayerHost?.hide()
         }
     }
 
@@ -910,8 +998,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         let popupHosts = Array(systemMediaPopupHosts.values)
         systemMediaPopupHosts.removeAll()
         popupHosts.forEach { $0.window.close() }
-        systemMediaPlayerHost?.window.close()
-        systemMediaPlayerHost = nil
+        resetInlineXSystemMediaPlayback()
         removeSystemMediaWebView()
         if let chromeBrowser {
             chromeBrowser.close()
@@ -1099,6 +1186,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         self.canGoBack = canGoBack
         self.canGoForward = canGoForward
         if isLoading {
+            resetInlineXSystemMediaPlayback()
             installWebResourceCompatibility()
             installXSystemMediaPlaybackBridge()
         } else {
@@ -1139,6 +1227,10 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
           window.__astraXSystemMediaPlaybackInstalled = true;
           const marker = 'data-astra-system-media-playback';
           const statusPattern = /\\/status\\/\\d+/;
+          const failedURLs = new Set();
+          let lastActiveURL = null;
+          let lastPayloadKey = '';
+          let inspectionScheduled = false;
           const statusURL = (media) => {
             if (statusPattern.test(location.pathname)) return location.href;
             const article = media.closest('article, [role="article"], [data-testid="tweet"]');
@@ -1151,47 +1243,136 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             }
             return null;
           };
-          const decorate = (media) => {
+          const candidateFor = (media) => {
             if (!(media instanceof HTMLMediaElement) ||
-                !media.error || ![3, 4].includes(media.error.code)) return;
+                !media.error || ![3, 4].includes(media.error.code)) return null;
             const pageURL = statusURL(media);
-            if (!pageURL) return;
+            if (!pageURL) return null;
             const player = media.closest('[data-testid="videoPlayer"]') || media.parentElement;
-            if (!player || player.querySelector('[' + marker + ']')) return;
+            if (!player) return null;
+            const rect = player.getBoundingClientRect();
+            const visibleWidth = Math.max(0, Math.min(rect.right, innerWidth) - Math.max(rect.left, 0));
+            const visibleHeight = Math.max(0, Math.min(rect.bottom, innerHeight) - Math.max(rect.top, 0));
+            const visibleArea = visibleWidth * visibleHeight;
+            if (rect.width < 120 || rect.height < 70 || visibleArea < 8400) return null;
+            return { media, player, pageURL, rect, visibleArea };
+          };
+          const send = (candidate, userInitiated, force = false) => {
+            const rect = candidate.rect;
+            const payload = {
+              pageURL: candidate.pageURL,
+              left: rect.left,
+              top: rect.top,
+              width: rect.width,
+              height: rect.height,
+              viewportWidth: innerWidth,
+              viewportHeight: innerHeight,
+              visible: true,
+              userInitiated: Boolean(userInitiated)
+            };
+            const payloadKey = [
+              payload.pageURL,
+              Math.round(payload.left), Math.round(payload.top),
+              Math.round(payload.width), Math.round(payload.height),
+              Math.round(payload.viewportWidth), Math.round(payload.viewportHeight),
+              payload.userInitiated
+            ].join('|');
+            if (!force && payloadKey === lastPayloadKey) return;
+            lastPayloadKey = payloadKey;
+            lastActiveURL = payload.pageURL;
+            console.info(\(prefix) + encodeURIComponent(JSON.stringify(payload)));
+          };
+          const updateButton = (button, pageURL) => {
+            const failed = failedURLs.has(pageURL);
+            button.disabled = !failed;
+            button.textContent = failed ? \(playLabel) : \(openingLabel);
+            button.style.cursor = failed ? 'pointer' : 'default';
+            button.style.opacity = failed ? '1' : '.92';
+          };
+          const decorate = (candidate) => {
+            const { player, pageURL } = candidate;
+            let button = Array.from(player.querySelectorAll('[' + marker + ']'))
+              .find((element) => element.dataset.astraSystemMediaURL === pageURL);
+            if (button) {
+              updateButton(button, pageURL);
+              return;
+            }
             if (getComputedStyle(player).position === 'static') player.style.position = 'relative';
-            const button = document.createElement('button');
+            button = document.createElement('button');
             button.setAttribute(marker, '');
+            button.dataset.astraSystemMediaURL = pageURL;
             button.type = 'button';
-            button.textContent = \(playLabel);
             button.style.cssText = [
               'position:absolute', 'left:50%', 'top:62%', 'transform:translate(-50%,-50%)',
               'z-index:2147483647', 'border:0', 'border-radius:999px',
               'padding:12px 22px', 'font:600 15px -apple-system,BlinkMacSystemFont,sans-serif',
-              'color:white', 'background:#1d9bf0', 'cursor:pointer',
+              'color:white', 'background:#1d9bf0',
               'box-shadow:0 4px 18px rgba(0,0,0,.25)'
             ].join(';');
             button.addEventListener('click', (event) => {
               event.preventDefault();
               event.stopImmediatePropagation();
-              if (button.disabled) return;
+              if (!failedURLs.has(pageURL) || button.disabled) return;
               button.disabled = true;
               button.textContent = \(openingLabel);
-              console.info(\(prefix) + encodeURIComponent(pageURL));
-              setTimeout(() => {
-                button.disabled = false;
-                button.textContent = \(playLabel);
-              }, 30000);
+              const retryCandidate = candidateFor(candidate.media) || candidate;
+              retryCandidate.rect = retryCandidate.player.getBoundingClientRect();
+              send(retryCandidate, true, true);
             }, true);
+            updateButton(button, pageURL);
             player.appendChild(button);
           };
-          const inspect = () => document.querySelectorAll('video, audio').forEach(decorate);
-          document.addEventListener('error', (event) => decorate(event.target), true);
-          new MutationObserver(inspect).observe(document.documentElement, {
+          const sendHidden = () => {
+            if (!lastActiveURL) return;
+            const payload = {
+              pageURL: lastActiveURL,
+              left: 0, top: 0, width: 1, height: 1,
+              viewportWidth: Math.max(innerWidth, 1),
+              viewportHeight: Math.max(innerHeight, 1),
+              visible: false,
+              userInitiated: false
+            };
+            const payloadKey = payload.pageURL + '|hidden';
+            if (payloadKey !== lastPayloadKey) {
+              lastPayloadKey = payloadKey;
+              console.info(\(prefix) + encodeURIComponent(JSON.stringify(payload)));
+            }
+            lastActiveURL = null;
+          };
+          const inspect = () => {
+            inspectionScheduled = false;
+            const candidates = Array.from(document.querySelectorAll('video, audio'))
+              .map(candidateFor)
+              .filter(Boolean)
+              .sort((left, right) => right.visibleArea - left.visibleArea);
+            if (!candidates.length) {
+              sendHidden();
+              return;
+            }
+            const candidate = candidates[0];
+            decorate(candidate);
+            send(candidate, false);
+          };
+          const scheduleInspection = () => {
+            if (inspectionScheduled) return;
+            inspectionScheduled = true;
+            requestAnimationFrame(inspect);
+          };
+          window.__astraXSystemMediaPlaybackDidFail = (pageURL) => {
+            failedURLs.add(pageURL);
+            document.querySelectorAll('[' + marker + ']').forEach((button) => {
+              if (button.dataset.astraSystemMediaURL === pageURL) updateButton(button, pageURL);
+            });
+          };
+          document.addEventListener('error', scheduleInspection, true);
+          addEventListener('scroll', scheduleInspection, true);
+          addEventListener('resize', scheduleInspection, true);
+          new MutationObserver(scheduleInspection).observe(document.documentElement, {
             childList: true, subtree: true, attributes: true,
             attributeFilter: ['src']
           });
-          setInterval(inspect, 1500);
-          inspect();
+          setInterval(scheduleInspection, 1500);
+          scheduleInspection();
         })();
         """
         browser.executeJavaScript(script)
@@ -2256,11 +2437,15 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         line: Int
     ) {
         if message.hasPrefix(Self.xSystemMediaPlaybackPrefix) {
-            let encodedURL = String(message.dropFirst(Self.xSystemMediaPlaybackPrefix.count))
-            guard let rawURL = encodedURL.removingPercentEncoding,
-                  let pageURL = URL(string: rawURL),
-                  XSystemMediaPlaybackPolicy.supports(pageURL) else { return }
-            openXSystemMediaPlayer(for: pageURL)
+            let encodedRequest = String(message.dropFirst(Self.xSystemMediaPlaybackPrefix.count))
+            guard let rawRequest = encodedRequest.removingPercentEncoding,
+                  let data = rawRequest.data(using: .utf8),
+                  let request = try? JSONDecoder().decode(
+                    XSystemMediaPlaybackRequest.self,
+                    from: data
+                  ),
+                  XSystemMediaPlaybackPolicy.supports(request.pageURL) else { return }
+            handleXSystemMediaPlaybackRequest(request)
             return
         }
         if message.hasPrefix(Self.mediaFallbackPrefix) {
@@ -2301,45 +2486,98 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         pending.continuation.resume(returning: result)
     }
 
-    private func openXSystemMediaPlayer(for pageURL: URL) {
+    private func handleXSystemMediaPlaybackRequest(_ request: XSystemMediaPlaybackRequest) {
+        latestXSystemMediaPlaybackRequest = request
+        guard request.visible else {
+            if systemMediaPlayerHost?.sourcePageURL == request.pageURL {
+                systemMediaPlayerHost?.hide()
+            }
+            return
+        }
+        guard request.hasValidGeometry else { return }
+
         if let systemMediaPlayerHost {
-            if systemMediaPlayerHost.sourcePageURL == pageURL {
-                systemMediaPlayerHost.show(relativeTo: hostView.window)
+            if systemMediaPlayerHost.sourcePageURL == request.pageURL {
+                updateInlineXSystemMediaPlayer()
                 return
             }
-            systemMediaPlayerHost.window.close()
+            systemMediaPlayerHost.close()
             self.systemMediaPlayerHost = nil
         }
-        guard !isResolvingXSystemMediaPlayback else { return }
-        isResolvingXSystemMediaPlayback = true
+        if request.userInitiated {
+            automaticallyFailedXSystemMediaPlaybackURLs.remove(request.pageURL)
+        } else if automaticallyFailedXSystemMediaPlaybackURLs.contains(request.pageURL) {
+            notifyXSystemMediaPlaybackFailure(for: request.pageURL)
+            return
+        }
+        if xSystemMediaPlaybackResolutionURL == request.pageURL,
+           xSystemMediaPlaybackResolutionToken != nil {
+            return
+        }
+
+        let resolutionToken = UUID()
+        xSystemMediaPlaybackResolutionToken = resolutionToken
+        xSystemMediaPlaybackResolutionURL = request.pageURL
         Task { @MainActor [weak self] in
             guard let self else { return }
-            defer { self.isResolvingXSystemMediaPlayback = false }
-            let cookies = await self.browser?.cookies(for: pageURL) ?? []
+            let cookies = await self.browser?.cookies(for: request.pageURL) ?? []
             guard let mediaURL = await self.downloadsManager?.resolveSystemPlaybackURL(
-                for: pageURL,
+                for: request.pageURL,
                 cookies: cookies
             ) else {
-                self.showXSystemMediaPlaybackFailure()
+                guard self.xSystemMediaPlaybackResolutionToken == resolutionToken else { return }
+                self.xSystemMediaPlaybackResolutionToken = nil
+                self.xSystemMediaPlaybackResolutionURL = nil
+                self.automaticallyFailedXSystemMediaPlaybackURLs.insert(request.pageURL)
+                self.notifyXSystemMediaPlaybackFailure(for: request.pageURL)
+                if request.userInitiated {
+                    self.showXSystemMediaPlaybackFailure()
+                }
                 return
             }
-            let title = NSLocalizedString(
-                "media.compatibility.player.windowTitle",
-                value: "Astra Media Player",
-                comment: "System media player - Window title shown while playing an X video"
+            guard self.xSystemMediaPlaybackResolutionToken == resolutionToken else { return }
+            self.xSystemMediaPlaybackResolutionToken = nil
+            self.xSystemMediaPlaybackResolutionURL = nil
+            let playerHost = InlineSystemMediaPlayerHost(
+                sourcePageURL: request.pageURL,
+                mediaURL: mediaURL
             )
-            let playerHost = SystemMediaPlayerHost(
-                sourcePageURL: pageURL,
-                mediaURL: mediaURL,
-                title: title
-            )
-            playerHost.onClose = { [weak self, weak playerHost] in
-                guard let self, self.systemMediaPlayerHost === playerHost else { return }
-                self.systemMediaPlayerHost = nil
-            }
             self.systemMediaPlayerHost = playerHost
-            playerHost.show(relativeTo: self.hostView.window)
+            self.updateInlineXSystemMediaPlayer()
         }
+    }
+
+    private func updateInlineXSystemMediaPlayer() {
+        guard let request = latestXSystemMediaPlaybackRequest,
+              let playerHost = systemMediaPlayerHost,
+              playerHost.sourcePageURL == request.pageURL,
+              let parent = hostView.window,
+              let layout = XSystemMediaPlaybackLayoutPolicy.layout(
+                for: request,
+                chromeOverlayFrame: chromeOverlayFrame()
+              ) else {
+            systemMediaPlayerHost?.hide()
+            return
+        }
+        playerHost.show(layout: layout, relativeTo: parent)
+    }
+
+    private func resetInlineXSystemMediaPlayback() {
+        xSystemMediaPlaybackResolutionToken = nil
+        xSystemMediaPlaybackResolutionURL = nil
+        latestXSystemMediaPlaybackRequest = nil
+        systemMediaPlayerHost?.close()
+        systemMediaPlayerHost = nil
+    }
+
+    private func notifyXSystemMediaPlaybackFailure(for pageURL: URL) {
+        guard let browser else { return }
+        let pageURLLiteral = Self.javaScriptLiteral(pageURL.absoluteString)
+        browser.executeJavaScript("""
+        if (typeof window.__astraXSystemMediaPlaybackDidFail === 'function') {
+          window.__astraXSystemMediaPlaybackDidFail(\(pageURLLiteral));
+        }
+        """)
     }
 
     private func showXSystemMediaPlaybackFailure() {

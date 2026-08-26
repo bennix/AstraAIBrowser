@@ -36,6 +36,18 @@ final class YouTubeAdPlaybackPolicyTests: XCTestCase {
         ))
     }
 
+    func testSystemPlaybackResolverHopsToMainActorFromBackgroundTask() async {
+        let resolvedURL = await Task.detached {
+            let manager = DownloadsManager()
+            return await manager.resolveSystemPlaybackURL(
+                for: URL(string: "unsupported-scheme://resolver-test")!,
+                cookies: []
+            )
+        }.value
+
+        XCTAssertNil(resolvedURL)
+    }
+
     func testMediaDownloadPolicyRejectsTopLevelDRM() throws {
         let metadata = try JSONSerialization.data(withJSONObject: [
             "has_drm": true,
