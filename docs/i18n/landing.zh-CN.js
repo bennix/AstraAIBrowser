@@ -17,14 +17,14 @@
     "features.youtube.title": "减少等待 YouTube 广告",
     "features.youtube.body": "YouTube 将当前播放标记为广告时，Astra 会临时使用 8 倍速，并在正片开始后恢复原播放速度。",
     "features.mediaCompatibility.title": "不离开 Astra 的视频兼容",
-    "features.mediaCompatibility.body": "YouTube 和 X 始终保持 Chromium，以保留扩展程序及页面状态；需要 H.264、AAC 或 HLS 的其他站点可使用内嵌系统媒体引擎。单个 X 视频出错时不会替换或刷新整个页面。",
+    "features.mediaCompatibility.body": "YouTube 和 X 始终保持 Chromium，以保留扩展程序及页面状态。Chromium 无法解码单个 X 视频时，Astra 可解析当前已认证的视频流并在应用内原生播放器中播放，无需替换或刷新整个页面。",
     "features.localMemory.title": "本地第二大脑",
     "features.localMemory.body": "Astra 将笔记和完整的用户/AI 对话保存到账号独立的本地向量索引，并镜像成可迁移的 Markdown 文件，在本机检索相关上下文。记忆内容支持 Markdown、可横向滚动的表格、本地 LaTeX 数学及化学公式渲染，并可将单条或多条记忆导出为 Markdown 文件。过期会话会先完成摘要，再删除原记录。",
     "features.browserOwnership.title": "原生链接与语言集成",
     "features.browserOwnership.body": "通用设置可让 Astra 完整接管 HTTP 与 HTTPS。其他 Mac 应用打开的链接会进入 Astra 内嵌的 Chromium 标签页，网站检测到的浏览器语言也会与 Astra 界面语言保持一致。",
     "features.history.title": "完整保留浏览历史",
     "features.history.body": "Astra 将浏览历史保存在持久化 Chromium 配置中，可从原生“历史记录”菜单和“通用”设置查看或清除，也可按 Command-Y 打开完整记录。",
-    "download.summary": "Build 47 在单个视频稍后报告解码错误时，仍让 X 和 Twitter 页面保持在 Chromium 中。页面不会再黑屏或刷新到另一个引擎，MXGA 等 Chromium 扩展也会持续运行。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 48 让 X 和 Twitter 页面始终保持在 Chromium 中，使 MXGA 等扩展持续运行。某个 X 视频无法由 Chromium 解码时，用户可选择在 Astra 中播放；应用会解析当前已认证的视频流，并在原生媒体播放器中打开，无需替换或刷新整个页面。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

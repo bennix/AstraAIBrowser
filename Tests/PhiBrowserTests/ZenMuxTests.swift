@@ -715,6 +715,24 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertFalse(SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(for: xURL))
     }
 
+    func testXSystemMediaPlaybackAcceptsOnlyStatusPages() {
+        XCTAssertTrue(XSystemMediaPlaybackPolicy.supports(
+            URL(string: "https://x.com/example/status/123456789")!
+        ))
+        XCTAssertTrue(XSystemMediaPlaybackPolicy.supports(
+            URL(string: "https://mobile.twitter.com/example/status/123456789/video/1")!
+        ))
+        XCTAssertFalse(XSystemMediaPlaybackPolicy.supports(
+            URL(string: "https://x.com/home")!
+        ))
+        XCTAssertFalse(XSystemMediaPlaybackPolicy.supports(
+            URL(string: "https://example.com/example/status/123456789")!
+        ))
+        XCTAssertFalse(XSystemMediaPlaybackPolicy.supports(
+            URL(string: "http://x.com/example/status/123456789")!
+        ))
+    }
+
     @MainActor
     func testPersistentMediaFallbackStillUsesStallDetection() {
         let mediaURL = URL(string: "https://www.163.com/video/article")!

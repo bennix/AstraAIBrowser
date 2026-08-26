@@ -4,6 +4,7 @@
 // found in the LICENSE file.
 
 import AppKit
+import AVKit
 import CefKit
 import CryptoKit
 import WebKit
@@ -381,6 +382,16 @@ enum SystemMediaCompatibilityPolicy {
     }
 }
 
+enum XSystemMediaPlaybackPolicy {
+    static func supports(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "https",
+              let host = url.host?.lowercased() else { return false }
+        let isXHost = host == "x.com" || host.hasSuffix(".x.com")
+            || host == "twitter.com" || host.hasSuffix(".twitter.com")
+        return isXHost && url.path.range(of: #"/status/\d+"#, options: .regularExpression) != nil
+    }
+}
+
 enum VisiblePageCaptureRoute: Equatable {
     case systemMedia
     case chromium
@@ -443,8 +454,62 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         }
     }
 
+    @MainActor
+    private final class SystemMediaPlayerHost: NSObject, NSWindowDelegate {
+        let sourcePageURL: URL
+        let player: AVPlayer
+        let window: NSWindow
+        var onClose: (() -> Void)?
+
+        init(sourcePageURL: URL, mediaURL: URL, title: String) {
+            self.sourcePageURL = sourcePageURL
+            player = AVPlayer(url: mediaURL)
+            let playerView = AVPlayerView(frame: .zero)
+            playerView.player = player
+            playerView.controlsStyle = .floating
+            playerView.videoGravity = .resizeAspect
+            window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 960, height: 600),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                backing: .buffered,
+                defer: false
+            )
+            super.init()
+            window.title = title
+            window.delegate = self
+            window.contentView = playerView
+            window.isReleasedWhenClosed = false
+        }
+
+        func show(relativeTo parent: NSWindow?) {
+            if let parent {
+                let parentFrame = parent.frame
+                let playerFrame = window.frame
+                window.setFrameOrigin(NSPoint(
+                    x: parentFrame.midX - playerFrame.width / 2,
+                    y: parentFrame.midY - playerFrame.height / 2
+                ))
+                if window.parent !== parent {
+                    window.parent?.removeChildWindow(window)
+                    parent.addChildWindow(window, ordered: .above)
+                }
+            } else {
+                window.center()
+            }
+            window.makeKeyAndOrderFront(nil)
+            player.play()
+        }
+
+        func windowWillClose(_ notification: Notification) {
+            player.pause()
+            window.parent?.removeChildWindow(window)
+            onClose?()
+        }
+    }
+
     private static let consoleResultPrefix = "__ASTRA_NATIVE_RESULT__"
     private static let mediaFallbackPrefix = "__ASTRA_SYSTEM_MEDIA_FALLBACK__"
+    private static let xSystemMediaPlaybackPrefix = "__ASTRA_X_SYSTEM_MEDIA_PLAYBACK__"
     private final class HostView: NSView {
         weak var owner: CefWebContentWrapper?
 
@@ -489,6 +554,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     private var nativePopupTimeout: DispatchWorkItem?
     private var pendingConsoleEvaluations: [String: PendingConsoleEvaluation] = [:]
     private var systemMediaPopupHosts: [ObjectIdentifier: SystemMediaPopupHost] = [:]
+    private var systemMediaPlayerHost: SystemMediaPlayerHost?
+    private var isResolvingXSystemMediaPlayback = false
 
     var onActivate: (() -> Void)?
     var onClose: (() -> Void)?
@@ -843,6 +910,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         let popupHosts = Array(systemMediaPopupHosts.values)
         systemMediaPopupHosts.removeAll()
         popupHosts.forEach { $0.window.close() }
+        systemMediaPlayerHost?.window.close()
+        systemMediaPlayerHost = nil
         removeSystemMediaWebView()
         if let chromeBrowser {
             chromeBrowser.close()
@@ -1031,14 +1100,101 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         self.canGoForward = canGoForward
         if isLoading {
             installWebResourceCompatibility()
+            installXSystemMediaPlaybackBridge()
         } else {
             loadProgress = 1
             installYouTubeAdPlaybackControl()
             installWebCredentialControls()
             installWebResourceCompatibility()
             installAutomaticMediaCompatibilityDetection()
+            installXSystemMediaPlaybackBridge()
             runSmokeCheckIfReady()
         }
+    }
+
+    private func installXSystemMediaPlaybackBridge() {
+        guard let browser,
+              let pageURL = URL(string: urlString ?? pendingURL.absoluteString),
+              let host = pageURL.host?.lowercased(),
+              host == "x.com" || host.hasSuffix(".x.com")
+                || host == "twitter.com" || host.hasSuffix(".twitter.com") else { return }
+        let prefix = Self.javaScriptLiteral(Self.xSystemMediaPlaybackPrefix)
+        let playLabel = Self.javaScriptLiteral(NSLocalizedString(
+            "media.compatibility.player.playButton",
+            value: "Play in Astra",
+            comment: "X media compatibility - Button shown over a video that Chromium cannot decode"
+        ))
+        let openingLabel = Self.javaScriptLiteral(NSLocalizedString(
+            "media.compatibility.player.openingButton",
+            value: "Opening…",
+            comment: "X media compatibility - Temporary button label while Astra resolves a system-playable stream"
+        ))
+        let script = """
+        (function installAstraXSystemMediaPlayback() {
+          if (window.__astraXSystemMediaPlaybackInstalled) return;
+          if (!document.documentElement) {
+            setTimeout(installAstraXSystemMediaPlayback, 50);
+            return;
+          }
+          window.__astraXSystemMediaPlaybackInstalled = true;
+          const marker = 'data-astra-system-media-playback';
+          const statusPattern = /\\/status\\/\\d+/;
+          const statusURL = (media) => {
+            if (statusPattern.test(location.pathname)) return location.href;
+            const article = media.closest('article, [role="article"], [data-testid="tweet"]');
+            if (!article) return null;
+            for (const anchor of article.querySelectorAll('a[href]')) {
+              try {
+                const candidate = new URL(anchor.href, location.href);
+                if (statusPattern.test(candidate.pathname)) return candidate.href;
+              } catch (_) {}
+            }
+            return null;
+          };
+          const decorate = (media) => {
+            if (!(media instanceof HTMLMediaElement) ||
+                !media.error || ![3, 4].includes(media.error.code)) return;
+            const pageURL = statusURL(media);
+            if (!pageURL) return;
+            const player = media.closest('[data-testid="videoPlayer"]') || media.parentElement;
+            if (!player || player.querySelector('[' + marker + ']')) return;
+            if (getComputedStyle(player).position === 'static') player.style.position = 'relative';
+            const button = document.createElement('button');
+            button.setAttribute(marker, '');
+            button.type = 'button';
+            button.textContent = \(playLabel);
+            button.style.cssText = [
+              'position:absolute', 'left:50%', 'top:62%', 'transform:translate(-50%,-50%)',
+              'z-index:2147483647', 'border:0', 'border-radius:999px',
+              'padding:12px 22px', 'font:600 15px -apple-system,BlinkMacSystemFont,sans-serif',
+              'color:white', 'background:#1d9bf0', 'cursor:pointer',
+              'box-shadow:0 4px 18px rgba(0,0,0,.25)'
+            ].join(';');
+            button.addEventListener('click', (event) => {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              if (button.disabled) return;
+              button.disabled = true;
+              button.textContent = \(openingLabel);
+              console.info(\(prefix) + encodeURIComponent(pageURL));
+              setTimeout(() => {
+                button.disabled = false;
+                button.textContent = \(playLabel);
+              }, 30000);
+            }, true);
+            player.appendChild(button);
+          };
+          const inspect = () => document.querySelectorAll('video, audio').forEach(decorate);
+          document.addEventListener('error', (event) => decorate(event.target), true);
+          new MutationObserver(inspect).observe(document.documentElement, {
+            childList: true, subtree: true, attributes: true,
+            attributeFilter: ['src']
+          });
+          setInterval(inspect, 1500);
+          inspect();
+        })();
+        """
+        browser.executeJavaScript(script)
     }
 
     private func installYouTubeAdPlaybackControl() {
@@ -2099,6 +2255,14 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         source: String,
         line: Int
     ) {
+        if message.hasPrefix(Self.xSystemMediaPlaybackPrefix) {
+            let encodedURL = String(message.dropFirst(Self.xSystemMediaPlaybackPrefix.count))
+            guard let rawURL = encodedURL.removingPercentEncoding,
+                  let pageURL = URL(string: rawURL),
+                  XSystemMediaPlaybackPolicy.supports(pageURL) else { return }
+            openXSystemMediaPlayer(for: pageURL)
+            return
+        }
         if message.hasPrefix(Self.mediaFallbackPrefix) {
             let rawURL = String(message.dropFirst(Self.mediaFallbackPrefix.count))
             guard let detectedURL = URL(string: rawURL),
@@ -2135,6 +2299,68 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         pendingConsoleEvaluations[String(parts[0])] = nil
         pending.timeoutWork?.cancel()
         pending.continuation.resume(returning: result)
+    }
+
+    private func openXSystemMediaPlayer(for pageURL: URL) {
+        if let systemMediaPlayerHost {
+            if systemMediaPlayerHost.sourcePageURL == pageURL {
+                systemMediaPlayerHost.show(relativeTo: hostView.window)
+                return
+            }
+            systemMediaPlayerHost.window.close()
+            self.systemMediaPlayerHost = nil
+        }
+        guard !isResolvingXSystemMediaPlayback else { return }
+        isResolvingXSystemMediaPlayback = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.isResolvingXSystemMediaPlayback = false }
+            let cookies = await self.browser?.cookies(for: pageURL) ?? []
+            guard let mediaURL = await self.downloadsManager?.resolveSystemPlaybackURL(
+                for: pageURL,
+                cookies: cookies
+            ) else {
+                self.showXSystemMediaPlaybackFailure()
+                return
+            }
+            let title = NSLocalizedString(
+                "media.compatibility.player.windowTitle",
+                value: "Astra Media Player",
+                comment: "System media player - Window title shown while playing an X video"
+            )
+            let playerHost = SystemMediaPlayerHost(
+                sourcePageURL: pageURL,
+                mediaURL: mediaURL,
+                title: title
+            )
+            playerHost.onClose = { [weak self, weak playerHost] in
+                guard let self, self.systemMediaPlayerHost === playerHost else { return }
+                self.systemMediaPlayerHost = nil
+            }
+            self.systemMediaPlayerHost = playerHost
+            playerHost.show(relativeTo: self.hostView.window)
+        }
+    }
+
+    private func showXSystemMediaPlaybackFailure() {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = NSLocalizedString(
+            "media.compatibility.player.failureTitle",
+            value: "Unable to play this video",
+            comment: "System media player - Error title when an X video stream cannot be resolved"
+        )
+        alert.informativeText = NSLocalizedString(
+            "media.compatibility.player.failureMessage",
+            value: "Astra could not resolve a system-playable stream for this X video.",
+            comment: "System media player - Error explanation when an X video stream cannot be resolved"
+        )
+        alert.addButton(withTitle: NSLocalizedString(
+            "media.compatibility.player.dismissButton",
+            value: "OK",
+            comment: "System media player - Button dismissing an X video playback error"
+        ))
+        alert.runModal()
     }
 
     private func evaluateJavaScriptResult(

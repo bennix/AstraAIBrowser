@@ -4,6 +4,36 @@
     "" : {
 
     },
+    "media.compatibility.player.dismissButton" : {
+      "comment" : "System media player - Button dismissing an X video playback error",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "OK" } } }
+    },
+    "media.compatibility.player.failureMessage" : {
+      "comment" : "System media player - Error explanation when an X video stream cannot be resolved",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Astra could not resolve a system-playable stream for this X video." } } }
+    },
+    "media.compatibility.player.failureTitle" : {
+      "comment" : "System media player - Error title when an X video stream cannot be resolved",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Unable to play this video" } } }
+    },
+    "media.compatibility.player.openingButton" : {
+      "comment" : "X media compatibility - Temporary button label while Astra resolves a system-playable stream",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Opening…" } } }
+    },
+    "media.compatibility.player.playButton" : {
+      "comment" : "X media compatibility - Button shown over a video that Chromium cannot decode",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Play in Astra" } } }
+    },
+    "media.compatibility.player.windowTitle" : {
+      "comment" : "System media player - Window title shown while playing an X video",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Astra Media Player" } } }
+    },
     "privacy.mediaPermission.allowOnceButton" : {
       "comment" : "Media permission prompt - Button granting camera or microphone access for the current request only",
       "extractionState" : "extracted_with_value",

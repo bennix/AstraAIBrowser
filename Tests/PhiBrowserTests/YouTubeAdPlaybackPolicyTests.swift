@@ -9,6 +9,33 @@ import XCTest
 @testable import Phi
 
 final class YouTubeAdPlaybackPolicyTests: XCTestCase {
+    func testSystemMediaPlaybackResolutionUsesASingleMP4AndCookies() {
+        let pageURL = URL(string: "https://x.com/example/status/123")!
+        let cookieURL = URL(fileURLWithPath: "/tmp/astra-playback-cookies.txt")
+        let arguments = SystemMediaPlaybackResolutionPolicy.arguments(
+            pageURL: pageURL,
+            cookieFileURL: cookieURL
+        )
+
+        XCTAssertEqual(arguments.first, "--no-config")
+        XCTAssertTrue(arguments.contains("b[ext=mp4]/b"))
+        XCTAssertTrue(arguments.contains("--get-url"))
+        XCTAssertTrue(arguments.contains(cookieURL.path))
+        XCTAssertEqual(arguments.last, pageURL.absoluteString)
+    }
+
+    func testSystemMediaPlaybackResolutionFindsTheFirstPlayableURL() {
+        let output = Data("diagnostic\nhttps://video.twimg.com/example.mp4?tag=12\n".utf8)
+
+        XCTAssertEqual(
+            SystemMediaPlaybackResolutionPolicy.resolvedURL(in: output)?.absoluteString,
+            "https://video.twimg.com/example.mp4?tag=12"
+        )
+        XCTAssertNil(SystemMediaPlaybackResolutionPolicy.resolvedURL(
+            in: Data("diagnostic only".utf8)
+        ))
+    }
+
     func testMediaDownloadPolicyRejectsTopLevelDRM() throws {
         let metadata = try JSONSerialization.data(withJSONObject: [
             "has_drm": true,

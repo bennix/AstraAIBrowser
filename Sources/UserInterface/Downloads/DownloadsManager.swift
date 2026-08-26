@@ -542,6 +542,38 @@ enum MediaDownloadSourcePolicy {
     }
 }
 
+enum SystemMediaPlaybackResolutionPolicy {
+    static func arguments(
+        pageURL: URL,
+        cookieFileURL: URL?
+    ) -> [String] {
+        var arguments = [
+            "--no-config",
+            "--no-playlist",
+            "--no-warnings",
+            "--format", "b[ext=mp4]/b",
+            "--get-url",
+            "--referer", pageURL.absoluteString,
+        ]
+        if let cookieFileURL {
+            arguments += ["--cookies", cookieFileURL.path]
+        }
+        arguments.append(pageURL.absoluteString)
+        return arguments
+    }
+
+    static func resolvedURL(in output: Data) -> URL? {
+        guard let text = String(data: output, encoding: .utf8) else { return nil }
+        for line in text.split(whereSeparator: \.isNewline) {
+            let value = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let url = URL(string: value),
+                  ["http", "https"].contains(url.scheme?.lowercased() ?? "") else { continue }
+            return url
+        }
+        return nil
+    }
+}
+
 enum MediaDownloadPolicy {
     enum Decision: Equatable {
         case allow
@@ -759,6 +791,46 @@ private final class MediaDownloadCoordinator {
         item.isPaused = false
         item.canResume = false
         finishEvent(for: item, eventType: .resumed)
+    }
+
+    func resolveSystemPlaybackURL(
+        for pageURL: URL,
+        cookies: [HTTPCookie]
+    ) async -> URL? {
+        guard let toolURL = Self.ytDLPURL() else { return nil }
+        let workDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("astra-playback-\(UUID().uuidString)", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: workDirectory, withIntermediateDirectories: true)
+        } catch {
+            return nil
+        }
+        defer { try? FileManager.default.removeItem(at: workDirectory) }
+
+        let cookieURL = workDirectory.appendingPathComponent("session-cookies.txt")
+        let cookieFileURL: URL?
+        if cookies.isEmpty {
+            cookieFileURL = nil
+        } else {
+            do {
+                try Self.writeNetscapeCookies(cookies, to: cookieURL)
+                cookieFileURL = cookieURL
+            } catch {
+                return nil
+            }
+        }
+
+        let process = MediaToolProcess(
+            executableURL: toolURL,
+            arguments: SystemMediaPlaybackResolutionPolicy.arguments(
+                pageURL: pageURL,
+                cookieFileURL: cookieFileURL
+            ),
+            lineHandler: { _ in }
+        )
+        guard let result = try? await process.run(),
+              result.exitCode == 0 else { return nil }
+        return SystemMediaPlaybackResolutionPolicy.resolvedURL(in: result.output)
     }
 
     private func perform(
@@ -1226,6 +1298,16 @@ class DownloadsManager: ObservableObject {
                 cookies: cookies
             )
         }
+    }
+
+    func resolveSystemPlaybackURL(
+        for pageURL: URL,
+        cookies: [HTTPCookie]
+    ) async -> URL? {
+        await mediaDownloadCoordinator.resolveSystemPlaybackURL(
+            for: pageURL,
+            cookies: cookies
+        )
     }
 
     @MainActor
