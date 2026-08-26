@@ -7,8 +7,8 @@ import Cocoa
 import SwiftUI
 
 enum GuestPrivacyLegalAgreement {
-    static let privacyURL = URL(string: "http://phibrowser.com/privacy/")!
-    static let termsURL = URL(string: "http://phibrowser.com/terms/")!
+    static let privacyURL = URL(string: "https://github.com/bennix/AstraAIBrowser")!
+    static let termsURL = URL(string: "https://github.com/bennix/AstraAIBrowser/blob/main/LICENSE")!
 
     private static let privacyLinkMarker = "__PHI_GUEST_PRIVACY_LINK__"
     private static let termsLinkMarker = "__PHI_GUEST_TERMS_LINK__"
@@ -23,12 +23,12 @@ enum GuestPrivacyLegalAgreement {
             privacyTitle: NSLocalizedString(
                 "oobe.guestPrivacy.privacyPolicyLink",
                 value: "Privacy Policy",
-                comment: "Guest privacy confirmation - Link title for the Phi privacy policy"
+                comment: "Guest privacy confirmation - Link title for the Astra Browser privacy policy"
             ),
             termsTitle: NSLocalizedString(
                 "oobe.guestPrivacy.termsOfServiceLink",
                 value: "Terms of Service",
-                comment: "Guest privacy confirmation - Link title for the Phi terms of service"
+                comment: "Guest privacy confirmation - Link title for the Astra Browser terms of service"
             )
         )
     }

@@ -72,16 +72,16 @@ final class PhiScriptingServiceTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(openedTab.jsonObject["url"] as? String, "phi://settings/privacy?source=raycast")
-        XCTAssertEqual(pinnedTab.jsonObject["url"] as? String, "phi://downloads")
+        XCTAssertEqual(openedTab.jsonObject["url"] as? String, "astra://settings/privacy?source=raycast")
+        XCTAssertEqual(pinnedTab.jsonObject["url"] as? String, "astra://downloads")
         XCTAssertEqual(
             (pinnedTab.jsonObject["secondary"] as? [String: Any])?["url"] as? String,
-            "phi://history"
+            "astra://history"
         )
         XCTAssertEqual(bookmark.jsonObject["url"] as? String, "https://example.com")
         XCTAssertEqual(
             (bookmark.jsonObject["secondary"] as? [String: Any])?["url"] as? String,
-            "phi://bookmarks"
+            "astra://bookmarks"
         )
     }
 

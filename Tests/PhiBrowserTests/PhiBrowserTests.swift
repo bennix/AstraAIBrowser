@@ -1986,7 +1986,7 @@ final class PhiBrowserTests: XCTestCase {
             "Onboard your AI assistant",
             "Import data from another browser",
             "Have your AI assistant help you understand the fine print",
-            "Enjoy using Phi Browser 🎉"
+            "Enjoy using Astra Browser 🎉"
         ]
         let longTitle = Array(
             repeating: "A deliberately long localized onboarding instruction",
@@ -2120,7 +2120,7 @@ final class PhiBrowserTests: XCTestCase {
         let range = NSRange(location: 0, length: title.length)
         title.addAttribute(
             .link,
-            value: try XCTUnwrap(URL(string: "https://phibrowser.com/privacy/")),
+            value: try XCTUnwrap(URL(string: "https://github.com/bennix/AstraAIBrowser")),
             range: range
         )
         NextStepLinkGradient.apply(to: title, range: range)
@@ -2199,7 +2199,7 @@ final class PhiBrowserTests: XCTestCase {
                 at: privacyLocation,
                 effectiveRange: nil
             ) as? URL,
-            URL(string: "http://phibrowser.com/privacy/")
+            URL(string: "https://github.com/bennix/AstraAIBrowser")
         )
         XCTAssertEqual(
             agreement.attribute(
@@ -2207,7 +2207,7 @@ final class PhiBrowserTests: XCTestCase {
                 at: termsLocation,
                 effectiveRange: nil
             ) as? URL,
-            URL(string: "http://phibrowser.com/terms/")
+            URL(string: "https://github.com/bennix/AstraAIBrowser/blob/main/LICENSE")
         )
     }
 

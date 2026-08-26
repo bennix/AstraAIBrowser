@@ -24,7 +24,7 @@ public struct URLProcessor {
         if trimmedText.hasPrefix("http://") || trimmedText.hasPrefix("https://") {
             return trimmedText
         } else if trimmedText.hasPrefix("astra://") {
-            return trimmedText
+            return trimmedText.replacingOccurrences(of: "astra://", with: "chrome://")
         } else if trimmedText.hasPrefix("chrome://") || trimmedText.hasPrefix("about://") {
             return trimmedText
         } else if trimmedText.hasPrefix("phi://") {
@@ -91,15 +91,19 @@ public struct URLProcessor {
     }
     
     static func phiBrandEnsuredUrlString(_ string: String) -> String {
-        guard string.hasPrefix("chrome://") else { return string }
-        let startIndex = string.index(string.startIndex, offsetBy: "chrome://".count)
-        return "phi://" + string[startIndex...]
+        if string.hasPrefix("chrome://") {
+            return "astra://" + string.dropFirst("chrome://".count)
+        }
+        if string.hasPrefix("phi://") {
+            return "astra://" + string.dropFirst("phi://".count)
+        }
+        return string
     }
 
     static func isLegacyBrowserMemoryURL(_ rawURL: String) -> Bool {
         guard let components = URLComponents(string: rawURL),
               let scheme = components.scheme?.lowercased(),
-              scheme == "chrome" || scheme == "phi" else {
+              scheme == "chrome" || scheme == "phi" || scheme == "astra" else {
             return false
         }
         return components.host?.lowercased() == "memory"

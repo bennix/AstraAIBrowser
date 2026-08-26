@@ -18,7 +18,26 @@ final class URLProcessorTests: XCTestCase {
                 URLProcessor.browserMemoryURL
             )
         }
-        XCTAssertEqual(URLProcessor.browserMemoryURL, "astra://memory/")
+        XCTAssertEqual(
+            URLProcessor.processUserInput("astra://memory/"),
+            URLProcessor.browserMemoryURL
+        )
+        XCTAssertEqual(
+            URLProcessor.processUserInput("astra://settings"),
+            "chrome://settings"
+        )
+        XCTAssertEqual(
+            URLProcessor.phiBrandEnsuredUrlString("chrome://settings"),
+            "astra://settings"
+        )
+        XCTAssertEqual(
+            URLProcessor.phiBrandEnsuredUrlString("phi://downloads"),
+            "astra://downloads"
+        )
+        XCTAssertEqual(
+            URLProcessor.phiBrandEnsuredUrlString("https://example.com"),
+            "https://example.com"
+        )
     }
 
     func testBrowserMemoryCompatibilityDoesNotRewriteSimilarHosts() {

@@ -17,11 +17,11 @@ class FeedbackViewController: NSViewController {
         let view = FeedbackView(viewModel: viewModel) { [weak self] in
             guard let self else { return }
             // onPrivacyPolicyTap
-            hostWindowController.browserState.openTab("https://phibrowser.com/privacy/")
+            hostWindowController.browserState.openTab("https://github.com/bennix/AstraAIBrowser")
             hostWindowController.window?.orderFront(nil)
         } onTermsOfServiceTap: { [weak self] in
             guard let self else { return }
-            hostWindowController.browserState.openTab("https://phibrowser.com/terms-of-service/")
+            hostWindowController.browserState.openTab("https://github.com/bennix/AstraAIBrowser/blob/main/LICENSE")
             hostWindowController.window?.orderFront(nil)
         } onCancel: { [weak self] in
             guard let self else { return }

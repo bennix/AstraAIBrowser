@@ -561,59 +561,61 @@ extension AppController {
                     $0.tag == AppController.manageUserDataParentItemTag ||
                     $0.tag == AppController.uninstallPhiItemTag
                 }
-                
-                let extensionInfoItem = NSMenuItem(title: NSLocalizedString("app.helpMenu.extensionInfo", value: "Extension Info", comment: "Help menu - Menu item to show extension version info, only visible when holding Option key"),
-                                                   action: #selector(showExtensionInfo(_:)),
-                                                   keyEquivalent: "")
-                extensionInfoItem.tag = AppController.extensionInfoItemTag
-                extensionInfoItem.isHidden = true
-                extensionInfoItem.target = self
 
-                let exportLogsItem = NSMenuItem(title: NSLocalizedString("app.helpMenu.exportLogs", value: "Export Logs...", comment: "Help menu - Menu item to export Astra Browser and Sentinel logs as a zip archive; visible only when holding Option key"),
-                                                action: #selector(exportLogs(_:)),
-                                                keyEquivalent: "")
-                exportLogsItem.tag = AppController.exportLogsItemTag
-                exportLogsItem.isHidden = true
-                exportLogsItem.target = self
-                
-                if subMenu.items.count > 0 {
-                    subMenu.insertItem(extensionInfoItem, at: 0)
-                    subMenu.insertItem(exportLogsItem, at: 1)
-                } else {
-                    subMenu.addItem(extensionInfoItem)
-                    subMenu.addItem(exportLogsItem)
-                }
+                if PhiBuildCapabilities.supportsPhiOriginMenus {
+                    let extensionInfoItem = NSMenuItem(title: NSLocalizedString("app.helpMenu.extensionInfo", value: "Extension Info", comment: "Help menu - Menu item to show extension version info, only visible when holding Option key"),
+                                                       action: #selector(showExtensionInfo(_:)),
+                                                       keyEquivalent: "")
+                    extensionInfoItem.tag = AppController.extensionInfoItemTag
+                    extensionInfoItem.isHidden = true
+                    extensionInfoItem.target = self
 
-                let whatsNewItem = NSMenuItem(title: NSLocalizedString("app.helpMenu.whatsNew", value: "What's New", comment: "Help menu - Menu item that opens the chrome://whats-new page in a new tab, placed right below 'Report an Issue'"),
-                                              action: #selector(showWhatsNew(_:)),
-                                              keyEquivalent: "")
-                whatsNewItem.tag = AppController.whatsNewItemTag
-                whatsNewItem.target = self
-                // Insert right below the Chromium-provided "Report an Issue" item (IDC_FEEDBACK).
-                // Fallback to appending at the end if that item is not present.
-                if let reportIssueIndex = subMenu.items.firstIndex(where: { $0.tag == CommandWrapper.IDC_FEEDBACK.rawValue }) {
-                    subMenu.insertItem(whatsNewItem, at: reportIssueIndex + 1)
-                } else {
-                    subMenu.addItem(whatsNewItem)
-                }
+                    let exportLogsItem = NSMenuItem(title: NSLocalizedString("app.helpMenu.exportLogs", value: "Export Logs...", comment: "Help menu - Menu item to export Astra Browser and Sentinel logs as a zip archive; visible only when holding Option key"),
+                                                    action: #selector(exportLogs(_:)),
+                                                    keyEquivalent: "")
+                    exportLogsItem.tag = AppController.exportLogsItemTag
+                    exportLogsItem.isHidden = true
+                    exportLogsItem.target = self
 
-                let improveTranslationsItem = NSMenuItem(
-                    title: NSLocalizedString(
-                        "app.helpMenu.improveTranslations",
-                        value: "Improve Translations for Astra Browser",
-                        comment: "Help menu - Menu item below What's New that opens Phi's translation contribution website"
-                    ),
-                    action: #selector(showImproveTranslations(_:)),
-                    keyEquivalent: ""
-                )
-                improveTranslationsItem.tag = AppController.improveTranslationsItemTag
-                improveTranslationsItem.target = self
-                if let whatsNewIndex = subMenu.items.firstIndex(where: {
-                    $0.tag == AppController.whatsNewItemTag
-                }) {
-                    subMenu.insertItem(improveTranslationsItem, at: whatsNewIndex + 1)
-                } else {
-                    subMenu.addItem(improveTranslationsItem)
+                    if subMenu.items.count > 0 {
+                        subMenu.insertItem(extensionInfoItem, at: 0)
+                        subMenu.insertItem(exportLogsItem, at: 1)
+                    } else {
+                        subMenu.addItem(extensionInfoItem)
+                        subMenu.addItem(exportLogsItem)
+                    }
+
+                    let whatsNewItem = NSMenuItem(title: NSLocalizedString("app.helpMenu.whatsNew", value: "What's New", comment: "Help menu - Menu item that opens the chrome://whats-new page in a new tab, placed right below 'Report an Issue'"),
+                                                  action: #selector(showWhatsNew(_:)),
+                                                  keyEquivalent: "")
+                    whatsNewItem.tag = AppController.whatsNewItemTag
+                    whatsNewItem.target = self
+                    // Insert right below the Chromium-provided "Report an Issue" item (IDC_FEEDBACK).
+                    // Fallback to appending at the end if that item is not present.
+                    if let reportIssueIndex = subMenu.items.firstIndex(where: { $0.tag == CommandWrapper.IDC_FEEDBACK.rawValue }) {
+                        subMenu.insertItem(whatsNewItem, at: reportIssueIndex + 1)
+                    } else {
+                        subMenu.addItem(whatsNewItem)
+                    }
+
+                    let improveTranslationsItem = NSMenuItem(
+                        title: NSLocalizedString(
+                            "app.helpMenu.improveTranslations",
+                            value: "Improve Translations for Astra Browser",
+                            comment: "Help menu - Menu item below What's New that opens Phi's translation contribution website"
+                        ),
+                        action: #selector(showImproveTranslations(_:)),
+                        keyEquivalent: ""
+                    )
+                    improveTranslationsItem.tag = AppController.improveTranslationsItemTag
+                    improveTranslationsItem.target = self
+                    if let whatsNewIndex = subMenu.items.firstIndex(where: {
+                        $0.tag == AppController.whatsNewItemTag
+                    }) {
+                        subMenu.insertItem(improveTranslationsItem, at: whatsNewIndex + 1)
+                    } else {
+                        subMenu.addItem(improveTranslationsItem)
+                    }
                 }
 
                 let userDataSeparator = NSMenuItem.separator()
@@ -673,7 +675,8 @@ extension AppController {
             #if DEBUG || NIGHTLY_BUILD
             mainMenu.addItem(item)
             #else
-            if UserDefaults.standard.bool(forKey: PhiPreferences.phiMainDebugMenuEnabled.rawValue) == true {
+            if PhiBuildCapabilities.supportsPhiOriginMenus,
+               UserDefaults.standard.bool(forKey: PhiPreferences.phiMainDebugMenuEnabled.rawValue) == true {
                 mainMenu.addItem(item)
             }
             #endif // DEBUG || NIGHTLY_BUILD
@@ -1387,10 +1390,12 @@ extension AppController {
     }
 
     @objc func showWhatsNew(_ sender: Any?) {
+        guard PhiBuildCapabilities.supportsPhiOriginMenus else { return }
         BrowserState.currentState()?.createTab("chrome://whats-new", focusAfterCreate: true)
     }
 
     @objc func showImproveTranslations(_ sender: Any?) {
+        guard PhiBuildCapabilities.supportsPhiOriginMenus else { return }
         BrowserState.currentState()?.createTab(
             "https://i18n.phibrowser.com/",
             focusAfterCreate: true
@@ -1481,6 +1486,7 @@ extension AppController {
     }
     
     @objc func exportLogs(_ sender: Any?) {
+        guard PhiBuildCapabilities.supportsPhiOriginMenus else { return }
         let phiLogsURL = URL(fileURLWithPath: FileSystemUtils.phiBrowserDataDirectory(), isDirectory: true)
             .appendingPathComponent("PhiLogs", isDirectory: true)
         let sentinelLogsURL = SentinelHelper.sentinelLogsDirectoryURL()
@@ -1583,6 +1589,7 @@ extension AppController {
     }
 
     @objc func showExtensionInfo(_ sender: Any?) {
+        guard PhiBuildCapabilities.supportsPhiOriginMenus else { return }
         let versionsDict = MainBrowserWindowControllersManager.shared.activeWindowController?.browserState.extensionManager.phiExtensionVersions
         
         let alert = NSAlert()
@@ -2797,6 +2804,7 @@ extension AppController: NSMenuDelegate {
             return
         }
 
+        guard PhiBuildCapabilities.supportsPhiOriginMenus else { return }
         let optionKeyPressed = NSEvent.modifierFlags.contains(.option)
         if let extensionInfoItem = menu.item(withTag: AppController.extensionInfoItemTag) {
             extensionInfoItem.isHidden = !optionKeyPressed

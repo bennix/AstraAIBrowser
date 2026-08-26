@@ -10,7 +10,22 @@ import Settings
 class AISettingsViewController: NSViewController, SettingsPane {
     var paneIdentifier = Settings.PaneIdentifier.aisettings
     var paneTitle: String = NSLocalizedString("settings.navigation.aiTitle", value: "ZenMux AI", comment: "Settings - Tab title for ZenMux AI settings")
-    var toolbarItemIcon: NSImage = NSImage(resource: .settingPhiIcon)
+    var toolbarItemIcon: NSImage = {
+        guard let symbol = NSImage(systemSymbolName: "sparkles",
+                                   accessibilityDescription: "ZenMux AI")?
+            .withSymbolConfiguration(.init(pointSize: 13, weight: .regular)) else {
+            return NSImage()
+        }
+        let canvas = NSImage(size: NSSize(width: 32, height: 32), flipped: false) { rect in
+            let size = symbol.size
+            symbol.draw(in: NSRect(x: (rect.width - size.width) / 2,
+                                   y: (rect.height - size.height) / 2,
+                                   width: size.width, height: size.height))
+            return true
+        }
+        canvas.isTemplate = true
+        return canvas
+    }()
 
     let hostingController = AISettingHostingViewController()
 

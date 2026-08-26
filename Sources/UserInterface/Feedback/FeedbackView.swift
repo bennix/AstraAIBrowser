@@ -34,7 +34,7 @@ struct FeedbackView: View {
     }
     
     private var legalText: AttributedString {
-        var string = AttributedString(NSLocalizedString("feedback.form.privacyNotice", value: "Some account and system information may be sent to Phinomenon. We will use the information you give us to help address technical issues and to improve our services, subject to our Privacy Policy and Terms of Service.", comment: "Feedback form - Legal disclaimer text explaining data usage, contains links to Privacy Policy and Terms of Service"))
+        var string = AttributedString(NSLocalizedString("feedback.form.privacyNotice", value: "Some account and system information may be sent to Astra Browser. We will use the information you give us to help address technical issues and to improve our services, subject to our Privacy Policy and Terms of Service.", comment: "Feedback form - Legal disclaimer text explaining data usage, contains links to Privacy Policy and Terms of Service"))
         
         if let range = string.range(of: "Privacy Policy") {
             string[range].link = URL(string: "privacy")

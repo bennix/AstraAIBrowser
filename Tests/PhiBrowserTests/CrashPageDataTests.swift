@@ -43,12 +43,19 @@ final class CrashPageDataTests: XCTestCase {
         XCTAssertEqual(data.buttonLabel, "Reload")
         XCTAssertEqual(data.helpLinkLabel, "Learn more")
         XCTAssertEqual(data.errorCodeText, "Error code: SIGSEGV")
-        XCTAssertEqual(data.helpLinkUrl, "https://phibrowser.com/help/")
+        XCTAssertEqual(data.helpLinkUrl, "https://github.com/bennix/AstraAIBrowser")
         XCTAssertEqual(data.errorCode, 11)
         XCTAssertEqual(data.kind, 1)
         XCTAssertEqual(data.terminationStatus, 2)
         XCTAssertFalse(data.showFeedbackButton)
         XCTAssertFalse(data.isRepeatedlyCrashing)
+    }
+
+    func testHelpLinkFromUnrelatedHostIsUnchanged() {
+        var payload = dict(showFeedback: false)
+        payload["helpLinkUrl"] = "https://support.example/help"
+        let data = CrashPageData(dictionary: payload)
+        XCTAssertEqual(data.helpLinkUrl, "https://support.example/help")
     }
 
     func testPrimaryActionIsReloadWhenFeedbackButtonOff() {

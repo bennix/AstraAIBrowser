@@ -8,7 +8,7 @@ import AppKit
 
 struct AboutView: View {
     private let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ??
-                         Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Phi"
+                         Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Astra Browser"
 
     private let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0"
 
@@ -183,7 +183,7 @@ struct AboutView: View {
                 }
 
                 VStack(spacing: 8) {
-                    Text(String(format: NSLocalizedString("about.copyrightNotice", value: "© %d Phinomenon. All rights reserved.", comment: "About window - Copyright notice at bottom"), currentYear))
+                    Text(String(format: NSLocalizedString("about.copyrightNotice", value: "© %d Astra Browser. All rights reserved.", comment: "About window - Copyright notice at bottom"), currentYear))
                         .font(.caption)
                         .foregroundColor(Color(NSColor.labelColor))
                         .padding(.top, 5)

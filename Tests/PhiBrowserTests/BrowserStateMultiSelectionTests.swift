@@ -379,7 +379,7 @@ final class BrowserStateMultiSelectionTests: XCTestCase {
         XCTAssertEqual(state.selectedTabCountForURLCopy, 1)
         XCTAssertTrue(state.copySelectedTabURLs())
 
-        XCTAssertEqual(NSPasteboard.general.string(forType: .string), "phi://settings")
+        XCTAssertEqual(NSPasteboard.general.string(forType: .string), "astra://settings")
         XCTAssertFalse(state.multiSelection.isActive)
     }
 

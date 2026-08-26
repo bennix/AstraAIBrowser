@@ -15,7 +15,7 @@ final class BookmarkManagerCellViewTests: XCTestCase {
         spaceId: "space-1"
     )
 
-    func testAddressColumnDisplaysPhiBrandedNewTabURL() throws {
+    func testAddressColumnDisplaysAstraBrandedNewTabURL() throws {
         let bookmark = Bookmark(
             guid: "new-tab",
             title: "New Tab",
@@ -30,10 +30,10 @@ final class BookmarkManagerCellViewTests: XCTestCase {
             onCommit: nil
         )
 
-        XCTAssertEqual(try XCTUnwrap(cell.textField).stringValue, "phi://newtab")
+        XCTAssertEqual(try XCTUnwrap(cell.textField).stringValue, "astra://newtab")
     }
 
-    func testInlineAddressEditingStartsWithPhiBrandedURL() throws {
+    func testInlineAddressEditingStartsWithAstraBrandedURL() throws {
         let bookmark = Bookmark(
             guid: "new-tab",
             title: "New Tab",
@@ -56,6 +56,6 @@ final class BookmarkManagerCellViewTests: XCTestCase {
 
         cell.beginEditing()
 
-        XCTAssertEqual(try XCTUnwrap(cell.textField).stringValue, "phi://newtab")
+        XCTAssertEqual(try XCTUnwrap(cell.textField).stringValue, "astra://newtab")
     }
 }

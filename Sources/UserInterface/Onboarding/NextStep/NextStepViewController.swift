@@ -162,8 +162,8 @@ final class NextStepViewController: OnboardingBaseViewController {
         static let contentBottomSpacing: CGFloat = 24
     }
 
-    private static let privacyURL = URL(string: "http://phibrowser.com/privacy/")!
-    private static let termsURL = URL(string: "http://phibrowser.com/terms/")!
+    private static let privacyURL = URL(string: "https://github.com/bennix/AstraAIBrowser")!
+    private static let termsURL = URL(string: "https://github.com/bennix/AstraAIBrowser/blob/main/LICENSE")!
     private static let privacyLinkMarker = "__PHI_PRIVACY_LINK__"
     private static let termsLinkMarker = "__PHI_TERMS_LINK__"
 
@@ -246,12 +246,12 @@ final class NextStepViewController: OnboardingBaseViewController {
         let privacyTitle = NSLocalizedString(
             "oobe.nextSteps.privacyLink",
             value: "Privacy",
-            comment: "Onboarding next steps - Link title for the Phi privacy policy"
+            comment: "Onboarding next steps - Link title for the Astra Browser privacy policy"
         )
         let termsTitle = NSLocalizedString(
             "oobe.nextSteps.termsLink",
             value: "Terms",
-            comment: "Onboarding next steps - Link title for the Phi terms of service"
+            comment: "Onboarding next steps - Link title for the Astra Browser terms of service"
         )
         let format = NSLocalizedString(
             "oobe.nextSteps.legalAgreement",

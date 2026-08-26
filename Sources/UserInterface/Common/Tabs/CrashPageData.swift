@@ -40,11 +40,21 @@ struct CrashPageData: Equatable {
         helpLinkLabel = dictionary["helpLinkLabel"] as? String ?? ""
         errorCodeText = dictionary["errorCodeText"] as? String ?? ""
         tips = dictionary["tips"] as? [String] ?? []
-        helpLinkUrl = dictionary["helpLinkUrl"] as? String ?? ""
+        helpLinkUrl = Self.rewrittenHelpURL(dictionary["helpLinkUrl"] as? String ?? "")
         showFeedbackButton = (dictionary["showFeedbackButton"] as? NSNumber)?.boolValue ?? false
         isRepeatedlyCrashing = (dictionary["isRepeatedlyCrashing"] as? NSNumber)?.boolValue ?? false
         errorCode = (dictionary["errorCode"] as? NSNumber)?.intValue ?? 0
         kind = (dictionary["kind"] as? NSNumber)?.intValue ?? 0
         terminationStatus = (dictionary["terminationStatus"] as? NSNumber)?.intValue ?? 0
+    }
+
+    private static let astraHelpURL = "https://github.com/bennix/AstraAIBrowser"
+
+    private static func rewrittenHelpURL(_ rawURL: String) -> String {
+        guard let host = URL(string: rawURL)?.host?.lowercased(),
+              host == "phibrowser.com" || host.hasSuffix(".phibrowser.com") else {
+            return rawURL
+        }
+        return astraHelpURL
     }
 }

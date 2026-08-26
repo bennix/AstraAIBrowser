@@ -16,6 +16,7 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertTrue(PhiBuildCapabilities.supportsAI)
         XCTAssertFalse(PhiBuildCapabilities.supportsSoftwareUpdates)
         XCTAssertFalse(PhiBuildCapabilities.supportsLegacyRollback)
+        XCTAssertFalse(PhiBuildCapabilities.supportsPhiOriginMenus)
     }
 
     func testBrowserAccountPrivacyDoesNotAssociateGoogleAccountsWithAstra() throws {

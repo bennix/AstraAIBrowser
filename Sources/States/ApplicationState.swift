@@ -11,11 +11,13 @@ enum PhiBuildCapabilities {
     static let supportsAI = true
     static let supportsSoftwareUpdates = false
     static let supportsLegacyRollback = false
+    static let supportsPhiOriginMenus = false
     #else
     static let supportsAuthentication = true
     static let supportsAI = true
     static let supportsSoftwareUpdates = true
     static let supportsLegacyRollback = true
+    static let supportsPhiOriginMenus = true
     #endif
 }
 

@@ -24,7 +24,7 @@
     "features.browserOwnership.body": "通用设置可让 Astra 完整接管 HTTP 与 HTTPS。其他 Mac 应用打开的链接会进入 Astra 内嵌的 Chromium 标签页，网站检测到的浏览器语言也会与 Astra 界面语言保持一致。",
     "features.history.title": "完整保留浏览历史",
     "features.history.body": "Astra 将浏览历史保存在持久化 Chromium 配置中，可从原生“历史记录”菜单和“通用”设置查看或清除，也可按 Command-Y 打开完整记录。",
-    "download.summary": "Build 50 将 X 和 Twitter 切换到持久化的系统 WebKit 会话，解决 Chromium 缺少专有编解码器导致的视频失败。原生 X 守护在本机匹配公开黑名单与白名单，支持命中提示、隐藏和撤销；数据库默认从主要原站点更新，失败时回退到 GitHub 镜像。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 51 完成了 Astra 在首次使用、反馈、崩溃恢复、内部网址和原生菜单中的品牌统一。用户可见的内部页面统一使用 astra://，旧 Phi 链接仍保持兼容，Astra 版本也不会再显示不适用的上游菜单。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

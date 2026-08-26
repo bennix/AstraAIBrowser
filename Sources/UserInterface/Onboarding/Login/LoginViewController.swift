@@ -64,6 +64,7 @@ class LoginViewController: NSViewController {
         loginImage.snp.makeConstraints { make in
             make.centerX.equalToSuperview()
             make.top.equalToSuperview()
+            make.size.equalTo(NSSize(width: 72, height: 72))
         }
         loginButton.snp.makeConstraints { make in
             make.centerX.equalToSuperview()
@@ -85,7 +86,11 @@ class LoginViewController: NSViewController {
         return bg
     }()
     
-    private let loginImage: NSImageView = NSImageView(image: .brand)
+    private let loginImage: NSImageView = {
+        let imageView = NSImageView(image: NSApp.applicationIconImage ?? NSImage())
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        return imageView
+    }()
     
     private lazy var loginButton: GradientBorderButton = {
         let button = GradientBorderButton()
