@@ -3,9 +3,9 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 49)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.49/Astra-Browser-build49.dmg)
+[Download Astra 1.0 (build 50)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.50/Astra-Browser-build50.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.49)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.50)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
@@ -25,13 +25,14 @@ and accepted by Apple's notarization service.
 - ZenMux answers render GitHub-style Markdown tables and normalize common model-specific LaTeX wrappers before native math rendering.
 - YouTube ad playback acceleration: detected ads play at 8× and the previous content speed is restored afterward.
 - YouTube and other WebKit media pages support HTML element fullscreen.
-- Mainland and H.264/AAC-first video sites use an in-app system media engine when the bundled Chromium codec set is insufficient, while YouTube keeps its Chromium VP9/AV1 path. X stays on Chromium so extensions can run, then temporarily falls back for a video that the bundled codecs cannot decode.
+- Mainland and H.264/AAC-first video sites use an in-app system media engine when the bundled Chromium codec set is insufficient, while YouTube keeps its Chromium VP9/AV1 path. X uses a persistent system WebKit session for reliable macOS media playback.
 - Red-button window close preserves tabs and live page state for the next Dock activation.
 - WebRTC exposes no direct candidates, while camera and microphone access requires one-time approval.
 - Silent WebAudio fingerprinting is disrupted at document start: fingerprint readbacks are randomized per page context and zero-gain processing graphs cannot claim the system audio output. Deferred legitimate audio connections are bounded, deduplicated, and restored asynchronously so privacy protection cannot block page navigation. Standard HTML media playback is left unchanged.
 - Canvas and WebGL readbacks are farbled per site and session, precise Apple GPU models are masked, protected local and Chinese fonts resist direct and text-metric enumeration, and exposed hardware and language signals are normalized to a coherent profile.
 - Grok stays in its persistent Chromium session after sign-in, and X OAuth popups retain their originating page relationship.
-- Chrome Web Store installs remain inside Astra, installed extension actions stay visible, and X extensions run on Chromium-rendered pages.
+- Chrome Web Store installs remain inside Astra and installed extension actions stay visible on Chromium-rendered pages.
+- X pages include a native local-first spam shield with whitelist precedence, reversible hiding, a six-hour primary-source update check, GitHub mirror fallback, and manual database updates in General settings.
 - Astra's icon and installation identity remain stable across restarts; the legacy Phi updater cannot replace the installed app.
 - Google website sign-in remains available without associating the account with Astra at the browser level or enabling browser sync.
 - Local-first controls for browser profiles, credentials, and AI configuration.

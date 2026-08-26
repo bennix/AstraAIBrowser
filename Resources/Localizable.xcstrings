@@ -4,30 +4,70 @@
     "" : {
 
     },
-    "media.compatibility.player.dismissButton" : {
-      "comment" : "System media player - Button dismissing an X video playback error",
+    "settings.general.xSpamShield.databaseTitle" : {
+      "comment" : "General settings - Row title for the X junk-account public-list database",
       "extractionState" : "extracted_with_value",
-      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "OK" } } }
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Public filter database" } } }
     },
-    "media.compatibility.player.failureMessage" : {
-      "comment" : "System media player - Error explanation when an X video stream cannot be resolved",
+    "settings.general.xSpamShield.githubSource" : {
+      "comment" : "General settings - Short source label for a database downloaded from the audited GitHub mirror",
       "extractionState" : "extracted_with_value",
-      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Astra could not resolve a system-playable stream for this X video." } } }
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "GitHub mirror" } } }
     },
-    "media.compatibility.player.failureTitle" : {
-      "comment" : "System media player - Error title when an X video stream cannot be resolved",
+    "settings.general.xSpamShield.loadingStatus" : {
+      "comment" : "General settings - Status while checking or downloading the X filtering database",
       "extractionState" : "extracted_with_value",
-      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Unable to play this video" } } }
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Checking x.zuoluo.tv…" } } }
     },
-    "media.compatibility.player.openingButton" : {
-      "comment" : "X media compatibility - Temporary button label while Astra resolves a system-playable stream",
+    "settings.general.xSpamShield.primarySource" : {
+      "comment" : "General settings - Short source label for a database downloaded from the upstream primary site",
       "extractionState" : "extracted_with_value",
-      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Opening…" } } }
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "x.zuoluo.tv (primary)" } } }
     },
-    "media.compatibility.player.playButton" : {
-      "comment" : "X media compatibility - Button shown over a video that Chromium cannot decode",
+    "settings.general.xSpamShield.readyStatus" : {
+      "comment" : "General settings - X filtering database status; placeholders are blacklist count, whitelist count, source label, and local update date",
       "extractionState" : "extracted_with_value",
-      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Play in Astra" } } }
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "%1$ld blocked · %2$ld allowed · %3$@ · Updated %4$@" } } }
+    },
+    "settings.general.xSpamShield.sectionTitle" : {
+      "comment" : "General settings - Section title for the native X junk-account filter",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "X content filtering" } } }
+    },
+    "settings.general.xSpamShield.unavailableStatus" : {
+      "comment" : "General settings - Status when the X filtering database has not been downloaded",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "No validated local database is available yet." } } }
+    },
+    "settings.general.xSpamShield.updateButton" : {
+      "comment" : "General settings - Button that immediately checks and updates the X filtering database",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Update now" } } }
+    },
+    "privacy.xSpamShield.badge.hideButton" : {
+      "comment" : "X spam shield - Button that locally hides posts from a matched account",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Hide" } } }
+    },
+    "privacy.xSpamShield.badge.junkAccount" : {
+      "comment" : "X spam shield - Badge identifying an account found on the public junk-account list",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Junk account" } } }
+    },
+    "privacy.xSpamShield.status.guardLabel" : {
+      "comment" : "X spam shield - Floating status label shown while Astra checks visible accounts",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Guard" } } }
+    },
+    "privacy.xSpamShield.toast.hiddenMessage" : {
+      "comment" : "X spam shield - Confirmation after locally hiding an account; placeholder is the account handle",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Posts from %@ are hidden" } } }
+    },
+    "privacy.xSpamShield.toast.undoButton" : {
+      "comment" : "X spam shield - Button restoring posts that were just hidden locally",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Undo" } } }
     },
     "privacy.mediaPermission.allowOnceButton" : {
       "comment" : "Media permission prompt - Button granting camera or microphone access for the current request only",

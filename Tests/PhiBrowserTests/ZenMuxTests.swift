@@ -692,161 +692,100 @@ final class ZenMuxTests: XCTestCase {
     }
 
     @MainActor
-    func testXRemainsInChromiumSoExtensionsCanRun() {
+    func testXUsesPersistentWebKitForSystemMediaAndNativeShield() {
         let xURL = URL(string: "https://x.com/example/status/1")!
         let twitterURL = URL(string: "https://mobile.twitter.com/example/status/1")!
 
-        XCTAssertFalse(SystemMediaCompatibilityPolicy.allowsAutomaticFallback(for: xURL))
-        XCTAssertFalse(SystemMediaCompatibilityPolicy.allowsAutomaticFallback(for: twitterURL))
-        XCTAssertFalse(SystemMediaCompatibilityPolicy.usesStallBasedAutomaticFallback(for: xURL))
-        XCTAssertFalse(SystemMediaCompatibilityPolicy.usesStallBasedAutomaticFallback(for: twitterURL))
-        XCTAssertFalse(SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(
-            for: URL(string: "https://x.com/example/status/1")!
-        ))
-        XCTAssertFalse(SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(
-            for: URL(string: "https://mobile.twitter.com/example/status/1")!
-        ))
-        XCTAssertFalse(WebContentEnginePolicy.usesPersistentWebKit(
+        XCTAssertTrue(SystemMediaCompatibilityPolicy.allowsAutomaticFallback(for: xURL))
+        XCTAssertTrue(SystemMediaCompatibilityPolicy.allowsAutomaticFallback(for: twitterURL))
+        XCTAssertTrue(SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(for: xURL))
+        XCTAssertTrue(SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(for: twitterURL))
+        XCTAssertTrue(WebContentEnginePolicy.usesPersistentWebKit(
             for: xURL,
             profileId: LocalStore.defaultProfileId,
             allowsCredentialStorage: true
         ))
-        SystemMediaCompatibilityPolicy.rememberDetectedMediaIncompatibility(for: xURL)
-        XCTAssertFalse(SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(for: xURL))
     }
 
-    func testXSystemMediaPlaybackAcceptsOnlyStatusPages() {
-        XCTAssertTrue(XSystemMediaPlaybackPolicy.supports(
-            URL(string: "https://x.com/example/status/123456789")!
-        ))
-        XCTAssertTrue(XSystemMediaPlaybackPolicy.supports(
-            URL(string: "https://mobile.twitter.com/example/status/123456789/video/1")!
-        ))
-        XCTAssertFalse(XSystemMediaPlaybackPolicy.supports(
-            URL(string: "https://x.com/home")!
-        ))
-        XCTAssertFalse(XSystemMediaPlaybackPolicy.supports(
-            URL(string: "https://example.com/example/status/123456789")!
-        ))
-        XCTAssertFalse(XSystemMediaPlaybackPolicy.supports(
-            URL(string: "http://x.com/example/status/123456789")!
-        ))
-    }
-
-    func testXSystemMediaPlaybackRequestDecodesInlineGeometry() throws {
-        let data = Data("""
+    func testXSpamShieldMatchesLocallyAndHonorsWhitelist() throws {
+        let liteData = Data("""
         {
-          "pageURL": "https://x.com/example/status/123456789",
-          "left": 20,
-          "top": 30,
-          "width": 400,
-          "height": 300,
-          "viewportWidth": 800,
-          "viewportHeight": 640,
-          "visible": true,
-          "userInitiated": false
+          "version": "test-v1",
+          "labels": { "p": "porn_bot", "s": "spam" },
+          "entries": [
+            ["100", "JunkAccount", "sha"],
+            ["101", "WhitelistedAccount", "pha"]
+          ]
+        }
+        """.utf8)
+        let whitelistData = Data("""
+        {
+          "count": 1,
+          "list": [
+            { "handle": "whitelistedaccount", "x_user_id": "101", "last_scored": 1 }
+          ]
         }
         """.utf8)
 
-        let request = try JSONDecoder().decode(XSystemMediaPlaybackRequest.self, from: data)
+        let snapshot = try XSpamShieldListPolicy.decodeSnapshot(
+            liteData: liteData,
+            whitelistData: whitelistData
+        )
+        let matches = snapshot.matches(
+            handles: ["@JUNKACCOUNT", "whitelistedaccount", "junkaccount"],
+            hiddenHandles: ["junkaccount"]
+        )
 
-        XCTAssertEqual(request.pageURL.absoluteString, "https://x.com/example/status/123456789")
-        XCTAssertTrue(request.hasValidGeometry)
-        XCTAssertFalse(request.userInitiated)
+        XCTAssertEqual(matches, [
+            XSpamShieldMatch(handle: "junkaccount", label: "spam", isHidden: true),
+        ])
     }
 
-    func testXSystemMediaPlaybackLayoutMapsDOMCoordinatesToScreen() {
-        let request = XSystemMediaPlaybackRequest(
-            pageURL: URL(string: "https://x.com/example/status/123456789")!,
-            left: 20,
-            top: 30,
-            width: 400,
-            height: 300,
-            viewportWidth: 800,
-            viewportHeight: 640,
-            visible: true,
-            userInitiated: false
+    func testXSpamShieldAcceptsCurrentUpstreamLiteSchema() throws {
+        let liteData = Data("""
+        {
+          "schema": 2,
+          "generatedAt": 1787724062659,
+          "count": 1,
+          "labels": { "p": "porn_bot", "s": "spam" },
+          "entries": [["", "UpstreamAccount", "ppa"]]
+        }
+        """.utf8)
+        let whitelistData = Data("""
+        {
+          "count": 0,
+          "generatedAt": 1787572861071,
+          "list": []
+        }
+        """.utf8)
+
+        let snapshot = try XSpamShieldListPolicy.decodeSnapshot(
+            liteData: liteData,
+            whitelistData: whitelistData
         )
 
-        let layout = XSystemMediaPlaybackLayoutPolicy.layout(
-            for: request,
-            chromeOverlayFrame: CGRect(x: 100, y: 200, width: 800, height: 700)
+        XCTAssertEqual(snapshot.entryCount, 1)
+        XCTAssertEqual(snapshot.version, "1787724062659")
+        XCTAssertEqual(
+            snapshot.matches(handles: ["upstreamaccount"], hiddenHandles: []),
+            [XSpamShieldMatch(handle: "upstreamaccount", label: "porn_bot", isHidden: false)]
         )
-
-        XCTAssertEqual(layout?.mediaFrame, CGRect(x: 120, y: 510, width: 400, height: 300))
-        XCTAssertEqual(layout?.visibleFrame, CGRect(x: 120, y: 510, width: 400, height: 300))
     }
 
-    func testXSystemMediaPlaybackLayoutClipsPartiallyVisibleVideo() {
-        let request = XSystemMediaPlaybackRequest(
-            pageURL: URL(string: "https://mobile.twitter.com/example/status/123456789/video/1")!,
-            left: -40,
-            top: 560,
-            width: 400,
-            height: 220,
-            viewportWidth: 800,
-            viewportHeight: 640,
-            visible: true,
-            userInitiated: false
+    func testXSpamShieldScriptKeepsPageDataLocal() {
+        let script = XSpamShieldWebPolicy.javaScript(
+            guardLabel: "Guard",
+            junkLabel: "Junk account",
+            hideLabel: "Hide",
+            undoLabel: "Undo",
+            hiddenMessage: "Posts from %@ are hidden"
         )
 
-        let layout = XSystemMediaPlaybackLayoutPolicy.layout(
-            for: request,
-            chromeOverlayFrame: CGRect(x: 100, y: 200, width: 800, height: 700)
-        )
-
-        XCTAssertEqual(layout?.mediaFrame, CGRect(x: 60, y: 60, width: 400, height: 220))
-        XCTAssertEqual(layout?.visibleFrame, CGRect(x: 100, y: 200, width: 360, height: 80))
-    }
-
-    func testXSystemMediaPlaybackLayoutRejectsHiddenAndInvalidRequests() {
-        let hiddenRequest = XSystemMediaPlaybackRequest(
-            pageURL: URL(string: "https://x.com/example/status/123456789")!,
-            left: 0,
-            top: 0,
-            width: 400,
-            height: 300,
-            viewportWidth: 800,
-            viewportHeight: 640,
-            visible: false,
-            userInitiated: false
-        )
-        let invalidRequest = XSystemMediaPlaybackRequest(
-            pageURL: URL(string: "https://example.com/example/status/123456789")!,
-            left: 0,
-            top: 0,
-            width: 400,
-            height: 300,
-            viewportWidth: 800,
-            viewportHeight: 640,
-            visible: true,
-            userInitiated: false
-        )
-        let oversizedRequest = XSystemMediaPlaybackRequest(
-            pageURL: URL(string: "https://x.com/example/status/123456789")!,
-            left: 0,
-            top: 0,
-            width: 1_000_000,
-            height: 300,
-            viewportWidth: 800,
-            viewportHeight: 640,
-            visible: true,
-            userInitiated: false
-        )
-        let overlayFrame = CGRect(x: 100, y: 200, width: 800, height: 700)
-
-        XCTAssertNil(XSystemMediaPlaybackLayoutPolicy.layout(
-            for: hiddenRequest,
-            chromeOverlayFrame: overlayFrame
-        ))
-        XCTAssertNil(XSystemMediaPlaybackLayoutPolicy.layout(
-            for: invalidRequest,
-            chromeOverlayFrame: overlayFrame
-        ))
-        XCTAssertNil(XSystemMediaPlaybackLayoutPolicy.layout(
-            for: oversizedRequest,
-            chromeOverlayFrame: overlayFrame
-        ))
+        XCTAssertTrue(script.contains("MutationObserver"))
+        XCTAssertTrue(script.contains("astraXSpamShield"))
+        XCTAssertTrue(script.contains("handler.postMessage({ type: 'scan', handles })"))
+        XCTAssertFalse(script.contains("fetch("))
+        XCTAssertFalse(script.contains("XMLHttpRequest"))
     }
 
     @MainActor

@@ -4,7 +4,6 @@
 // found in the LICENSE file.
 
 import AppKit
-import AVKit
 import CefKit
 import CryptoKit
 import WebKit
@@ -322,6 +321,8 @@ enum SystemMediaCompatibilityPolicy {
         "tv.sohu.com",
         "v.qq.com",
         "weibo.com",
+        "twitter.com",
+        "x.com",
         "yahoo.com",
         "yangshipin.cn",
         "yfsp.tv",
@@ -332,12 +333,6 @@ enum SystemMediaCompatibilityPolicy {
 
     private static let chromiumOnlyDomains = [
         "grok.com",
-        // X extensions are attached to the Chromium page. Replacing the full
-        // page after a delayed media error removes those extensions and can
-        // create a visible reload cycle, so individual media failures must
-        // remain contained within Chromium.
-        "twitter.com",
-        "x.com",
     ]
 
     private static func matches(_ host: String, domains: [String]) -> Bool {
@@ -382,79 +377,6 @@ enum SystemMediaCompatibilityPolicy {
     }
 }
 
-enum XSystemMediaPlaybackPolicy {
-    static func supports(_ url: URL) -> Bool {
-        guard url.scheme?.lowercased() == "https",
-              let host = url.host?.lowercased() else { return false }
-        let isXHost = host == "x.com" || host.hasSuffix(".x.com")
-            || host == "twitter.com" || host.hasSuffix(".twitter.com")
-        return isXHost && url.path.range(of: #"/status/\d+"#, options: .regularExpression) != nil
-    }
-}
-
-struct XSystemMediaPlaybackRequest: Decodable, Equatable {
-    let pageURL: URL
-    let left: Double
-    let top: Double
-    let width: Double
-    let height: Double
-    let viewportWidth: Double
-    let viewportHeight: Double
-    let visible: Bool
-    let userInitiated: Bool
-
-    var hasValidGeometry: Bool {
-        let values = [left, top, width, height, viewportWidth, viewportHeight]
-        guard values.allSatisfy(\.isFinite),
-              width > 0,
-              height > 0,
-              viewportWidth > 0,
-              viewportHeight > 0,
-              viewportWidth <= 32_768,
-              viewportHeight <= 32_768 else { return false }
-        return width <= viewportWidth * 8
-            && height <= viewportHeight * 8
-            && abs(left) <= viewportWidth * 8
-            && abs(top) <= viewportHeight * 8
-    }
-}
-
-struct XSystemMediaPlaybackLayout: Equatable {
-    let mediaFrame: CGRect
-    let visibleFrame: CGRect
-}
-
-enum XSystemMediaPlaybackLayoutPolicy {
-    static func layout(
-        for request: XSystemMediaPlaybackRequest,
-        chromeOverlayFrame: CGRect
-    ) -> XSystemMediaPlaybackLayout? {
-        guard request.visible,
-              request.hasValidGeometry,
-              XSystemMediaPlaybackPolicy.supports(request.pageURL),
-              chromeOverlayFrame.width > 1,
-              chromeOverlayFrame.height > 1 else { return nil }
-
-        let viewportFrame = CGRect(
-            x: chromeOverlayFrame.minX,
-            y: chromeOverlayFrame.minY,
-            width: min(CGFloat(request.viewportWidth), chromeOverlayFrame.width),
-            height: min(CGFloat(request.viewportHeight), chromeOverlayFrame.height)
-        )
-        let mediaFrame = CGRect(
-            x: chromeOverlayFrame.minX + CGFloat(request.left),
-            y: chromeOverlayFrame.minY + CGFloat(request.viewportHeight - request.top - request.height),
-            width: CGFloat(request.width),
-            height: CGFloat(request.height)
-        )
-        let visibleFrame = mediaFrame.intersection(viewportFrame)
-        guard !visibleFrame.isNull,
-              visibleFrame.width >= 120,
-              visibleFrame.height >= 70 else { return nil }
-        return XSystemMediaPlaybackLayout(mediaFrame: mediaFrame, visibleFrame: visibleFrame)
-    }
-}
-
 enum VisiblePageCaptureRoute: Equatable {
     case systemMedia
     case chromium
@@ -465,7 +387,7 @@ enum VisiblePageCaptureRoute: Equatable {
 }
 
 @MainActor
-final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, CefBrowserDelegate, PageContentProviding, BrowserAutomationProviding, MediaSessionCookieProviding, WKNavigationDelegate, WKUIDelegate {
+final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, CefBrowserDelegate, PageContentProviding, BrowserAutomationProviding, MediaSessionCookieProviding, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
     private final class PendingConsoleEvaluation {
         let continuation: CheckedContinuation<String?, Never>
         var chunks: [Int: String] = [:]
@@ -517,82 +439,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         }
     }
 
-    @MainActor
-    private final class InlineSystemMediaPlayerHost: NSObject {
-        private final class PlayerWindow: NSWindow {
-            override var canBecomeKey: Bool { true }
-            override var canBecomeMain: Bool { false }
-        }
-
-        let sourcePageURL: URL
-        let player: AVPlayer
-        let window: NSWindow
-        private let playerView: AVPlayerView
-        private let containerView: NSView
-
-        init(sourcePageURL: URL, mediaURL: URL) {
-            self.sourcePageURL = sourcePageURL
-            player = AVPlayer(url: mediaURL)
-            playerView = AVPlayerView(frame: .zero)
-            playerView.player = player
-            playerView.controlsStyle = .floating
-            playerView.videoGravity = .resizeAspect
-            containerView = NSView(frame: .zero)
-            containerView.wantsLayer = true
-            containerView.layer?.backgroundColor = NSColor.black.cgColor
-            containerView.layer?.masksToBounds = true
-            containerView.addSubview(playerView)
-            window = PlayerWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 1, height: 1),
-                styleMask: [.borderless],
-                backing: .buffered,
-                defer: false
-            )
-            super.init()
-            window.backgroundColor = .black
-            window.contentView = containerView
-            window.hasShadow = false
-            window.isOpaque = true
-            window.isReleasedWhenClosed = false
-            window.acceptsMouseMovedEvents = true
-            window.collectionBehavior.insert(.fullScreenAuxiliary)
-        }
-
-        func show(layout: XSystemMediaPlaybackLayout, relativeTo parent: NSWindow) {
-            if window.parent !== parent {
-                window.parent?.removeChildWindow(window)
-                parent.addChildWindow(window, ordered: .above)
-            }
-            window.setFrame(layout.visibleFrame, display: true)
-            containerView.frame = NSRect(origin: .zero, size: layout.visibleFrame.size)
-            playerView.frame = CGRect(
-                x: layout.mediaFrame.minX - layout.visibleFrame.minX,
-                y: layout.mediaFrame.minY - layout.visibleFrame.minY,
-                width: layout.mediaFrame.width,
-                height: layout.mediaFrame.height
-            )
-            window.orderFront(nil)
-            if player.rate == 0 {
-                player.play()
-            }
-        }
-
-        func hide() {
-            player.pause()
-            window.parent?.removeChildWindow(window)
-            window.orderOut(nil)
-        }
-
-        func close() {
-            hide()
-            player.replaceCurrentItem(with: nil)
-            window.close()
-        }
-    }
-
     private static let consoleResultPrefix = "__ASTRA_NATIVE_RESULT__"
     private static let mediaFallbackPrefix = "__ASTRA_SYSTEM_MEDIA_FALLBACK__"
-    private static let xSystemMediaPlaybackPrefix = "__ASTRA_X_SYSTEM_MEDIA_PLAYBACK__"
     private final class HostView: NSView {
         weak var owner: CefWebContentWrapper?
 
@@ -637,11 +485,6 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     private var nativePopupTimeout: DispatchWorkItem?
     private var pendingConsoleEvaluations: [String: PendingConsoleEvaluation] = [:]
     private var systemMediaPopupHosts: [ObjectIdentifier: SystemMediaPopupHost] = [:]
-    private var systemMediaPlayerHost: InlineSystemMediaPlayerHost?
-    private var latestXSystemMediaPlaybackRequest: XSystemMediaPlaybackRequest?
-    private var xSystemMediaPlaybackResolutionToken: UUID?
-    private var xSystemMediaPlaybackResolutionURL: URL?
-    private var automaticallyFailedXSystemMediaPlaybackURLs = Set<URL>()
 
     var onActivate: (() -> Void)?
     var onClose: (() -> Void)?
@@ -829,6 +672,43 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                 forMainFrameOnly: true
             )
         )
+        configuration.userContentController.add(
+            self,
+            name: XSpamShieldWebPolicy.messageHandlerName
+        )
+        configuration.userContentController.addUserScript(
+            WKUserScript(
+                source: XSpamShieldWebPolicy.javaScript(
+                    guardLabel: NSLocalizedString(
+                        "privacy.xSpamShield.status.guardLabel",
+                        value: "Guard",
+                        comment: "X spam shield - Floating status label shown while Astra checks visible accounts"
+                    ),
+                    junkLabel: NSLocalizedString(
+                        "privacy.xSpamShield.badge.junkAccount",
+                        value: "Junk account",
+                        comment: "X spam shield - Badge identifying an account found on the public junk-account list"
+                    ),
+                    hideLabel: NSLocalizedString(
+                        "privacy.xSpamShield.badge.hideButton",
+                        value: "Hide",
+                        comment: "X spam shield - Button that locally hides posts from a matched account"
+                    ),
+                    undoLabel: NSLocalizedString(
+                        "privacy.xSpamShield.toast.undoButton",
+                        value: "Undo",
+                        comment: "X spam shield - Button restoring posts that were just hidden locally"
+                    ),
+                    hiddenMessage: NSLocalizedString(
+                        "privacy.xSpamShield.toast.hiddenMessage",
+                        value: "Posts from %@ are hidden",
+                        comment: "X spam shield - Confirmation after locally hiding an account; placeholder is the account handle"
+                    )
+                ),
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            )
+        )
         let webView = WKWebView(frame: hostView.bounds, configuration: configuration)
         webView.customUserAgent = SupportedBrowserUserAgent.safariCompatibleUserAgent
         webView.navigationDelegate = self
@@ -847,6 +727,9 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     }
 
     private func removeSystemMediaWebView() {
+        systemMediaWebView?.configuration.userContentController.removeScriptMessageHandler(
+            forName: XSpamShieldWebPolicy.messageHandlerName
+        )
         systemMediaWebView?.navigationDelegate = nil
         systemMediaWebView?.uiDelegate = nil
         systemMediaWebView?.stopLoading()
@@ -889,11 +772,9 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                 overlay.setFrame(frame, display: true)
             }
             overlay.orderFront(nil)
-            updateInlineXSystemMediaPlayer()
         } else {
             overlay.parent?.removeChildWindow(overlay)
             overlay.orderOut(nil)
-            systemMediaPlayerHost?.hide()
         }
     }
 
@@ -998,7 +879,6 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         let popupHosts = Array(systemMediaPopupHosts.values)
         systemMediaPopupHosts.removeAll()
         popupHosts.forEach { $0.window.close() }
-        resetInlineXSystemMediaPlayback()
         removeSystemMediaWebView()
         if let chromeBrowser {
             chromeBrowser.close()
@@ -1186,196 +1066,15 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         self.canGoBack = canGoBack
         self.canGoForward = canGoForward
         if isLoading {
-            resetInlineXSystemMediaPlayback()
             installWebResourceCompatibility()
-            installXSystemMediaPlaybackBridge()
         } else {
             loadProgress = 1
             installYouTubeAdPlaybackControl()
             installWebCredentialControls()
             installWebResourceCompatibility()
             installAutomaticMediaCompatibilityDetection()
-            installXSystemMediaPlaybackBridge()
             runSmokeCheckIfReady()
         }
-    }
-
-    private func installXSystemMediaPlaybackBridge() {
-        guard let browser,
-              let pageURL = URL(string: urlString ?? pendingURL.absoluteString),
-              let host = pageURL.host?.lowercased(),
-              host == "x.com" || host.hasSuffix(".x.com")
-                || host == "twitter.com" || host.hasSuffix(".twitter.com") else { return }
-        let prefix = Self.javaScriptLiteral(Self.xSystemMediaPlaybackPrefix)
-        let playLabel = Self.javaScriptLiteral(NSLocalizedString(
-            "media.compatibility.player.playButton",
-            value: "Play in Astra",
-            comment: "X media compatibility - Button shown over a video that Chromium cannot decode"
-        ))
-        let openingLabel = Self.javaScriptLiteral(NSLocalizedString(
-            "media.compatibility.player.openingButton",
-            value: "Opening…",
-            comment: "X media compatibility - Temporary button label while Astra resolves a system-playable stream"
-        ))
-        let script = """
-        (function installAstraXSystemMediaPlayback() {
-          if (window.__astraXSystemMediaPlaybackInstalled) return;
-          if (!document.documentElement) {
-            setTimeout(installAstraXSystemMediaPlayback, 50);
-            return;
-          }
-          window.__astraXSystemMediaPlaybackInstalled = true;
-          const marker = 'data-astra-system-media-playback';
-          const statusPattern = /\\/status\\/\\d+/;
-          const failedURLs = new Set();
-          let lastActiveURL = null;
-          let lastPayloadKey = '';
-          let inspectionScheduled = false;
-          const statusURL = (media) => {
-            if (statusPattern.test(location.pathname)) return location.href;
-            const article = media.closest('article, [role="article"], [data-testid="tweet"]');
-            if (!article) return null;
-            for (const anchor of article.querySelectorAll('a[href]')) {
-              try {
-                const candidate = new URL(anchor.href, location.href);
-                if (statusPattern.test(candidate.pathname)) return candidate.href;
-              } catch (_) {}
-            }
-            return null;
-          };
-          const candidateFor = (media) => {
-            if (!(media instanceof HTMLMediaElement) ||
-                !media.error || ![3, 4].includes(media.error.code)) return null;
-            const pageURL = statusURL(media);
-            if (!pageURL) return null;
-            const player = media.closest('[data-testid="videoPlayer"]') || media.parentElement;
-            if (!player) return null;
-            const rect = player.getBoundingClientRect();
-            const visibleWidth = Math.max(0, Math.min(rect.right, innerWidth) - Math.max(rect.left, 0));
-            const visibleHeight = Math.max(0, Math.min(rect.bottom, innerHeight) - Math.max(rect.top, 0));
-            const visibleArea = visibleWidth * visibleHeight;
-            if (rect.width < 120 || rect.height < 70 || visibleArea < 8400) return null;
-            return { media, player, pageURL, rect, visibleArea };
-          };
-          const send = (candidate, userInitiated, force = false) => {
-            const rect = candidate.rect;
-            const payload = {
-              pageURL: candidate.pageURL,
-              left: rect.left,
-              top: rect.top,
-              width: rect.width,
-              height: rect.height,
-              viewportWidth: innerWidth,
-              viewportHeight: innerHeight,
-              visible: true,
-              userInitiated: Boolean(userInitiated)
-            };
-            const payloadKey = [
-              payload.pageURL,
-              Math.round(payload.left), Math.round(payload.top),
-              Math.round(payload.width), Math.round(payload.height),
-              Math.round(payload.viewportWidth), Math.round(payload.viewportHeight),
-              payload.userInitiated
-            ].join('|');
-            if (!force && payloadKey === lastPayloadKey) return;
-            lastPayloadKey = payloadKey;
-            lastActiveURL = payload.pageURL;
-            console.info(\(prefix) + encodeURIComponent(JSON.stringify(payload)));
-          };
-          const updateButton = (button, pageURL) => {
-            const failed = failedURLs.has(pageURL);
-            button.disabled = !failed;
-            button.textContent = failed ? \(playLabel) : \(openingLabel);
-            button.style.cursor = failed ? 'pointer' : 'default';
-            button.style.opacity = failed ? '1' : '.92';
-          };
-          const decorate = (candidate) => {
-            const { player, pageURL } = candidate;
-            let button = Array.from(player.querySelectorAll('[' + marker + ']'))
-              .find((element) => element.dataset.astraSystemMediaURL === pageURL);
-            if (button) {
-              updateButton(button, pageURL);
-              return;
-            }
-            if (getComputedStyle(player).position === 'static') player.style.position = 'relative';
-            button = document.createElement('button');
-            button.setAttribute(marker, '');
-            button.dataset.astraSystemMediaURL = pageURL;
-            button.type = 'button';
-            button.style.cssText = [
-              'position:absolute', 'left:50%', 'top:62%', 'transform:translate(-50%,-50%)',
-              'z-index:2147483647', 'border:0', 'border-radius:999px',
-              'padding:12px 22px', 'font:600 15px -apple-system,BlinkMacSystemFont,sans-serif',
-              'color:white', 'background:#1d9bf0',
-              'box-shadow:0 4px 18px rgba(0,0,0,.25)'
-            ].join(';');
-            button.addEventListener('click', (event) => {
-              event.preventDefault();
-              event.stopImmediatePropagation();
-              if (!failedURLs.has(pageURL) || button.disabled) return;
-              button.disabled = true;
-              button.textContent = \(openingLabel);
-              const retryCandidate = candidateFor(candidate.media) || candidate;
-              retryCandidate.rect = retryCandidate.player.getBoundingClientRect();
-              send(retryCandidate, true, true);
-            }, true);
-            updateButton(button, pageURL);
-            player.appendChild(button);
-          };
-          const sendHidden = () => {
-            if (!lastActiveURL) return;
-            const payload = {
-              pageURL: lastActiveURL,
-              left: 0, top: 0, width: 1, height: 1,
-              viewportWidth: Math.max(innerWidth, 1),
-              viewportHeight: Math.max(innerHeight, 1),
-              visible: false,
-              userInitiated: false
-            };
-            const payloadKey = payload.pageURL + '|hidden';
-            if (payloadKey !== lastPayloadKey) {
-              lastPayloadKey = payloadKey;
-              console.info(\(prefix) + encodeURIComponent(JSON.stringify(payload)));
-            }
-            lastActiveURL = null;
-          };
-          const inspect = () => {
-            inspectionScheduled = false;
-            const candidates = Array.from(document.querySelectorAll('video, audio'))
-              .map(candidateFor)
-              .filter(Boolean)
-              .sort((left, right) => right.visibleArea - left.visibleArea);
-            if (!candidates.length) {
-              sendHidden();
-              return;
-            }
-            const candidate = candidates[0];
-            decorate(candidate);
-            send(candidate, false);
-          };
-          const scheduleInspection = () => {
-            if (inspectionScheduled) return;
-            inspectionScheduled = true;
-            requestAnimationFrame(inspect);
-          };
-          window.__astraXSystemMediaPlaybackDidFail = (pageURL) => {
-            failedURLs.add(pageURL);
-            document.querySelectorAll('[' + marker + ']').forEach((button) => {
-              if (button.dataset.astraSystemMediaURL === pageURL) updateButton(button, pageURL);
-            });
-          };
-          document.addEventListener('error', scheduleInspection, true);
-          addEventListener('scroll', scheduleInspection, true);
-          addEventListener('resize', scheduleInspection, true);
-          new MutationObserver(scheduleInspection).observe(document.documentElement, {
-            childList: true, subtree: true, attributes: true,
-            attributeFilter: ['src']
-          });
-          setInterval(scheduleInspection, 1500);
-          scheduleInspection();
-        })();
-        """
-        browser.executeJavaScript(script)
     }
 
     private func installYouTubeAdPlaybackControl() {
@@ -2436,18 +2135,6 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         source: String,
         line: Int
     ) {
-        if message.hasPrefix(Self.xSystemMediaPlaybackPrefix) {
-            let encodedRequest = String(message.dropFirst(Self.xSystemMediaPlaybackPrefix.count))
-            guard let rawRequest = encodedRequest.removingPercentEncoding,
-                  let data = rawRequest.data(using: .utf8),
-                  let request = try? JSONDecoder().decode(
-                    XSystemMediaPlaybackRequest.self,
-                    from: data
-                  ),
-                  XSystemMediaPlaybackPolicy.supports(request.pageURL) else { return }
-            handleXSystemMediaPlaybackRequest(request)
-            return
-        }
         if message.hasPrefix(Self.mediaFallbackPrefix) {
             let rawURL = String(message.dropFirst(Self.mediaFallbackPrefix.count))
             guard let detectedURL = URL(string: rawURL),
@@ -2484,121 +2171,6 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         pendingConsoleEvaluations[String(parts[0])] = nil
         pending.timeoutWork?.cancel()
         pending.continuation.resume(returning: result)
-    }
-
-    private func handleXSystemMediaPlaybackRequest(_ request: XSystemMediaPlaybackRequest) {
-        latestXSystemMediaPlaybackRequest = request
-        guard request.visible else {
-            if systemMediaPlayerHost?.sourcePageURL == request.pageURL {
-                systemMediaPlayerHost?.hide()
-            }
-            return
-        }
-        guard request.hasValidGeometry else { return }
-
-        if let systemMediaPlayerHost {
-            if systemMediaPlayerHost.sourcePageURL == request.pageURL {
-                updateInlineXSystemMediaPlayer()
-                return
-            }
-            systemMediaPlayerHost.close()
-            self.systemMediaPlayerHost = nil
-        }
-        if request.userInitiated {
-            automaticallyFailedXSystemMediaPlaybackURLs.remove(request.pageURL)
-        } else if automaticallyFailedXSystemMediaPlaybackURLs.contains(request.pageURL) {
-            notifyXSystemMediaPlaybackFailure(for: request.pageURL)
-            return
-        }
-        if xSystemMediaPlaybackResolutionURL == request.pageURL,
-           xSystemMediaPlaybackResolutionToken != nil {
-            return
-        }
-
-        let resolutionToken = UUID()
-        xSystemMediaPlaybackResolutionToken = resolutionToken
-        xSystemMediaPlaybackResolutionURL = request.pageURL
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            let cookies = await self.browser?.cookies(for: request.pageURL) ?? []
-            guard let mediaURL = await self.downloadsManager?.resolveSystemPlaybackURL(
-                for: request.pageURL,
-                cookies: cookies
-            ) else {
-                guard self.xSystemMediaPlaybackResolutionToken == resolutionToken else { return }
-                self.xSystemMediaPlaybackResolutionToken = nil
-                self.xSystemMediaPlaybackResolutionURL = nil
-                self.automaticallyFailedXSystemMediaPlaybackURLs.insert(request.pageURL)
-                self.notifyXSystemMediaPlaybackFailure(for: request.pageURL)
-                if request.userInitiated {
-                    self.showXSystemMediaPlaybackFailure()
-                }
-                return
-            }
-            guard self.xSystemMediaPlaybackResolutionToken == resolutionToken else { return }
-            self.xSystemMediaPlaybackResolutionToken = nil
-            self.xSystemMediaPlaybackResolutionURL = nil
-            let playerHost = InlineSystemMediaPlayerHost(
-                sourcePageURL: request.pageURL,
-                mediaURL: mediaURL
-            )
-            self.systemMediaPlayerHost = playerHost
-            self.updateInlineXSystemMediaPlayer()
-        }
-    }
-
-    private func updateInlineXSystemMediaPlayer() {
-        guard let request = latestXSystemMediaPlaybackRequest,
-              let playerHost = systemMediaPlayerHost,
-              playerHost.sourcePageURL == request.pageURL,
-              let parent = hostView.window,
-              let layout = XSystemMediaPlaybackLayoutPolicy.layout(
-                for: request,
-                chromeOverlayFrame: chromeOverlayFrame()
-              ) else {
-            systemMediaPlayerHost?.hide()
-            return
-        }
-        playerHost.show(layout: layout, relativeTo: parent)
-    }
-
-    private func resetInlineXSystemMediaPlayback() {
-        xSystemMediaPlaybackResolutionToken = nil
-        xSystemMediaPlaybackResolutionURL = nil
-        latestXSystemMediaPlaybackRequest = nil
-        systemMediaPlayerHost?.close()
-        systemMediaPlayerHost = nil
-    }
-
-    private func notifyXSystemMediaPlaybackFailure(for pageURL: URL) {
-        guard let browser else { return }
-        let pageURLLiteral = Self.javaScriptLiteral(pageURL.absoluteString)
-        browser.executeJavaScript("""
-        if (typeof window.__astraXSystemMediaPlaybackDidFail === 'function') {
-          window.__astraXSystemMediaPlaybackDidFail(\(pageURLLiteral));
-        }
-        """)
-    }
-
-    private func showXSystemMediaPlaybackFailure() {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = NSLocalizedString(
-            "media.compatibility.player.failureTitle",
-            value: "Unable to play this video",
-            comment: "System media player - Error title when an X video stream cannot be resolved"
-        )
-        alert.informativeText = NSLocalizedString(
-            "media.compatibility.player.failureMessage",
-            value: "Astra could not resolve a system-playable stream for this X video.",
-            comment: "System media player - Error explanation when an X video stream cannot be resolved"
-        )
-        alert.addButton(withTitle: NSLocalizedString(
-            "media.compatibility.player.dismissButton",
-            value: "OK",
-            comment: "System media player - Button dismissing an X video playback error"
-        ))
-        alert.runModal()
     }
 
     private func evaluateJavaScriptResult(
@@ -3553,6 +3125,49 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         }
         onOpenURLInNewTab?(destination, true)
         return nil
+    }
+
+    func userContentController(
+        _ userContentController: WKUserContentController,
+        didReceive message: WKScriptMessage
+    ) {
+        guard message.name == XSpamShieldWebPolicy.messageHandlerName,
+              message.frameInfo.isMainFrame,
+              message.webView === systemMediaWebView,
+              let webView = message.webView,
+              let host = webView.url?.host?.lowercased(),
+              host == "x.com" || host.hasSuffix(".x.com")
+                || host == "twitter.com" || host.hasSuffix(".twitter.com"),
+              let payload = message.body as? [String: Any],
+              let type = payload["type"] as? String else { return }
+
+        switch type {
+        case "scan":
+            guard let rawHandles = payload["handles"] as? [String] else { return }
+            let handles = Array(rawHandles.prefix(500))
+            Task { @MainActor [weak self, weak webView] in
+                let matches = await XSpamShieldStore.shared.matches(handles: handles)
+                guard let self,
+                      let webView,
+                      webView === self.systemMediaWebView,
+                      let data = try? JSONEncoder().encode(matches),
+                      let json = String(data: data, encoding: .utf8) else { return }
+                webView.evaluateJavaScript(
+                    "window.__astraXSpamShieldApply?.(\(json));"
+                ) { _, error in
+                    if let error {
+                        AppLogInfo("[XSpamShield] Failed to apply page matches: \(error.localizedDescription)")
+                    }
+                }
+            }
+        case "hide", "unhide":
+            guard let handle = payload["handle"] as? String else { return }
+            Task {
+                await XSpamShieldStore.shared.setHidden(type == "hide", handle: handle)
+            }
+        default:
+            break
+        }
     }
 
     private func updateSystemMediaPageState(_ webView: WKWebView) {

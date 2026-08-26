@@ -3,7 +3,7 @@
     "hero.summary": "Astra 将 Chromium 浏览、扩展程序、隐私控制和视觉 AI 助手统一在一个专注的原生 Mac 应用中。",
     "features.summary": "Astra 在应用内统一日常 Chromium 兼容性、扩展程序、视觉 AI 上下文和隐私控制。",
     "features.extensions.title": "扩展程序始终留在 Astra 内",
-    "features.extensions.body": "可直接从 Chrome 应用商店安装扩展，保持扩展操作图标可见，并让 X 扩展在 Chromium 渲染的页面中运行，全程不跳出另一个浏览器窗口。",
+    "features.extensions.body": "可直接从 Chrome 应用商店安装扩展，并在 Chromium 渲染的页面中保持扩展操作图标可见，全程不跳出另一个浏览器窗口。",
     "features.privacy.title": "默认保护 WebRTC 隐私",
     "features.privacy.body": "阻止不经过代理的 WebRTC 直连；网站请求摄像头或麦克风时，必须由用户明确决定是否仅允许本次访问。",
     "features.fingerprintPrivacy.title": "跨维度浏览器指纹防护",
@@ -16,15 +16,15 @@
     "features.pageControl.body": "助手可检查当前标签页并执行经确认的浏览器操作，同时 Chromium 浏览体验始终内嵌在 Astra 中。",
     "features.youtube.title": "减少等待 YouTube 广告",
     "features.youtube.body": "YouTube 将当前播放标记为广告时，Astra 会临时使用 8 倍速，并在正片开始后恢复原播放速度。",
-    "features.mediaCompatibility.title": "不离开 Astra 的视频兼容",
-    "features.mediaCompatibility.body": "YouTube 和 X 始终保持 Chromium，以保留扩展程序及页面状态。Chromium 无法解码当前可见的 X 视频时，Astra 会自动解析已认证的视频流，并在网页原位置覆盖系统原生播放器；播放器会跟随滚动及窗口变化，无需刷新页面。",
+    "features.mediaCompatibility.title": "X 视频兼容与原生守护",
+    "features.mediaCompatibility.body": "X 和 Twitter 使用持久化的系统 WebKit 会话，直接获得 macOS 的 H.264/AAC 播放能力。Astra 在本机匹配公开垃圾账号数据库，白名单优先，并提供命中提示、可撤销隐藏，以及通用设置中的主站优先更新。",
     "features.localMemory.title": "本地第二大脑",
     "features.localMemory.body": "Astra 将笔记和完整的用户/AI 对话保存到账号独立的本地向量索引，并镜像成可迁移的 Markdown 文件，在本机检索相关上下文。记忆内容支持 Markdown、可横向滚动的表格、本地 LaTeX 数学及化学公式渲染，并可将单条或多条记忆导出为 Markdown 文件。过期会话会先完成摘要，再删除原记录。",
     "features.browserOwnership.title": "原生链接与语言集成",
     "features.browserOwnership.body": "通用设置可让 Astra 完整接管 HTTP 与 HTTPS。其他 Mac 应用打开的链接会进入 Astra 内嵌的 Chromium 标签页，网站检测到的浏览器语言也会与 Astra 界面语言保持一致。",
     "features.history.title": "完整保留浏览历史",
     "features.history.body": "Astra 将浏览历史保存在持久化 Chromium 配置中，可从原生“历史记录”菜单和“通用”设置查看或清除，也可按 Command-Y 打开完整记录。",
-    "download.summary": "Build 49 会在 Chromium 无法解码当前可见的 X 视频时，自动在网页原位置使用系统原生播放器。播放器会跟随滚动和窗口尺寸变化，MXGA 等扩展仍持续运行在 Chromium 页面中；同时修复了已认证视频流解析过程中的主线程隔离闪退。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 50 将 X 和 Twitter 切换到持久化的系统 WebKit 会话，解决 Chromium 缺少专有编解码器导致的视频失败。原生 X 守护在本机匹配公开黑名单与白名单，支持命中提示、隐藏和撤销；数据库默认从主要原站点更新，失败时回退到 GitHub 镜像。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

@@ -485,6 +485,7 @@
 		CEF000023080000000000002 /* CefWebContentWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEF000123080000000000002 /* CefWebContentWrapper.swift */; };
 		CEF000033080000000000003 /* WebCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEF000133080000000000003 /* WebCredentialStore.swift */; };
 		CEF000043080000000000004 /* WebCredentialPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEF000143080000000000004 /* WebCredentialPrompt.swift */; };
+		A5A5A5A53080000000000002 /* XSpamShield.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5A5A5A53080000000000001 /* XSpamShield.swift */; };
 		D10000000000000000000001 /* BrowserImagePreviewState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000011 /* BrowserImagePreviewState.swift */; };
 		D10000000000000000000002 /* ImagePreviewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000012 /* ImagePreviewModels.swift */; };
 		D10000000000000000000003 /* ImagePreviewGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000013 /* ImagePreviewGeometry.swift */; };
@@ -1135,6 +1136,7 @@
 		CEF000123080000000000002 /* CefWebContentWrapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CefWebContentWrapper.swift; sourceTree = "<group>"; };
 		CEF000133080000000000003 /* WebCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebCredentialStore.swift; sourceTree = "<group>"; };
 		CEF000143080000000000004 /* WebCredentialPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebCredentialPrompt.swift; sourceTree = "<group>"; };
+		A5A5A5A53080000000000001 /* XSpamShield.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XSpamShield.swift; sourceTree = "<group>"; };
 		D10000000000000000000011 /* BrowserImagePreviewState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserImagePreviewState.swift; sourceTree = "<group>"; };
 		D10000000000000000000012 /* ImagePreviewModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePreviewModels.swift; sourceTree = "<group>"; };
 		D10000000000000000000013 /* ImagePreviewGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePreviewGeometry.swift; sourceTree = "<group>"; };
@@ -1899,6 +1901,7 @@
 				CEF000113080000000000001 /* CefBrowserRuntime.swift */,
 				CEF000123080000000000002 /* CefWebContentWrapper.swift */,
 				CEF000133080000000000003 /* WebCredentialStore.swift */,
+				A5A5A5A53080000000000001 /* XSpamShield.swift */,
 				8E571D4F30131FEF00E3FBE7 /* SessionRestorePreference.swift */,
 				ACDC00000000000000000C01 /* AgentCDP */,
 				B00179592E49CF84007B4635 /* PhiChromiumCoordinator.swift */,
@@ -2942,6 +2945,7 @@
 				CEF000023080000000000002 /* CefWebContentWrapper.swift in Sources */,
 				CEF000033080000000000003 /* WebCredentialStore.swift in Sources */,
 				CEF000043080000000000004 /* WebCredentialPrompt.swift in Sources */,
+				A5A5A5A53080000000000002 /* XSpamShield.swift in Sources */,
 				ACDC00000000000000000B01 /* AgentCDPListener.swift in Sources */,
 				ACDC00000000000000000B02 /* AgentPeerIdentity.swift in Sources */,
 				ACDC00000000000000000B03 /* AgentDirectChannel.swift in Sources */,
@@ -3540,7 +3544,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10049;
+				CURRENT_PROJECT_VERSION = 10050;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -4003,7 +4007,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10049;
+				CURRENT_PROJECT_VERSION = 10050;
 				DEVELOPMENT_TEAM = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -4057,7 +4061,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10049;
+				CURRENT_PROJECT_VERSION = 10050;
 				DEVELOPMENT_TEAM = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -4250,7 +4254,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10049;
+				CURRENT_PROJECT_VERSION = 10050;
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;

@@ -128,6 +128,32 @@ final class DefaultBrowserViewModel: ObservableObject {
     }
 }
 
+@MainActor
+final class XSpamShieldSettingsViewModel: ObservableObject {
+    @Published private(set) var status: XSpamShieldStatus?
+    @Published private(set) var isUpdating = false
+    @Published private(set) var errorText: String?
+
+    func load() async {
+        guard status == nil, !isUpdating else { return }
+        isUpdating = true
+        status = await XSpamShieldStore.shared.status()
+        isUpdating = false
+    }
+
+    func updateNow() async {
+        guard !isUpdating else { return }
+        isUpdating = true
+        errorText = nil
+        do {
+            status = try await XSpamShieldStore.shared.updateNow()
+        } catch {
+            errorText = error.localizedDescription
+        }
+        isUpdating = false
+    }
+}
+
 struct GeneralSettingView: View {
     @ObservedObject private var settingsPresentation = SettingsPresentationState.shared
 
@@ -143,6 +169,7 @@ struct GeneralSettingView: View {
                 if !settingsPresentation.openedFromIncognito {
                     BrowsingHistorySectionView()
                 }
+                XSpamShieldSettingsSectionView()
                 DefaultBrowserSettingsSectionView()
                 ProfileSectionView()
                 DeveloperModeSectionView()
@@ -153,6 +180,113 @@ struct GeneralSettingView: View {
         }
         .themedBackground(PhiPreferences.fixedWindowBackground)
         .frame(width: 680, height: 561)
+    }
+}
+
+private struct XSpamShieldSettingsSectionView: View {
+    @StateObject private var viewModel = XSpamShieldSettingsViewModel()
+
+    private static let statusDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
+    var body: some View {
+        GeneralSectionView(
+            title: NSLocalizedString(
+                "settings.general.xSpamShield.sectionTitle",
+                value: "X content filtering",
+                comment: "General settings - Section title for the native X junk-account filter"
+            )
+        ) {
+            GeneralContainerView {
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(NSLocalizedString(
+                            "settings.general.xSpamShield.databaseTitle",
+                            value: "Public filter database",
+                            comment: "General settings - Row title for the X junk-account public-list database"
+                        ))
+                        .font(.system(size: 13))
+                        .themedForeground(.textPrimary)
+
+                        Text(statusDescription)
+                            .font(.system(size: 11))
+                            .themedForeground(.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        if let errorText = viewModel.errorText {
+                            Text(errorText)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.red)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    Spacer(minLength: 12)
+                    if viewModel.isUpdating {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    Button(NSLocalizedString(
+                        "settings.general.xSpamShield.updateButton",
+                        value: "Update now",
+                        comment: "General settings - Button that immediately checks and updates the X filtering database"
+                    )) {
+                        Task { await viewModel.updateNow() }
+                    }
+                    .disabled(viewModel.isUpdating)
+                }
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .task {
+            await viewModel.load()
+        }
+    }
+
+    private var statusDescription: String {
+        guard let status = viewModel.status else {
+            return viewModel.isUpdating
+                ? NSLocalizedString(
+                    "settings.general.xSpamShield.loadingStatus",
+                    value: "Checking x.zuoluo.tv…",
+                    comment: "General settings - Status while checking or downloading the X filtering database"
+                )
+                : NSLocalizedString(
+                    "settings.general.xSpamShield.unavailableStatus",
+                    value: "No validated local database is available yet.",
+                    comment: "General settings - Status when the X filtering database has not been downloaded"
+                )
+        }
+        let source: String
+        switch status.source {
+        case .primarySite:
+            source = NSLocalizedString(
+                "settings.general.xSpamShield.primarySource",
+                value: "x.zuoluo.tv (primary)",
+                comment: "General settings - Short source label for a database downloaded from the upstream primary site"
+            )
+        case .githubMirror:
+            source = NSLocalizedString(
+                "settings.general.xSpamShield.githubSource",
+                value: "GitHub mirror",
+                comment: "General settings - Short source label for a database downloaded from the audited GitHub mirror"
+            )
+        }
+        return String(
+            format: NSLocalizedString(
+                "settings.general.xSpamShield.readyStatus",
+                value: "%1$ld blocked · %2$ld allowed · %3$@ · Updated %4$@",
+                comment: "General settings - X filtering database status; placeholders are blacklist count, whitelist count, source label, and local update date"
+            ),
+            status.blacklistCount,
+            status.whitelistCount,
+            source,
+            Self.statusDateFormatter.string(from: status.updatedAt)
+        )
     }
 }
 

@@ -796,6 +796,11 @@ struct AgentAvatarImagePayload {
 
 class APIClient {
     static let shared = APIClient()
+    private static let xSpamShieldBaseURL = URL(string: "https://x.zuoluo.tv")!
+    private static let xSpamShieldGitHubAPIURL = URL(
+        string: "https://api.github.com/repos/foru17/make-x-great-again/commits/data-mirror"
+    )!
+    private static let maximumXSpamShieldArtifactSize = 32 * 1_024 * 1_024
     #if DEBUG
     private var accountBaseURL: String {
         if AuthManager.useStagingAuth0 {
@@ -846,6 +851,76 @@ class APIClient {
             URLQueryItem(name: "result", value: result),
         ]
         return components.url?.absoluteString ?? "\(accountBaseURL)/oauth/native-finished"
+    }
+
+    func fetchXSpamShieldMetadata() async throws -> XSpamShieldRemoteMetadata {
+        let data = try await fetchXSpamShieldData(
+            at: URL(string: "/v1/list/meta", relativeTo: Self.xSpamShieldBaseURL)!,
+            maximumSize: 64 * 1_024
+        )
+        return try JSONDecoder().decode(XSpamShieldRemoteMetadata.self, from: data)
+    }
+
+    func fetchXSpamShieldWhitelist() async throws -> Data {
+        try await fetchXSpamShieldData(
+            at: URL(string: "/v1/whitelist", relativeTo: Self.xSpamShieldBaseURL)!,
+            maximumSize: 4 * 1_024 * 1_024
+        )
+    }
+
+    func fetchXSpamShieldArtifact(at relativePath: String) async throws -> Data {
+        guard relativePath.hasPrefix("/v1/artifacts/"),
+              !relativePath.contains(".."),
+              let url = URL(string: relativePath, relativeTo: Self.xSpamShieldBaseURL),
+              url.host == Self.xSpamShieldBaseURL.host,
+              url.path.hasPrefix("/v1/artifacts/") else {
+            throw APIError.invalidResponse
+        }
+        return try await fetchXSpamShieldData(
+            at: url,
+            maximumSize: Self.maximumXSpamShieldArtifactSize
+        )
+    }
+
+    func fetchXSpamShieldGitHubRevision() async throws -> XSpamShieldGitHubRevision {
+        let data = try await fetchXSpamShieldData(
+            at: Self.xSpamShieldGitHubAPIURL,
+            maximumSize: 1 * 1_024 * 1_024
+        )
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(XSpamShieldGitHubRevision.self, from: data)
+    }
+
+    func fetchXSpamShieldGitHubFile(
+        _ file: XSpamShieldGitHubFile,
+        revision: String
+    ) async throws -> Data {
+        guard revision.count == 40,
+              revision.allSatisfy({ $0.isHexDigit }),
+              let url = URL(string:
+                "https://raw.githubusercontent.com/foru17/make-x-great-again/\(revision)/\(file.rawValue)"
+              ) else {
+            throw APIError.invalidResponse
+        }
+        return try await fetchXSpamShieldData(
+            at: url,
+            maximumSize: Self.maximumXSpamShieldArtifactSize
+        )
+    }
+
+    private func fetchXSpamShieldData(at url: URL, maximumSize: Int) async throws -> Data {
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadRevalidatingCacheData
+        request.timeoutInterval = 60
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode),
+              data.count <= maximumSize else {
+            throw APIError.invalidResponse
+        }
+        return data
     }
 
     func getAccountProfile() async throws -> Response<Profile> {
