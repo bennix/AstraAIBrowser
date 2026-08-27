@@ -1194,6 +1194,26 @@ struct BrowserAutomationResult: Equatable {
 }
 
 enum UnmanagedChromiumWindowPolicy {
+    /// Marks a `CefChromeBrowser` overlay so the unmanaged-window observer
+    /// will not treat it as a Chrome-runtime popup. Newly created YouTube
+    /// (and other heavy) pages become key before CEF has registered the
+    /// browser; capturing that overlay force-closes the tab's engine and
+    /// leaves a blank page that cannot be closed.
+    static func markAsOwnedOverlay(_ window: NSWindow) {
+        window.isExcludedFromWindowsMenu = true
+        window.collectionBehavior.insert(.fullScreenAuxiliary)
+    }
+
+    static func shouldCapture(_ window: NSWindow) -> Bool {
+        guard window.parent == nil else { return false }
+        if window is CefBrowserWindow { return false }
+        if window.isExcludedFromWindowsMenu,
+           window.collectionBehavior.contains(.fullScreenAuxiliary) {
+            return false
+        }
+        return true
+    }
+
     static func routeURL(from urls: [URL]) -> URL? {
         urls.reversed().first { url in
             let absoluteString = url.absoluteString.lowercased()
@@ -1202,6 +1222,17 @@ enum UnmanagedChromiumWindowPolicy {
                 && absoluteString != "chrome://newtab/"
         }
     }
+}
+
+enum CefWebContentClosePolicy {
+    static func shouldCreateEngine(didRequestClose: Bool) -> Bool {
+        !didRequestClose
+    }
+
+    /// `chromeBrowser.close()` can miss `onWindowDestroyed` when the overlay
+    /// was already torn down underneath the wrapper. The tab strip still has
+    /// to drop the tab on the user's close click.
+    static let shouldFinishTabCloseWithoutWaitingForWindowDestruction = true
 }
 
 /// A normal CEF browser window stays alive when the user presses the title-bar
@@ -1450,8 +1481,7 @@ private final class CefBrowserWindow: NSWindow {
         _ window: NSWindow,
         attemptsRemaining: Int
     ) {
-        guard window.parent == nil,
-              !(window is CefBrowserWindow),
+        guard UnmanagedChromiumWindowPolicy.shouldCapture(window),
               MainBrowserWindowControllersManager.shared.findControllerWith(window: window) == nil else {
             return
         }

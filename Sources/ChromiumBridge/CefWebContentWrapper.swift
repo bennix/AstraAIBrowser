@@ -477,6 +477,20 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     private let pageContextToken = UUID().uuidString
     private var customGuid = ""
     private var didRequestClose = false
+    private static var closingChromeBrowsers: [ObjectIdentifier: CefChromeBrowser] = [:]
+
+    private static func retainClosingChromeBrowser(_ browser: CefChromeBrowser) {
+        closingChromeBrowsers[ObjectIdentifier(browser)] = browser
+    }
+
+    private static func releaseClosingChromeBrowser(_ browser: CefChromeBrowser) {
+        closingChromeBrowsers.removeValue(forKey: ObjectIdentifier(browser))
+    }
+
+    private static func releaseClosingChromeBrowser(id: ObjectIdentifier) {
+        closingChromeBrowsers.removeValue(forKey: id)
+    }
+
     private var didStartSmokeCheck = false
     private var didSchedulePageContextSmoke = false
     private weak var observedWindow: NSWindow?
@@ -603,7 +617,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     }
 
     fileprivate func createBrowserIfNeeded() {
-        guard browser == nil, chromeBrowser == nil, systemMediaWebView == nil,
+        guard CefWebContentClosePolicy.shouldCreateEngine(didRequestClose: didRequestClose),
+              browser == nil, chromeBrowser == nil, systemMediaWebView == nil,
               hostView.window != nil else { return }
         if shouldUsePersistentWebKit(for: pendingURL) {
             // Chrome Runtime keeps only chrome:// pages. All http(s) content
@@ -628,14 +643,16 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         CefBrowserRuntime.shared.registerCredentialHandler(token: pageContextToken, handler: self)
         chromeBrowser.onWindowDestroyed = { [weak self] in
             guard let self else { return }
+            if let chromeBrowser = self.chromeBrowser {
+                Self.releaseClosingChromeBrowser(chromeBrowser)
+            }
             CefBrowserRuntime.shared.unregisterCredentialHandler(token: self.pageContextToken)
             self.chromeBrowser = nil
             self.browser = nil
             self.onClose?()
         }
         if let overlay = chromeBrowser.nsWindow {
-            overlay.isExcludedFromWindowsMenu = true
-            overlay.collectionBehavior.insert(.fullScreenAuxiliary)
+            UnmanagedChromiumWindowPolicy.markAsOwnedOverlay(overlay)
         }
         updateChromeOverlay()
     }
@@ -763,7 +780,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     }
 
     fileprivate func updateChromeOverlay() {
-        guard let overlay = chromeBrowser?.nsWindow else { return }
+        guard !didRequestClose, let overlay = chromeBrowser?.nsWindow else { return }
+        UnmanagedChromiumWindowPolicy.markAsOwnedOverlay(overlay)
         let visible = systemMediaWebView == nil
             && hostView.window != nil
             && !hostView.isHiddenOrHasHiddenAncestor
@@ -815,8 +833,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                     return
                 }
 
-                popupWindow.isExcludedFromWindowsMenu = true
-                popupWindow.collectionBehavior.insert(.fullScreenAuxiliary)
+                UnmanagedChromiumWindowPolicy.markAsOwnedOverlay(popupWindow)
                 let parentFrame = parentWindow.frame
                 let popupFrame = popupWindow.frame
                 popupWindow.setFrameOrigin(NSPoint(
@@ -890,11 +907,24 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         systemMediaPopupHosts.removeAll()
         popupHosts.forEach { $0.window.close() }
         removeSystemMediaWebView()
+        if let overlay = chromeBrowser?.nsWindow {
+            overlay.parent?.removeChildWindow(overlay)
+            overlay.orderOut(nil)
+        }
         if let chromeBrowser {
+            Self.retainClosingChromeBrowser(chromeBrowser)
+            let overlayId = ObjectIdentifier(chromeBrowser)
+            chromeBrowser.onWindowDestroyed = {
+                Self.releaseClosingChromeBrowser(id: overlayId)
+            }
             chromeBrowser.close()
+            self.chromeBrowser = nil
+            self.browser = nil
         } else if let browser {
-            browser.close(force: false)
-        } else {
+            browser.close(force: true)
+            self.browser = nil
+        }
+        if CefWebContentClosePolicy.shouldFinishTabCloseWithoutWaitingForWindowDestruction {
             onClose?()
         }
     }
@@ -2135,6 +2165,9 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     func browserDidClose(_ browser: CefBrowser) {
         if self.browser === browser {
             self.browser = nil
+        }
+        if didRequestClose {
+            onClose?()
         }
     }
 

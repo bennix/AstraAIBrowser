@@ -24,7 +24,7 @@
     "features.browserOwnership.body": "通用设置可让 Astra 完整接管 HTTP 与 HTTPS。其他 Mac 应用打开的链接会进入 Astra 内嵌的 Chromium 标签页，网站检测到的浏览器语言也会与 Astra 界面语言保持一致。",
     "features.history.title": "完整保留浏览历史",
     "features.history.body": "Astra 将浏览历史保存在持久化 Chromium 配置中，可从原生“历史记录”菜单和“通用”设置查看或清除，也可按 Command-Y 打开完整记录。",
-    "download.summary": "Build 52 为本地优先的 X 守护增加了明确触发的一键屏蔽。Astra 在当前页面发现垃圾账号后，用户可点击“守护”或单个“屏蔽”；应用随后使用已登录的 X 会话，显示完成数/总数进度，并通过请求间隔降低触发限流的概率。未登录或屏蔽失败时会给出提示，账号操作不会自动开始。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 53 可确保新打开的 YouTube 及其他高负载 Chromium 页面始终附着在对应的 Astra 标签页中，不再将其浏览器浮层误判为未托管弹窗。即使 Chromium 已先行销毁原生窗口，关闭标签页也能立即完成，从而避免出现空白页面或无法关闭的标签页。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

@@ -884,6 +884,74 @@ final class ZenMuxTests: XCTestCase {
     }
 
     @MainActor
+    func testOwnedChromeOverlayWindowIsNotCapturedAsUnmanaged() {
+        let overlay = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: true
+        )
+        UnmanagedChromiumWindowPolicy.markAsOwnedOverlay(overlay)
+
+        XCTAssertFalse(UnmanagedChromiumWindowPolicy.shouldCapture(overlay))
+    }
+
+    @MainActor
+    func testStandaloneChromiumWindowIsStillCapturedAsUnmanaged() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: true
+        )
+
+        XCTAssertTrue(UnmanagedChromiumWindowPolicy.shouldCapture(window))
+    }
+
+    @MainActor
+    func testChildWindowIsNotCapturedAsUnmanaged() {
+        let parent = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: true
+        )
+        let child = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: true
+        )
+        parent.addChildWindow(child, ordered: .above)
+
+        XCTAssertFalse(UnmanagedChromiumWindowPolicy.shouldCapture(child))
+    }
+
+    func testYouTubeNewTabStaysInAstraInsteadOfNativePopup() {
+        let request = CefWindowOpenRequest(
+            targetURL: URL(string: "https://www.youtube.com/watch?v=example")!,
+            disposition: .newForegroundTab,
+            userGesture: true
+        )
+
+        XCTAssertEqual(BrowserWindowOpenPolicy.action(for: request), .handled)
+        XCTAssertTrue(BrowserWindowOpenPolicy.shouldHandleNewTabInApp(
+            for: URL(string: "https://www.youtube.com/watch?v=example")!
+        ))
+    }
+
+    func testClosingARequestedTabMustNotCreateAnotherEngine() {
+        XCTAssertFalse(CefWebContentClosePolicy.shouldCreateEngine(didRequestClose: true))
+        XCTAssertTrue(CefWebContentClosePolicy.shouldCreateEngine(didRequestClose: false))
+    }
+
+    func testTabCloseFinishesEvenIfChromeWindowDestructionNeverArrives() {
+        XCTAssertTrue(
+            CefWebContentClosePolicy.shouldFinishTabCloseWithoutWaitingForWindowDestruction
+        )
+    }
+
+    @MainActor
     func testSystemMediaEngineHandlesKnownH264NewsDomains() {
         XCTAssertTrue(SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(
             for: URL(string: "https://www.bbc.com/video")!
