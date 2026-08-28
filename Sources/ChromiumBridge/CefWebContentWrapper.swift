@@ -332,13 +332,42 @@ enum XImageZoomWebPolicy {
           const currentViewerImage = () => {
             let selected = null;
             let selectedScore = 0;
+            const viewportWidth = Math.max(
+              Number(document.documentElement?.clientWidth) || 0,
+              Number(window.innerWidth) || 0
+            );
+            const viewportHeight = Math.max(
+              Number(document.documentElement?.clientHeight) || 0,
+              Number(window.innerHeight) || 0
+            );
             document.querySelectorAll(
               '[role="dialog"] img, [data-testid="swipe-to-dismiss"] img'
             ).forEach((image) => {
               if (!isViewerImage(image)) return;
               const rect = image.getBoundingClientRect();
-              const mediaWeight = sourceFor(image).includes('pbs.twimg.com/media/') ? 100 : 1;
-              const score = rect.width * rect.height * mediaWeight;
+              const rectRight = Number.isFinite(rect.right) ? rect.right : rect.left + rect.width;
+              const rectBottom = Number.isFinite(rect.bottom) ? rect.bottom : rect.top + rect.height;
+              const visibleWidth = Math.max(
+                0,
+                Math.min(rectRight, viewportWidth) - Math.max(rect.left, 0)
+              );
+              const visibleHeight = Math.max(
+                0,
+                Math.min(rectBottom, viewportHeight) - Math.max(rect.top, 0)
+              );
+              const visibleArea = visibleWidth * visibleHeight;
+              if (visibleArea <= 0) return;
+              const totalArea = Math.max(1, rect.width * rect.height);
+              const visibleRatio = visibleArea / totalArea;
+              const mediaWeight = sourceFor(image).includes('pbs.twimg.com/media/') ? 2 : 1;
+              let hitWeight = 1;
+              if (typeof document.elementsFromPoint === 'function') {
+                const sampleX = Math.max(0, Math.min(viewportWidth - 1, rect.left + rect.width / 2));
+                const sampleY = Math.max(0, Math.min(viewportHeight - 1, rect.top + rect.height / 2));
+                const hitStack = document.elementsFromPoint(sampleX, sampleY);
+                hitWeight = hitStack.includes(image) ? 4 : 0.25;
+              }
+              const score = visibleArea * (1 + visibleRatio) * mediaWeight * hitWeight;
               if (score > selectedScore) {
                 selected = image;
                 selectedScore = score;

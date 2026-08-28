@@ -24,7 +24,7 @@
     "features.browserOwnership.body": "通用设置可让 Astra 完整接管 HTTP 与 HTTPS。其他 Mac 应用打开的链接会进入 Astra 内嵌的 Chromium 标签页，网站检测到的浏览器语言也会与 Astra 界面语言保持一致。",
     "features.history.title": "完整保留浏览历史",
     "features.history.body": "Astra 将浏览历史保存在持久化 Chromium 配置中，可从原生“历史记录”菜单和“通用”设置查看或清除，也可按 Command-Y 打开完整记录。",
-    "download.summary": "Build 56 为 X 和 Twitter 图片查看器增加专用控制条：包含缩小、100%–800% 滑块、放大、实时百分比与一键重置。控制条只在媒体弹窗可见时出现，并与触控板、滚轮及双击缩放保持同步。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 57 修复了 X 和 Twitter 图片缩放选中屏外预载图的问题。100%–800% 控制条现在会缩放当前可见图片，放大后还可以按住图片拖动平移，并将移动范围限制在图片边界内。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

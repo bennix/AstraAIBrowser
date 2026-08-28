@@ -927,7 +927,9 @@ final class ZenMuxTests: XCTestCase {
             globalThis.innerWidth = 1200;
             globalThis.innerHeight = 900;
             globalThis.__styleValues = {};
+            globalThis.__offscreenStyleValues = {};
             globalThis.__listeners = [];
+            globalThis.__documentListeners = {};
             globalThis.__controlHost = null;
             globalThis.__makeElement = (tag) => ({
               tagName: String(tag).toUpperCase(),
@@ -964,12 +966,33 @@ final class ZenMuxTests: XCTestCase {
             __image.getAttribute = () => null;
             __image.setAttribute = () => {};
             __image.removeAttribute = () => {};
+            globalThis.__offscreenImage = new HTMLImageElement();
+            __offscreenImage.currentSrc = 'https://pbs.twimg.com/media/offscreen.jpg';
+            __offscreenImage.src = __offscreenImage.currentSrc;
+            __offscreenImage.style = {
+              getPropertyValue: (name) => __offscreenStyleValues[name]?.value || '',
+              getPropertyPriority: (name) => __offscreenStyleValues[name]?.priority || '',
+              setProperty: (name, value, priority) => {
+                __offscreenStyleValues[name] = { value, priority };
+              },
+              removeProperty: (name) => { delete __offscreenStyleValues[name]; }
+            };
+            __offscreenImage.getBoundingClientRect = () => ({
+              width: 1600, height: 900, left: -2400, top: 0
+            });
+            __offscreenImage.closest = () => __viewer;
+            __offscreenImage.getAttribute = () => null;
+            __offscreenImage.setAttribute = () => {};
+            __offscreenImage.removeAttribute = () => {};
             globalThis.document = {
               documentElement: { lang: 'zh-CN' },
               body: { appendChild: (element) => { __controlHost = element; } },
               createElement: (tag) => __makeElement(tag),
-              addEventListener: (name) => __listeners.push(name),
-              querySelectorAll: () => [__image]
+              addEventListener: (name, callback) => {
+                __listeners.push(name);
+                __documentListeners[name] = callback;
+              },
+              querySelectorAll: () => [__offscreenImage, __image]
             };
             globalThis.MutationObserver = function () { this.observe = function () {}; };
             globalThis.getComputedStyle = () => ({ display: 'block', visibility: 'visible' });
@@ -986,6 +1009,9 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertNil(scriptException?.toString())
         XCTAssertTrue(handled?.toBool() ?? false)
         XCTAssertTrue(nativeTransform?.toString()?.contains("scale(1.284") ?? false)
+        XCTAssertFalse(
+            context.evaluateScript("Boolean(__offscreenStyleValues.transform)")?.toBool() ?? true
+        )
         XCTAssertEqual(
             context.evaluateScript("__controlHost.id")?.toString(),
             "__astra-x-image-zoom-controls"
@@ -1027,6 +1053,28 @@ final class ZenMuxTests: XCTestCase {
                 "__controlHost.children.find((element) => element.tagName === 'SPAN').textContent"
             )?.toString(),
             "300%"
+        )
+
+        context.evaluateScript(
+            """
+            globalThis.__pointerEvent = (overrides) => Object.assign({
+              target: __image,
+              button: 0,
+              pointerId: 7,
+              clientX: 400,
+              clientY: 300,
+              preventDefault() {},
+              stopPropagation() {}
+            }, overrides);
+            __documentListeners.pointerdown(__pointerEvent({}));
+            __documentListeners.pointermove(__pointerEvent({ clientX: 440, clientY: 330 }));
+            """
+        )
+
+        XCTAssertNil(scriptException?.toString())
+        XCTAssertTrue(
+            context.evaluateScript("__styleValues.transform.value")?.toString()?
+                .contains("translate3d(40px, 30px, 0) scale(3)") ?? false
         )
 
         context.evaluateScript(
