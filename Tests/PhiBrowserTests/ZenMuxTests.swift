@@ -837,6 +837,7 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertTrue(script.contains("window.__astraXImageZoom = Object.freeze"))
         XCTAssertTrue(script.contains("magnify(rawMagnification)"))
         XCTAssertTrue(script.contains("__astra-x-image-zoom-controls"))
+        XCTAssertTrue(script.contains("__astra-x-image-zoom-stage"))
         XCTAssertTrue(script.contains("slider.type = 'range'"))
         XCTAssertTrue(script.contains("makeButton('−'"))
         XCTAssertTrue(script.contains("makeButton('+'"))
@@ -933,18 +934,41 @@ final class ZenMuxTests: XCTestCase {
             globalThis.__listeners = [];
             globalThis.__documentListeners = {};
             globalThis.__controlHost = null;
+            globalThis.__zoomStage = null;
             globalThis.__makeElement = (tag) => ({
               tagName: String(tag).toUpperCase(),
+              id: '',
+              src: '',
+              alt: '',
+              draggable: true,
+              parentNode: null,
               style: {
                 values: {},
-                setProperty(name, value) { this.values[name] = value; }
+                setProperty(name, value, priority) {
+                  this.values[name] = value;
+                  this[name.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())] = value;
+                }
               },
               attributes: {},
               listeners: {},
               children: [],
-              setAttribute(name, value) { this.attributes[name] = value; },
+              setAttribute(name, value) { this.attributes[name] = value; this[name] = value; },
               addEventListener(name, callback) { this.listeners[name] = callback; },
-              append(...children) { this.children.push(...children); }
+              append(...children) {
+                this.children.push(...children);
+                children.forEach((child) => { child.parentNode = this; });
+              },
+              appendChild(child) {
+                this.children.push(child);
+                child.parentNode = this;
+                return child;
+              },
+              removeChild(child) {
+                this.children = this.children.filter((entry) => entry !== child);
+                child.parentNode = null;
+                if (__zoomStage === child) __zoomStage = null;
+                return child;
+              }
             });
             globalThis.HTMLImageElement = function () {};
             globalThis.HTMLVideoElement = function () {};
@@ -991,7 +1015,22 @@ final class ZenMuxTests: XCTestCase {
             globalThis.__hitStack = [__image];
             globalThis.document = {
               documentElement: { lang: 'zh-CN' },
-              body: { appendChild: (element) => { __controlHost = element; } },
+              body: {
+                children: [],
+                appendChild(element) {
+                  this.children.push(element);
+                  element.parentNode = this;
+                  if (element.id === '__astra-x-image-zoom-controls') __controlHost = element;
+                  if (element.id === '__astra-x-image-zoom-stage') __zoomStage = element;
+                  return element;
+                },
+                removeChild(element) {
+                  this.children = this.children.filter((entry) => entry !== element);
+                  element.parentNode = null;
+                  if (__zoomStage === element) __zoomStage = null;
+                  return element;
+                }
+              },
               createElement: (tag) => __makeElement(tag),
               addEventListener: (name, callback) => {
                 __listeners.push(name);
@@ -1010,13 +1049,25 @@ final class ZenMuxTests: XCTestCase {
 
         context.evaluateScript(XImageZoomWebPolicy.javaScript, withSourceURL: nil)
         let handled = context.evaluateScript("window.__astraXImageZoom.magnify(0.25)")
-        let nativeTransform = context.evaluateScript("__styleValues.transform.value")
+        let stageTransform = context.evaluateScript("__zoomStage.children[0].style.values.transform")
 
         XCTAssertNil(scriptException?.toString())
         XCTAssertTrue(handled?.toBool() ?? false)
-        XCTAssertTrue(nativeTransform?.toString()?.contains("scale(1.284") ?? false)
+        XCTAssertTrue(stageTransform?.toString()?.contains("scale(1.284") ?? false)
+        XCTAssertEqual(
+            context.evaluateScript("__styleValues.opacity.value")?.toString(),
+            "0"
+        )
+        XCTAssertFalse(
+            context.evaluateScript("Boolean(__styleValues.transform)")?.toBool() ?? true
+        )
         XCTAssertFalse(
             context.evaluateScript("Boolean(__offscreenStyleValues.transform)")?.toBool() ?? true
+        )
+        context.evaluateScript("__styleValues.transform = { value: 'none', priority: '' }")
+        XCTAssertTrue(
+            context.evaluateScript("__zoomStage.children[0].style.values.transform")?.toString()?
+                .contains("scale(1.284") ?? false
         )
         XCTAssertEqual(
             context.evaluateScript("__controlHost.id")?.toString(),
@@ -1051,7 +1102,7 @@ final class ZenMuxTests: XCTestCase {
 
         XCTAssertNil(scriptException?.toString())
         XCTAssertTrue(
-            context.evaluateScript("__styleValues.transform.value")?.toString()?
+            context.evaluateScript("__zoomStage.children[0].style.values.transform")?.toString()?
                 .contains("scale(3)") ?? false
         )
         XCTAssertEqual(
@@ -1079,7 +1130,7 @@ final class ZenMuxTests: XCTestCase {
 
         XCTAssertNil(scriptException?.toString())
         XCTAssertTrue(
-            context.evaluateScript("__styleValues.transform.value")?.toString()?
+            context.evaluateScript("__zoomStage.children[0].style.values.transform")?.toString()?
                 .contains("translate3d(40px, 30px, 0) scale(3)") ?? false
         )
 
@@ -1094,7 +1145,7 @@ final class ZenMuxTests: XCTestCase {
 
         XCTAssertNil(scriptException?.toString())
         XCTAssertTrue(
-            context.evaluateScript("__styleValues.transform.value")?.toString()?
+            context.evaluateScript("__zoomStage.children[0].style.values.transform")?.toString()?
                 .contains("scale(3.75)") ?? false
         )
         XCTAssertEqual(
@@ -1114,6 +1165,9 @@ final class ZenMuxTests: XCTestCase {
         )
 
         XCTAssertNil(scriptException?.toString())
+        XCTAssertTrue(
+            context.evaluateScript("__zoomStage == null")?.toBool() ?? false
+        )
         XCTAssertFalse(
             context.evaluateScript("Boolean(__styleValues.transform)")?.toBool() ?? true
         )

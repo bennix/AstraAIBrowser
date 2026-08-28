@@ -287,12 +287,16 @@ enum XImageZoomWebPolicy {
             pointerX: 0,
             pointerY: 0,
             pointerMoved: false,
-            suppressClick: false
+            suppressClick: false,
+            stageRoot: null,
+            stage: null
           };
 
           const sourceFor = (image) => image?.currentSrc || image?.src || '';
           const styleNames = [
             'cursor',
+            'opacity',
+            'pointer-events',
             'transform',
             'transform-origin',
             'transition',
@@ -388,8 +392,74 @@ enum XImageZoomWebPolicy {
             return selected;
           };
 
+          const destroyStage = () => {
+            if (state.stageRoot?.parentNode) state.stageRoot.parentNode.removeChild(state.stageRoot);
+            state.stageRoot = null;
+            state.stage = null;
+          };
+          const applyStageStyles = (element, styles) => {
+            Object.entries(styles).forEach(([name, value]) => {
+              element.style.setProperty(
+                name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`),
+                value,
+                'important'
+              );
+            });
+          };
+          const ensureStage = (image) => {
+            const isImage = typeof HTMLImageElement !== 'undefined'
+              && image instanceof HTMLImageElement;
+            if (!isImage || !state.baseRect) return null;
+            if (state.stage && state.stageRoot?.parentNode) {
+              state.stage.src = sourceFor(image);
+              return state.stage;
+            }
+            destroyStage();
+            const root = document.createElement('div');
+            root.id = '__astra-x-image-zoom-stage';
+            applyStageStyles(root, {
+              position: 'fixed',
+              left: '0',
+              top: '0',
+              right: '0',
+              bottom: '0',
+              overflow: 'hidden',
+              pointerEvents: 'none',
+              zIndex: '2147483646'
+            });
+            const stage = document.createElement('img');
+            stage.alt = image.alt || '';
+            stage.src = sourceFor(image);
+            stage.draggable = false;
+            applyStageStyles(stage, {
+              position: 'absolute',
+              left: `${state.baseRect.left}px`,
+              top: `${state.baseRect.top}px`,
+              width: `${state.baseRect.width}px`,
+              height: `${state.baseRect.height}px`,
+              maxWidth: 'none',
+              maxHeight: 'none',
+              margin: '0',
+              padding: '0',
+              border: 'none',
+              objectFit: 'contain',
+              transformOrigin: 'center center',
+              pointerEvents: 'auto',
+              userSelect: 'none',
+              willChange: 'transform'
+            });
+            root.appendChild(stage);
+            document.body.appendChild(root);
+            image.style.setProperty('opacity', '0', 'important');
+            image.style.setProperty('pointer-events', 'none', 'important');
+            state.stageRoot = root;
+            state.stage = stage;
+            return stage;
+          };
+          const isZoomVisual = (target) => target === state.image || target === state.stage;
           const reset = () => {
             const image = state.image;
+            destroyStage();
             if (image) {
               restoreStyles(image, state.savedStyles);
               if (state.draggableAttribute === null) image.removeAttribute('draggable');
@@ -443,17 +513,19 @@ enum XImageZoomWebPolicy {
             const image = state.image;
             if (!image) return;
             clampTranslation();
-            image.style.setProperty(
+            const stage = ensureStage(image);
+            const target = stage || image;
+            target.style.setProperty(
               'transition',
               animated ? 'transform 160ms ease-out' : 'none',
               'important'
             );
-            image.style.setProperty(
+            target.style.setProperty(
               'transform',
               `translate3d(${state.translationX}px, ${state.translationY}px, 0) scale(${state.scale})`,
               'important'
             );
-            image.style.setProperty('cursor', state.scale > minimumScale ? 'grab' : 'zoom-in', 'important');
+            target.style.setProperty('cursor', state.scale > minimumScale ? 'grab' : 'zoom-in', 'important');
             updateControlState(image);
           };
           const zoomTo = (image, requestedScale, clientX, clientY, animated = false) => {
@@ -669,22 +741,23 @@ enum XImageZoomWebPolicy {
           }, { capture: true, passive: false });
           document.addEventListener('dblclick', (event) => {
             const image = currentViewerMedia();
-            if (!image || event.target !== image) return;
+            if (!image) return;
+            if (event.target !== image && event.target !== state.stage) return;
             event.preventDefault();
             event.stopPropagation();
             if (state.image === image && state.scale > minimumScale + 0.001) reset();
             else zoomTo(image, 2, event.clientX, event.clientY, true);
           }, true);
           document.addEventListener('pointerdown', (event) => {
-            if (event.button !== 0 || state.scale <= minimumScale || event.target !== state.image) return;
+            if (event.button !== 0 || state.scale <= minimumScale || !isZoomVisual(event.target)) return;
             event.preventDefault();
             event.stopPropagation();
             state.pointerId = event.pointerId;
             state.pointerX = event.clientX;
             state.pointerY = event.clientY;
             state.pointerMoved = false;
-            state.image?.setPointerCapture?.(event.pointerId);
-            state.image?.style.setProperty('cursor', 'grabbing', 'important');
+            (state.stage || state.image)?.setPointerCapture?.(event.pointerId);
+            (state.stage || state.image)?.style.setProperty('cursor', 'grabbing', 'important');
           }, true);
           document.addEventListener('pointermove', (event) => {
             if (state.pointerId !== event.pointerId || !state.image) return;
@@ -704,13 +777,15 @@ enum XImageZoomWebPolicy {
             state.suppressClick = state.pointerMoved;
             state.pointerId = null;
             state.pointerMoved = false;
-            if (state.image) state.image.style.setProperty('cursor', 'grab', 'important');
+            if (state.image || state.stage) {
+              (state.stage || state.image).style.setProperty('cursor', 'grab', 'important');
+            }
             window.setTimeout(() => { state.suppressClick = false; }, 0);
           };
           document.addEventListener('pointerup', endPointer, true);
           document.addEventListener('pointercancel', endPointer, true);
           document.addEventListener('click', (event) => {
-            if (!state.suppressClick || event.target !== state.image) return;
+            if (!state.suppressClick || !isZoomVisual(event.target)) return;
             event.preventDefault();
             event.stopPropagation();
           }, true);
@@ -723,7 +798,16 @@ enum XImageZoomWebPolicy {
           const refresh = () => {
             refreshScheduled = false;
             const image = currentViewerMedia();
-            if (state.image && (image !== state.image || sourceFor(image) !== state.source)) reset();
+            if (state.image && image === state.image) {
+              const nextSource = sourceFor(image);
+              if (nextSource !== state.source) {
+                state.source = nextSource;
+                if (state.stage) state.stage.src = nextSource;
+              }
+              if (state.scale > minimumScale + 0.001) render();
+            } else if (state.image && (image !== state.image || sourceFor(image) !== state.source)) {
+              reset();
+            }
             updateControlState(image);
           };
           new MutationObserver(() => {
