@@ -6,6 +6,7 @@
 import AppKit
 import CryptoKit
 import CefKit
+import JavaScriptCore
 import Security
 import XCTest
 @testable import Phi
@@ -809,6 +810,87 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertTrue(script.contains("done + '/' + total"))
         XCTAssertTrue(script.contains("addEventListener('click'"))
         XCTAssertFalse(script.contains("pointer-events:none"))
+    }
+
+    func testXImageZoomOnlySupportsXHosts() {
+        XCTAssertTrue(XImageZoomWebPolicy.supports(host: "x.com"))
+        XCTAssertTrue(XImageZoomWebPolicy.supports(host: "mobile.twitter.com"))
+        XCTAssertTrue(XImageZoomWebPolicy.supports(host: "X.COM."))
+        XCTAssertFalse(XImageZoomWebPolicy.supports(host: "x.com.example.org"))
+        XCTAssertFalse(XImageZoomWebPolicy.supports(host: "example.com"))
+        XCTAssertFalse(XImageZoomWebPolicy.supports(host: nil))
+    }
+
+    func testXImageZoomScriptTargetsMediaViewerAndSupportsZoomAndPan() {
+        let script = XImageZoomWebPolicy.javaScript
+
+        XCTAssertTrue(script.contains("pbs.twimg.com/media/"))
+        XCTAssertTrue(script.contains("[role=\"dialog\"] img"))
+        XCTAssertTrue(script.contains("gesturestart"))
+        XCTAssertTrue(script.contains("gesturechange"))
+        XCTAssertTrue(script.contains("addEventListener('wheel'"))
+        XCTAssertTrue(script.contains("addEventListener('dblclick'"))
+        XCTAssertTrue(script.contains("addEventListener('pointermove'"))
+        XCTAssertTrue(script.contains("const maximumScale = 8"))
+        XCTAssertTrue(script.contains("window.__astraXImageZoomInstalled"))
+    }
+
+    func testXImageZoomScriptParsesAndLeavesOtherHostsUntouched() throws {
+        let context = try XCTUnwrap(JSContext())
+        var scriptException: JSValue?
+        context.exceptionHandler = { _, exception in
+            scriptException = exception
+        }
+        context.evaluateScript(
+            """
+            globalThis.window = globalThis;
+            globalThis.location = { hostname: 'example.com' };
+            """,
+            withSourceURL: nil
+        )
+
+        context.evaluateScript(XImageZoomWebPolicy.javaScript, withSourceURL: nil)
+
+        XCTAssertNil(scriptException?.toString())
+        XCTAssertFalse(
+            context.evaluateScript("Boolean(window.__astraXImageZoomInstalled)")?.toBool() ?? true
+        )
+    }
+
+    func testXImageZoomScriptInstallsViewerHooksOnX() throws {
+        let context = try XCTUnwrap(JSContext())
+        var scriptException: JSValue?
+        context.exceptionHandler = { _, exception in
+            scriptException = exception
+        }
+        context.evaluateScript(
+            """
+            globalThis.window = globalThis;
+            globalThis.location = { hostname: 'x.com' };
+            globalThis.__listeners = [];
+            globalThis.document = {
+              documentElement: {},
+              addEventListener: (name) => __listeners.push(name),
+              querySelectorAll: () => []
+            };
+            globalThis.MutationObserver = function () { this.observe = function () {}; };
+            globalThis.HTMLImageElement = function () {};
+            globalThis.getComputedStyle = () => ({ display: 'block', visibility: 'visible' });
+            globalThis.addEventListener = (name) => __listeners.push(name);
+            globalThis.requestAnimationFrame = (callback) => callback();
+            """,
+            withSourceURL: nil
+        )
+
+        context.evaluateScript(XImageZoomWebPolicy.javaScript, withSourceURL: nil)
+
+        XCTAssertNil(scriptException?.toString())
+        XCTAssertTrue(
+            context.evaluateScript("Boolean(window.__astraXImageZoomInstalled)")?.toBool() ?? false
+        )
+        XCTAssertTrue(context.evaluateScript("__listeners.includes('gesturestart')")?.toBool() ?? false)
+        XCTAssertTrue(context.evaluateScript("__listeners.includes('wheel')")?.toBool() ?? false)
+        XCTAssertTrue(context.evaluateScript("__listeners.includes('pointermove')")?.toBool() ?? false)
     }
 
     @MainActor

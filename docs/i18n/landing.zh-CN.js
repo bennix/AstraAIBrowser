@@ -16,15 +16,15 @@
     "features.pageControl.body": "助手可检查当前标签页并执行经确认的浏览器操作，同时 Chromium 浏览体验始终内嵌在 Astra 中。",
     "features.youtube.title": "减少等待 YouTube 广告",
     "features.youtube.body": "YouTube 将当前播放标记为广告时，Astra 会临时使用 8 倍速，并在正片开始后恢复原播放速度。",
-    "features.mediaCompatibility.title": "X 视频兼容与原生守护",
-    "features.mediaCompatibility.body": "X 和 Twitter 使用持久化的系统 WebKit 会话，直接获得 macOS 的 H.264/AAC 播放能力。Astra 在本机匹配公开垃圾账号数据库，白名单优先并显示命中提示；只有用户点击“守护”或“屏蔽”后，才会通过已登录的 X 会话逐项屏蔽账号，并在浮动条显示进度。",
+    "features.mediaCompatibility.title": "X 媒体、图片缩放与原生守护",
+    "features.mediaCompatibility.body": "X 和 Twitter 使用持久化的系统 WebKit 会话，直接获得 macOS 的 H.264/AAC 播放能力。图片查看器支持触控板捏合、滚轮与双击缩放，最高 8 倍，并可拖动查看细节。Astra 还会在本机匹配公开垃圾账号数据库，且只有用户明确点击“守护”或“屏蔽”后才执行账号操作。",
     "features.localMemory.title": "本地第二大脑",
     "features.localMemory.body": "Astra 将笔记和完整的用户/AI 对话保存到账号独立的本地向量索引，并镜像成可迁移的 Markdown 文件，在本机检索相关上下文。记忆内容支持 Markdown、可横向滚动的表格、本地 LaTeX 数学及化学公式渲染，并可将单条或多条记忆导出为 Markdown 文件。过期会话会先完成摘要，再删除原记录。",
     "features.browserOwnership.title": "原生链接与语言集成",
     "features.browserOwnership.body": "通用设置可让 Astra 完整接管 HTTP 与 HTTPS。其他 Mac 应用打开的链接会进入 Astra 内嵌的 Chromium 标签页，网站检测到的浏览器语言也会与 Astra 界面语言保持一致。",
     "features.history.title": "完整保留浏览历史",
     "features.history.body": "Astra 将浏览历史保存在持久化 Chromium 配置中，可从原生“历史记录”菜单和“通用”设置查看或清除，也可按 Command-Y 打开完整记录。",
-    "download.summary": "Build 53 可确保新打开的 YouTube 及其他高负载 Chromium 页面始终附着在对应的 Astra 标签页中，不再将其浏览器浮层误判为未托管弹窗。即使 Chromium 已先行销毁原生窗口，关闭标签页也能立即完成，从而避免出现空白页面或无法关闭的标签页。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 54 为 X 和 Twitter 图片查看器增加专用缩放控制：可使用触控板捏合、滚轮或双击放大，最高 8 倍；放大后可拖动查看细节，关闭查看器或切换图片时会自动恢复原始页面样式。该行为仅作用于 X 媒体弹窗。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

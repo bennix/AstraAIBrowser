@@ -235,6 +235,311 @@ enum YouTubeAdPlaybackPolicy {
     }
 }
 
+enum XImageZoomWebPolicy {
+    private static let supportedDomains = [
+        "twitter.com",
+        "x.com",
+    ]
+
+    static func supports(host: String?) -> Bool {
+        guard let host else { return false }
+        let normalizedHost = host
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+            .lowercased()
+        return supportedDomains.contains {
+            normalizedHost == $0 || normalizedHost.hasSuffix(".\($0)")
+        }
+    }
+
+    static var javaScript: String {
+        let domainList = supportedDomains
+            .map { "'\($0)'" }
+            .joined(separator: ", ")
+        return """
+        (() => {
+          const supportedDomains = [\(domainList)];
+          const hostname = location.hostname.toLowerCase().replace(/^\\.+|\\.+$/g, '');
+          const isSupportedHost = supportedDomains.some(
+            (domain) => hostname === domain || hostname.endsWith(`.${domain}`)
+          );
+          if (!isSupportedHost || window.__astraXImageZoomInstalled) return;
+          window.__astraXImageZoomInstalled = true;
+
+          const minimumScale = 1;
+          const maximumScale = 8;
+          const state = {
+            image: null,
+            source: '',
+            scale: minimumScale,
+            translationX: 0,
+            translationY: 0,
+            baseRect: null,
+            savedStyles: null,
+            draggableAttribute: null,
+            gestureStartScale: minimumScale,
+            gestureActive: false,
+            pointerId: null,
+            pointerX: 0,
+            pointerY: 0,
+            pointerMoved: false,
+            suppressClick: false
+          };
+
+          const sourceFor = (image) => image?.currentSrc || image?.src || '';
+          const styleNames = [
+            'cursor',
+            'transform',
+            'transform-origin',
+            'transition',
+            'user-select',
+            'will-change'
+          ];
+          const saveStyles = (image) => Object.fromEntries(styleNames.map((name) => [
+            name,
+            {
+              value: image.style.getPropertyValue(name),
+              priority: image.style.getPropertyPriority(name)
+            }
+          ]));
+          const restoreStyles = (image, styles) => {
+            if (!image || !styles) return;
+            for (const name of styleNames) {
+              const saved = styles[name];
+              if (saved?.value) image.style.setProperty(name, saved.value, saved.priority);
+              else image.style.removeProperty(name);
+            }
+          };
+          const isVisible = (image) => {
+            if (!(image instanceof HTMLImageElement)) return false;
+            const rect = image.getBoundingClientRect();
+            const style = getComputedStyle(image);
+            return rect.width >= 120 && rect.height >= 120
+              && style.display !== 'none' && style.visibility !== 'hidden';
+          };
+          const isViewerImage = (image) => {
+            if (!isVisible(image)) return false;
+            const source = sourceFor(image);
+            const isXMedia = source.includes('pbs.twimg.com/media/');
+            const isSwipeImage = Boolean(image.closest('[data-testid="swipe-to-dismiss"]'));
+            return Boolean(image.closest('[role="dialog"], [data-testid="swipe-to-dismiss"]'))
+              && (isXMedia || isSwipeImage);
+          };
+          const currentViewerImage = () => {
+            let selected = null;
+            let selectedScore = 0;
+            document.querySelectorAll(
+              '[role="dialog"] img, [data-testid="swipe-to-dismiss"] img'
+            ).forEach((image) => {
+              if (!isViewerImage(image)) return;
+              const rect = image.getBoundingClientRect();
+              const mediaWeight = sourceFor(image).includes('pbs.twimg.com/media/') ? 100 : 1;
+              const score = rect.width * rect.height * mediaWeight;
+              if (score > selectedScore) {
+                selected = image;
+                selectedScore = score;
+              }
+            });
+            return selected;
+          };
+
+          const reset = () => {
+            const image = state.image;
+            if (image) {
+              restoreStyles(image, state.savedStyles);
+              if (state.draggableAttribute === null) image.removeAttribute('draggable');
+              else image.setAttribute('draggable', state.draggableAttribute);
+            }
+            state.image = null;
+            state.source = '';
+            state.scale = minimumScale;
+            state.translationX = 0;
+            state.translationY = 0;
+            state.baseRect = null;
+            state.savedStyles = null;
+            state.draggableAttribute = null;
+            state.gestureStartScale = minimumScale;
+            state.gestureActive = false;
+            state.pointerId = null;
+            state.pointerMoved = false;
+          };
+          const activate = (image) => {
+            if (!isViewerImage(image)) return false;
+            const source = sourceFor(image);
+            if (state.image === image && state.source === source) return true;
+            reset();
+            state.image = image;
+            state.source = source;
+            state.baseRect = image.getBoundingClientRect();
+            state.savedStyles = saveStyles(image);
+            state.draggableAttribute = image.getAttribute('draggable');
+            image.setAttribute('draggable', 'false');
+            image.style.setProperty('transform-origin', 'center center', 'important');
+            image.style.setProperty('user-select', 'none', 'important');
+            image.style.setProperty('will-change', 'transform', 'important');
+            return true;
+          };
+          const clampTranslation = () => {
+            const image = state.image;
+            const baseRect = state.baseRect;
+            if (!image || !baseRect) return;
+            const viewer = image.closest('[role="dialog"], [data-testid="swipe-to-dismiss"]');
+            const viewport = viewer?.getBoundingClientRect() || {
+              width: window.innerWidth,
+              height: window.innerHeight
+            };
+            const maximumX = Math.max(0, (baseRect.width * state.scale - viewport.width) / 2);
+            const maximumY = Math.max(0, (baseRect.height * state.scale - viewport.height) / 2);
+            state.translationX = Math.max(-maximumX, Math.min(maximumX, state.translationX));
+            state.translationY = Math.max(-maximumY, Math.min(maximumY, state.translationY));
+          };
+          const render = (animated = false) => {
+            const image = state.image;
+            if (!image) return;
+            clampTranslation();
+            image.style.setProperty(
+              'transition',
+              animated ? 'transform 160ms ease-out' : 'none',
+              'important'
+            );
+            image.style.setProperty(
+              'transform',
+              `translate3d(${state.translationX}px, ${state.translationY}px, 0) scale(${state.scale})`,
+              'important'
+            );
+            image.style.setProperty('cursor', state.scale > minimumScale ? 'grab' : 'zoom-in', 'important');
+          };
+          const zoomTo = (image, requestedScale, clientX, clientY, animated = false) => {
+            if (!activate(image)) return;
+            const previousScale = state.scale;
+            const nextScale = Math.max(minimumScale, Math.min(maximumScale, requestedScale));
+            if (nextScale <= minimumScale + 0.001) {
+              reset();
+              return;
+            }
+            const baseRect = state.baseRect;
+            const centerX = baseRect.left + baseRect.width / 2;
+            const centerY = baseRect.top + baseRect.height / 2;
+            const anchorX = Number.isFinite(clientX) ? clientX : centerX;
+            const anchorY = Number.isFinite(clientY) ? clientY : centerY;
+            const ratio = nextScale / previousScale;
+            state.translationX = anchorX - centerX
+              - (anchorX - centerX - state.translationX) * ratio;
+            state.translationY = anchorY - centerY
+              - (anchorY - centerY - state.translationY) * ratio;
+            state.scale = nextScale;
+            render(animated);
+          };
+
+          document.addEventListener('gesturestart', (event) => {
+            const image = currentViewerImage();
+            if (!image || !activate(image)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            state.gestureActive = true;
+            state.gestureStartScale = state.scale;
+          }, { capture: true, passive: false });
+          document.addEventListener('gesturechange', (event) => {
+            const image = currentViewerImage();
+            if (!image || !state.gestureActive) return;
+            event.preventDefault();
+            event.stopPropagation();
+            zoomTo(
+              image,
+              state.gestureStartScale * Math.max(0.01, Number(event.scale) || 1),
+              event.clientX,
+              event.clientY
+            );
+          }, { capture: true, passive: false });
+          document.addEventListener('gestureend', (event) => {
+            if (!state.gestureActive) return;
+            event.preventDefault();
+            event.stopPropagation();
+            state.gestureActive = false;
+          }, { capture: true, passive: false });
+          document.addEventListener('wheel', (event) => {
+            const image = currentViewerImage();
+            if (!image || state.gestureActive || event.deltaY === 0) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const unit = event.deltaMode === 1 ? 18 : (event.deltaMode === 2 ? window.innerHeight : 1);
+            const factor = Math.exp(-event.deltaY * unit * 0.002);
+            const currentScale = state.image === image ? state.scale : minimumScale;
+            zoomTo(image, currentScale * factor, event.clientX, event.clientY);
+          }, { capture: true, passive: false });
+          document.addEventListener('dblclick', (event) => {
+            const image = currentViewerImage();
+            if (!image || event.target !== image) return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (state.image === image && state.scale > minimumScale + 0.001) reset();
+            else zoomTo(image, 2, event.clientX, event.clientY, true);
+          }, true);
+          document.addEventListener('pointerdown', (event) => {
+            if (event.button !== 0 || state.scale <= minimumScale || event.target !== state.image) return;
+            event.preventDefault();
+            event.stopPropagation();
+            state.pointerId = event.pointerId;
+            state.pointerX = event.clientX;
+            state.pointerY = event.clientY;
+            state.pointerMoved = false;
+            state.image?.setPointerCapture?.(event.pointerId);
+            state.image?.style.setProperty('cursor', 'grabbing', 'important');
+          }, true);
+          document.addEventListener('pointermove', (event) => {
+            if (state.pointerId !== event.pointerId || !state.image) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const deltaX = event.clientX - state.pointerX;
+            const deltaY = event.clientY - state.pointerY;
+            state.pointerMoved = state.pointerMoved || Math.abs(deltaX) + Math.abs(deltaY) > 2;
+            state.pointerX = event.clientX;
+            state.pointerY = event.clientY;
+            state.translationX += deltaX;
+            state.translationY += deltaY;
+            render();
+          }, true);
+          const endPointer = (event) => {
+            if (state.pointerId !== event.pointerId) return;
+            state.suppressClick = state.pointerMoved;
+            state.pointerId = null;
+            state.pointerMoved = false;
+            if (state.image) state.image.style.setProperty('cursor', 'grab', 'important');
+            window.setTimeout(() => { state.suppressClick = false; }, 0);
+          };
+          document.addEventListener('pointerup', endPointer, true);
+          document.addEventListener('pointercancel', endPointer, true);
+          document.addEventListener('click', (event) => {
+            if (!state.suppressClick || event.target !== state.image) return;
+            event.preventDefault();
+            event.stopPropagation();
+          }, true);
+          document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') reset();
+          }, true);
+          window.addEventListener('resize', reset);
+
+          let refreshScheduled = false;
+          const refresh = () => {
+            refreshScheduled = false;
+            if (!state.image) return;
+            const image = currentViewerImage();
+            if (image !== state.image || sourceFor(image) !== state.source) reset();
+          };
+          new MutationObserver(() => {
+            if (!state.image || refreshScheduled) return;
+            refreshScheduled = true;
+            window.requestAnimationFrame(refresh);
+          }).observe(document.documentElement, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['src']
+          });
+        })();
+        """
+    }
+}
+
 enum SupportedBrowserUserAgent {
     static let chromiumProduct = "Chrome/151.0.7922.174"
 
@@ -686,6 +991,13 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             WKUserScript(
                 source: YouTubeAdPlaybackPolicy.javaScript,
                 injectionTime: .atDocumentStart,
+                forMainFrameOnly: true
+            )
+        )
+        configuration.userContentController.addUserScript(
+            WKUserScript(
+                source: XImageZoomWebPolicy.javaScript,
+                injectionTime: .atDocumentEnd,
                 forMainFrameOnly: true
             )
         )
