@@ -366,6 +366,7 @@ enum XImageZoomWebPolicy {
             state.gestureActive = false;
             state.pointerId = null;
             state.pointerMoved = false;
+            updateControlState();
           };
           const activate = (image) => {
             if (!isViewerImage(image)) return false;
@@ -412,6 +413,7 @@ enum XImageZoomWebPolicy {
               'important'
             );
             image.style.setProperty('cursor', state.scale > minimumScale ? 'grab' : 'zoom-in', 'important');
+            updateControlState(image);
           };
           const zoomTo = (image, requestedScale, clientX, clientY, animated = false) => {
             if (!activate(image)) return;
@@ -434,6 +436,146 @@ enum XImageZoomWebPolicy {
             state.scale = nextScale;
             render(animated);
           };
+
+          const controls = (() => {
+            if (!document.body || typeof document.createElement !== 'function') return null;
+            const isChinese = (document.documentElement.lang || '').toLowerCase().startsWith('zh');
+            const host = document.createElement('div');
+            host.id = '__astra-x-image-zoom-controls';
+            host.setAttribute('role', 'toolbar');
+            host.setAttribute('aria-label', isChinese ? '图片缩放控制' : 'Image zoom controls');
+            const hostStyles = {
+              position: 'fixed',
+              left: '50%',
+              bottom: '72px',
+              transform: 'translateX(-50%)',
+              display: 'none',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 10px',
+              border: '1px solid rgba(255, 255, 255, 0.18)',
+              borderRadius: '999px',
+              background: 'rgba(15, 20, 25, 0.92)',
+              boxShadow: '0 8px 28px rgba(0, 0, 0, 0.42)',
+              backdropFilter: 'blur(16px)',
+              color: '#ffffff',
+              font: '600 13px -apple-system, BlinkMacSystemFont, sans-serif',
+              pointerEvents: 'auto',
+              userSelect: 'none',
+              zIndex: '2147483647'
+            };
+            Object.entries(hostStyles).forEach(([name, value]) => {
+              host.style.setProperty(name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`), value, 'important');
+            });
+
+            const makeButton = (text, label) => {
+              const button = document.createElement('button');
+              button.type = 'button';
+              button.textContent = text;
+              button.title = label;
+              button.setAttribute('aria-label', label);
+              const styles = {
+                width: '32px',
+                height: '32px',
+                padding: '0',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+                borderRadius: '50%',
+                background: 'rgba(255, 255, 255, 0.10)',
+                color: '#ffffff',
+                font: '700 18px -apple-system, BlinkMacSystemFont, sans-serif',
+                lineHeight: '30px',
+                cursor: 'pointer',
+                appearance: 'none'
+              };
+              Object.entries(styles).forEach(([name, value]) => {
+                button.style.setProperty(
+                  name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`),
+                  value,
+                  'important'
+                );
+              });
+              return button;
+            };
+
+            const zoomOut = makeButton('−', isChinese ? '缩小图片' : 'Zoom out');
+            const zoomIn = makeButton('+', isChinese ? '放大图片' : 'Zoom in');
+            const resetButton = makeButton('↺', isChinese ? '重置为 100%' : 'Reset to 100%');
+            resetButton.style.setProperty('font-size', '16px', 'important');
+
+            const slider = document.createElement('input');
+            slider.type = 'range';
+            slider.min = String(minimumScale);
+            slider.max = String(maximumScale);
+            slider.step = '0.05';
+            slider.value = String(minimumScale);
+            slider.title = isChinese ? '缩放比例' : 'Zoom level';
+            slider.setAttribute('aria-label', slider.title);
+            slider.style.setProperty('width', 'clamp(96px, 18vw, 180px)', 'important');
+            slider.style.setProperty('height', '24px', 'important');
+            slider.style.setProperty('margin', '0', 'important');
+            slider.style.setProperty('accent-color', '#1d9bf0', 'important');
+            slider.style.setProperty('cursor', 'pointer', 'important');
+
+            const value = document.createElement('span');
+            value.textContent = '100%';
+            value.style.setProperty('display', 'inline-block', 'important');
+            value.style.setProperty('width', '46px', 'important');
+            value.style.setProperty('text-align', 'center', 'important');
+            value.style.setProperty('font-variant-numeric', 'tabular-nums', 'important');
+
+            host.append(zoomOut, slider, zoomIn, value, resetButton);
+            const stopPropagation = (event) => event.stopPropagation();
+            ['pointerdown', 'pointerup', 'click', 'dblclick', 'wheel'].forEach((name) => {
+              host.addEventListener(name, stopPropagation, { passive: false });
+            });
+            document.body.appendChild(host);
+            return { host, zoomOut, slider, zoomIn, value, resetButton };
+          })();
+
+          const updateControlState = (preferredImage) => {
+            if (!controls) return;
+            const image = preferredImage || currentViewerImage();
+            controls.host.style.setProperty('display', image ? 'flex' : 'none', 'important');
+            if (!image) return;
+            const scale = state.image === image ? state.scale : minimumScale;
+            controls.slider.value = String(scale);
+            controls.value.textContent = `${Math.round(scale * 100)}%`;
+            controls.zoomOut.disabled = scale <= minimumScale + 0.001;
+            controls.zoomIn.disabled = scale >= maximumScale - 0.001;
+            controls.zoomOut.style.setProperty(
+              'opacity', controls.zoomOut.disabled ? '0.42' : '1', 'important'
+            );
+            controls.zoomIn.style.setProperty(
+              'opacity', controls.zoomIn.disabled ? '0.42' : '1', 'important'
+            );
+          };
+          const controlScaleTo = (requestedScale, animated = false) => {
+            const image = currentViewerImage();
+            if (!image || !Number.isFinite(requestedScale)) return;
+            zoomTo(image, requestedScale, undefined, undefined, animated);
+            updateControlState(image);
+          };
+          if (controls) {
+            controls.zoomOut.addEventListener('click', (event) => {
+              event.preventDefault();
+              const image = currentViewerImage();
+              const scale = state.image === image ? state.scale : minimumScale;
+              controlScaleTo(scale / 1.25, true);
+            });
+            controls.zoomIn.addEventListener('click', (event) => {
+              event.preventDefault();
+              const image = currentViewerImage();
+              const scale = state.image === image ? state.scale : minimumScale;
+              controlScaleTo(scale * 1.25, true);
+            });
+            controls.slider.addEventListener('input', () => {
+              controlScaleTo(Number(controls.slider.value));
+            });
+            controls.resetButton.addEventListener('click', (event) => {
+              event.preventDefault();
+              reset();
+            });
+          }
 
           window.__astraXImageZoom = Object.freeze({
             magnify(rawMagnification) {
@@ -474,6 +616,7 @@ enum XImageZoomWebPolicy {
             state.gestureActive = false;
           }, { capture: true, passive: false });
           document.addEventListener('wheel', (event) => {
+            if (controls?.host.contains(event.target)) return;
             const image = currentViewerImage();
             if (!image || state.gestureActive || event.deltaY === 0) return;
             event.preventDefault();
@@ -538,12 +681,12 @@ enum XImageZoomWebPolicy {
           let refreshScheduled = false;
           const refresh = () => {
             refreshScheduled = false;
-            if (!state.image) return;
             const image = currentViewerImage();
-            if (image !== state.image || sourceFor(image) !== state.source) reset();
+            if (state.image && (image !== state.image || sourceFor(image) !== state.source)) reset();
+            updateControlState(image);
           };
           new MutationObserver(() => {
-            if (!state.image || refreshScheduled) return;
+            if (refreshScheduled) return;
             refreshScheduled = true;
             window.requestAnimationFrame(refresh);
           }).observe(document.documentElement, {
@@ -552,6 +695,7 @@ enum XImageZoomWebPolicy {
             attributes: true,
             attributeFilter: ['src']
           });
+          updateControlState();
         })();
         """
     }

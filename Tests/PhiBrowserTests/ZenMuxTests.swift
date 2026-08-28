@@ -835,6 +835,11 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertTrue(script.contains("window.__astraXImageZoomInstalled"))
         XCTAssertTrue(script.contains("window.__astraXImageZoom = Object.freeze"))
         XCTAssertTrue(script.contains("magnify(rawMagnification)"))
+        XCTAssertTrue(script.contains("__astra-x-image-zoom-controls"))
+        XCTAssertTrue(script.contains("slider.type = 'range'"))
+        XCTAssertTrue(script.contains("makeButton('−'"))
+        XCTAssertTrue(script.contains("makeButton('+'"))
+        XCTAssertTrue(script.contains("makeButton('↺'"))
     }
 
     func testXImageZoomNativeMagnificationBuildsSafeBridgeCalls() {
@@ -923,6 +928,20 @@ final class ZenMuxTests: XCTestCase {
             globalThis.innerHeight = 900;
             globalThis.__styleValues = {};
             globalThis.__listeners = [];
+            globalThis.__controlHost = null;
+            globalThis.__makeElement = (tag) => ({
+              tagName: String(tag).toUpperCase(),
+              style: {
+                values: {},
+                setProperty(name, value) { this.values[name] = value; }
+              },
+              attributes: {},
+              listeners: {},
+              children: [],
+              setAttribute(name, value) { this.attributes[name] = value; },
+              addEventListener(name, callback) { this.listeners[name] = callback; },
+              append(...children) { this.children.push(...children); }
+            });
             globalThis.HTMLImageElement = function () {};
             globalThis.__viewer = {
               getBoundingClientRect: () => ({ width: 900, height: 700, left: 0, top: 0 })
@@ -946,7 +965,9 @@ final class ZenMuxTests: XCTestCase {
             __image.setAttribute = () => {};
             __image.removeAttribute = () => {};
             globalThis.document = {
-              documentElement: {},
+              documentElement: { lang: 'zh-CN' },
+              body: { appendChild: (element) => { __controlHost = element; } },
+              createElement: (tag) => __makeElement(tag),
               addEventListener: (name) => __listeners.push(name),
               querySelectorAll: () => [__image]
             };
@@ -960,11 +981,94 @@ final class ZenMuxTests: XCTestCase {
 
         context.evaluateScript(XImageZoomWebPolicy.javaScript, withSourceURL: nil)
         let handled = context.evaluateScript("window.__astraXImageZoom.magnify(0.25)")
-        let transform = context.evaluateScript("__styleValues.transform.value")
+        let nativeTransform = context.evaluateScript("__styleValues.transform.value")
 
         XCTAssertNil(scriptException?.toString())
         XCTAssertTrue(handled?.toBool() ?? false)
-        XCTAssertTrue(transform?.toString()?.contains("scale(1.284") ?? false)
+        XCTAssertTrue(nativeTransform?.toString()?.contains("scale(1.284") ?? false)
+        XCTAssertEqual(
+            context.evaluateScript("__controlHost.id")?.toString(),
+            "__astra-x-image-zoom-controls"
+        )
+        XCTAssertEqual(
+            context.evaluateScript("__controlHost.style.values.display")?.toString(),
+            "flex"
+        )
+        XCTAssertEqual(
+            context.evaluateScript(
+                "__controlHost.children.find((element) => element.type === 'range').min"
+            )?.toString(),
+            "1"
+        )
+        XCTAssertEqual(
+            context.evaluateScript(
+                "__controlHost.children.find((element) => element.type === 'range').max"
+            )?.toString(),
+            "8"
+        )
+
+        context.evaluateScript(
+            """
+            globalThis.__slider = __controlHost.children.find(
+              (element) => element.type === 'range'
+            );
+            __slider.value = '3';
+            __slider.listeners.input();
+            """
+        )
+
+        XCTAssertNil(scriptException?.toString())
+        XCTAssertTrue(
+            context.evaluateScript("__styleValues.transform.value")?.toString()?
+                .contains("scale(3)") ?? false
+        )
+        XCTAssertEqual(
+            context.evaluateScript(
+                "__controlHost.children.find((element) => element.tagName === 'SPAN').textContent"
+            )?.toString(),
+            "300%"
+        )
+
+        context.evaluateScript(
+            """
+            globalThis.__zoomIn = __controlHost.children.find(
+              (element) => element.textContent === '+'
+            );
+            __zoomIn.listeners.click({ preventDefault() {} });
+            """
+        )
+
+        XCTAssertNil(scriptException?.toString())
+        XCTAssertTrue(
+            context.evaluateScript("__styleValues.transform.value")?.toString()?
+                .contains("scale(3.75)") ?? false
+        )
+        XCTAssertEqual(
+            context.evaluateScript(
+                "__controlHost.children.find((element) => element.tagName === 'SPAN').textContent"
+            )?.toString(),
+            "375%"
+        )
+
+        context.evaluateScript(
+            """
+            globalThis.__resetButton = __controlHost.children.find(
+              (element) => element.textContent === '↺'
+            );
+            __resetButton.listeners.click({ preventDefault() {} });
+            """
+        )
+
+        XCTAssertNil(scriptException?.toString())
+        XCTAssertFalse(
+            context.evaluateScript("Boolean(__styleValues.transform)")?.toBool() ?? true
+        )
+        XCTAssertEqual(
+            context.evaluateScript(
+                "__controlHost.children.find((element) => element.tagName === 'SPAN').textContent"
+            )?.toString(),
+            "100%"
+        )
     }
 
     @MainActor
