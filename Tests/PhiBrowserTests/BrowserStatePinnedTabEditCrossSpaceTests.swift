@@ -764,7 +764,7 @@ private final class PinnedOriginRecordingBrowserState: BrowserState {
         _ url: String?,
         customGuid: String?,
         focusAfterCreate: Bool
-    ) {
+    ) -> Tab {
         createTabRequests.append(
             .init(
                 url: url,
@@ -772,6 +772,7 @@ private final class PinnedOriginRecordingBrowserState: BrowserState {
                 focusAfterCreate: focusAfterCreate
             )
         )
+        return Tab(url: url, isActive: focusAfterCreate, index: 0, title: url ?? "")
     }
 }
 

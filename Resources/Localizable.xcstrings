@@ -335,14 +335,29 @@
       "extractionState" : "extracted_with_value",
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Capturing the visible page…" } } }
     },
+    "chat.zenMux.fetchingPageStatus" : {
+      "comment" : "ZenMux chat - Status shown while a public page is fetched for verification",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Fetching a page…" } } }
+    },
+    "chat.zenMux.searchingWebStatus" : {
+      "comment" : "ZenMux chat - Status shown while a public web search is running",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Searching the web…" } } }
+    },
+    "chat.zenMux.searchingGoogleStatus" : {
+      "comment" : "ZenMux chat - Status shown while Google Search is opened in a new tab",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Searching Google…" } } }
+    },
     "chat.zenMux.youtubeContextNotice" : {
-      "comment" : "ZenMux chat - Privacy notice explaining automatic visible-page, caption, and public-video context sharing",
+      "comment" : "ZenMux chat - Privacy notice explaining automatic visible-page, caption, public-video, and verification search sharing",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Astra Browser sends this page's visible area, readable content, available captions, and public video when captions are unavailable to ZenMux with each message."
+            "value" : "Astra Browser sends this page's visible area, readable content, available captions, and public video when captions are unavailable to ZenMux with each message. Fact-checking may also open Google Search in a new tab and fetch public web pages."
           }
         }
       }
@@ -408,13 +423,13 @@
       }
     },
     "chat.zenMux.contextNotice" : {
-      "comment" : "ZenMux chat - Privacy notice explaining automatic visible-page context sharing",
+      "comment" : "ZenMux chat - Privacy notice explaining automatic visible-page context sharing and public-web verification",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Astra Browser sends this page's visible area, title, URL, and readable content to ZenMux with each message."
+            "value" : "Astra Browser sends this page's visible area, title, URL, and readable content to ZenMux with each message. Fact-checking may also open Google Search in a new tab and fetch public web pages."
           }
         }
       }

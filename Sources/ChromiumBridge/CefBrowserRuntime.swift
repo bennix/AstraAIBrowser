@@ -1628,7 +1628,7 @@ private final class CefBrowserWindow: NSWindow {
         urlString: String,
         customGuid: String?,
         focusAfterCreate: Bool
-    ) {
+    ) -> Tab {
         let profile = profile(for: state.profileId, incognito: state.isIncognito)
         let wrapper = CefWebContentWrapper(
             urlString: urlString,
@@ -1674,6 +1674,7 @@ private final class CefBrowserWindow: NSWindow {
         if focusAfterCreate {
             state.focuseTab(tab)
         }
+        return tab
     }
 
     func close(tab: Tab, in state: BrowserState) {

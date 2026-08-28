@@ -4015,7 +4015,46 @@ class BrowserState {
         localStore.updateTabSplitPartner(partnerGuid, partnerGuid: nil)
     }
     
-    func createTab(_ url: String?, customGuid: String? = nil, focusAfterCreate: Bool = true) {
+    /// Opens Google Search in a new tab in this window (same destination as
+    /// "Search with Google"), reads the first three result pages, then leaves
+    /// the tab on page 1. Does not replace or focus the current tab, so the
+    /// chat session stays attached to the page the user was verifying.
+    @MainActor
+    func collectZenMuxGoogleSearchResults(query: String) async -> [ZenMuxWebSearchResult] {
+        guard let urls = ZenMuxWebGrounding.googleSearchURLs(forQuery: query),
+              let firstURL = urls.first else {
+            return []
+        }
+        let tab = createTab(firstURL.absoluteString, focusAfterCreate: false)
+        var collected: [ZenMuxWebSearchResult] = []
+        for (index, url) in urls.enumerated() {
+            if Task.isCancelled { break }
+            if index > 0, let wrapper = tab.webContentWrapper as? CefWebContentWrapper {
+                wrapper.navigate(toURL: url.absoluteString)
+            }
+            await waitForZenMuxGoogleSearchPage(tab)
+            guard let wrapper = tab.webContentWrapper as? CefWebContentWrapper else { continue }
+            collected.append(contentsOf: await wrapper.extractGoogleSearchResults())
+        }
+        if let wrapper = tab.webContentWrapper as? CefWebContentWrapper,
+           wrapper.urlString != firstURL.absoluteString {
+            wrapper.navigate(toURL: firstURL.absoluteString)
+        }
+        return ZenMuxWebGrounding.mergeSearchResults(collected, [])
+    }
+
+    @MainActor
+    private func waitForZenMuxGoogleSearchPage(_ tab: Tab) async {
+        try? await Task.sleep(for: .seconds(1))
+        let deadline = Date().addingTimeInterval(8)
+        while tab.isLoading, Date() < deadline, !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+        try? await Task.sleep(for: .milliseconds(1_400))
+    }
+
+    @discardableResult
+    func createTab(_ url: String?, customGuid: String? = nil, focusAfterCreate: Bool = true) -> Tab {
         AppLogDebug("🪟 [Restore] createTab request windowId=\(windowId) focus=\(focusAfterCreate) url=\(url ?? "") customGuid=\(customGuid ?? "nil")")
         let focusingTabText = focusingTab?.guid ?? -1
         AppLogDebug(
@@ -4023,7 +4062,7 @@ class BrowserState {
             "windowId=\(windowId) url=\(url ?? "") focusAfterCreate=\(focusAfterCreate) " +
             "focusingTab=\(focusingTabText) normalOrder=\(normalTabOrder)"
         )
-        MainActor.assumeIsolated {
+        return MainActor.assumeIsolated {
             CefBrowserRuntime.shared.createTab(
                 in: self,
                 urlString: url ?? "chrome://newtab",

@@ -3064,6 +3064,53 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         return await evaluateJavaScriptResult(operation: operation, timeout: 5)
     }
 
+    func extractGoogleSearchResults() async -> [ZenMuxWebSearchResult] {
+        let operation = #"""
+        const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+        const isGoogleHost = (host) => {
+          const h = (host || '').toLowerCase();
+          return h === 'google.com' || h.endsWith('.google.com') || h.startsWith('google.') ||
+            h.includes('.google.') || h === 'googleusercontent.com' || h.endsWith('.googleusercontent.com');
+        };
+        const unwrap = (href) => {
+          try {
+            const url = new URL(href, location.href);
+            if ((url.pathname === '/url' || url.pathname.startsWith('/url')) && isGoogleHost(url.hostname)) {
+              return url.searchParams.get('q') || url.searchParams.get('url') || href;
+            }
+            return url.href;
+          } catch (error) {
+            return href;
+          }
+        };
+        const items = [];
+        const seen = new Set();
+        const headings = document.querySelectorAll('#search a h3, #rso a h3, a h3');
+        for (const heading of headings) {
+          const link = heading.closest('a');
+          if (!link) continue;
+          const href = unwrap(link.href || '');
+          if (!href || seen.has(href)) continue;
+          seen.add(href);
+          const title = normalize(heading.innerText).slice(0, 200);
+          if (!title) continue;
+          const container = link.closest('div.g, div[data-hveid], div[data-sokoban-container]') || link.parentElement;
+          let snippet = '';
+          if (container) {
+            const snippetNode = container.querySelector('.VwiC3b, div[data-sncf], span.aCOpRe');
+            snippet = normalize(snippetNode ? snippetNode.innerText : '');
+          }
+          items.push({ title, url: href, snippet: snippet.slice(0, 280) });
+          if (items.length >= 10) break;
+        }
+        return JSON.stringify(items);
+        """#
+        guard let json = await evaluateJavaScriptResult(operation: operation, timeout: 5) else {
+            return []
+        }
+        return ZenMuxWebGrounding.parseGoogleSearchResults(fromJSON: json)
+    }
+
     func performBrowserAutomation(_ action: BrowserAutomationAction) async -> BrowserAutomationResult {
         switch action.kind {
         case .inspectPage:

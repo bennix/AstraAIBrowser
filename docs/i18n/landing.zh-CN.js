@@ -24,7 +24,7 @@
     "features.browserOwnership.body": "通用设置可让 Astra 完整接管 HTTP 与 HTTPS。其他 Mac 应用打开的链接会进入 Astra 内嵌的 Chromium 标签页，网站检测到的浏览器语言也会与 Astra 界面语言保持一致。",
     "features.history.title": "完整保留浏览历史",
     "features.history.body": "Astra 将浏览历史保存在持久化 Chromium 配置中，可从原生“历史记录”菜单和“通用”设置查看或清除，也可按 Command-Y 打开完整记录。",
-    "download.summary": "Build 59 将 X 和 Twitter 的放大图片渲染到独立顶层舞台，避免 X 自身样式覆盖缩放。图片与视频均支持 100%–800% 缩放、拖动平移和一键重置。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 60 支持 ZenMux 通过有次数限制的 Google、DuckDuckGo 搜索和公开网页抓取核验时效性信息。客户端提供的本地及 UTC 时间可稳定日期判断，检索内容始终按不可信数据处理，并阻止访问私有网络目标。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

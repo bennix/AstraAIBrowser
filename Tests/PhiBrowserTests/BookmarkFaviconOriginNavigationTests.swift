@@ -285,7 +285,7 @@ private final class BookmarkOriginRecordingBrowserState: BrowserState {
         _ url: String?,
         customGuid: String?,
         focusAfterCreate: Bool
-    ) {
+    ) -> Tab {
         createTabRequests.append(
             .init(
                 url: url,
@@ -294,6 +294,7 @@ private final class BookmarkOriginRecordingBrowserState: BrowserState {
             )
         )
         onCreateTab?(url)
+        return Tab(url: url, isActive: focusAfterCreate, index: 0, title: url ?? "")
     }
 }
 

@@ -22,7 +22,14 @@ Regular tabs share their title, URL, and a bounded readable-text extraction
 with ZenMux. The composer can capture the visible CEF viewport through the
 existing browser automation boundary and prepare it with the same bounded image
 pipeline used by pasted and selected files. The user sees a removable thumbnail
-before the capture is sent. For YouTube video URLs, Astra also attempts to load the available creator-provided or auto-generated
+before the capture is sent. Each request also includes the client-supplied local
+and UTC date so the model cannot treat today's calendar date as a future event.
+When the user asks whether a claim is true or current, ZenMux can call
+`web_search` and `fetch_url`. `web_search` opens Google Search in a new tab in
+this browser (the same destination as Search with Google), reads the first three
+result pages from that tab, and supplements those hits with a DuckDuckGo HTML
+search in `APIClient`. It does not replace the current tab. `fetch_url` stays in
+`APIClient`, rejects private-network targets, and returns untrusted text. For YouTube video URLs, Astra also attempts to load the available creator-provided or auto-generated
 captions and includes timestamped caption text in the model context. Caption
 text is marked as untrusted page data so it cannot override system
 instructions. Each conversation caches the result by URL and input-language
@@ -50,9 +57,13 @@ raw display delimiters.
 ZenMux chat can request a bounded set of OpenAI-compatible browser tools:
 inspect the current page, navigate, click a DOM element, enter non-secret text,
 press a safe key, wait for a dynamic element, scroll, go back, reload, or open a
-URL in a new tab. The chat session owns the tool-call loop, while
-`CefWebContentWrapper` owns DOM inspection and action execution. This preserves
-the Chromium integration boundary and keeps network requests in `APIClient`.
+URL in a new tab. It can also request two grounding tools: `web_search` and
+`fetch_url`. The chat session owns the tool-call loop. `BrowserState` opens
+Google Search in a new Chromium tab for `web_search` (three result pages),
+`CefWebContentWrapper` owns SERP extraction plus DOM inspection and action
+execution, and `APIClient` owns the DuckDuckGo supplement and public page fetch.
+This preserves the Chromium integration boundary and keeps HTTP search/fetch in
+`APIClient`.
 
 Page inspection returns sanitized element HTML, accessibility state, a CSS
 selector, a stable per-node reference, and a compatibility numeric index for
@@ -85,15 +96,16 @@ ZenMux credential inside the existing credential path, and preserves the
 signed app's current lifecycle model.
 
 Page content remains untrusted context and cannot authorize tool use. Password,
-verification-code, and payment fields reject AI input. Routine controls do not
+verification-code, and payment fields reject AI input. Search snippets and fetched
+pages are wrapped as untrusted data in the same way. Routine controls do not
 show repeated confirmation prompts; native confirmation remains for submit
 controls. A dispatched action is never treated as proof of completion: Astra
 requires two post-action DOM inspections after every state-changing action
 before the assistant can provide its final answer. The snapshots are sampled
 separately so delayed web-app updates can be detected, and inconsistent states
-must be reported as unverified. A single chat request is limited to
-thirty-two tool rounds, and the prompt directs the model to stop repeated
-unchanged inspections or actions.
+must be reported as unverified. A single chat request is limited to three web
+searches, two page fetches, and thirty-two tool rounds, and the prompt directs
+the model to stop repeated unchanged inspections or actions.
 
 ## Website passwords and Touch ID
 

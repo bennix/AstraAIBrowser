@@ -545,6 +545,199 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertEqual(BrowserAutomationAction.Kind.openTab.rawValue, "open_tab")
     }
 
+    func testCurrentTimeContextUsesClientClockNotTrainingCutoff() throws {
+        let timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Tokyo"))
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 8,
+            day: 28,
+            hour: 22,
+            minute: 13,
+            second: 0
+        )))
+        let lines = ZenMuxChatSession.currentTimeContextLines(
+            now: now,
+            timeZone: timeZone,
+            locale: Locale(identifier: "en_US_POSIX")
+        )
+        let joined = lines.joined(separator: "\n")
+
+        XCTAssertTrue(joined.contains("2026-08-28"))
+        XCTAssertTrue(joined.contains("Friday"))
+        XCTAssertTrue(joined.contains("Asia/Tokyo"))
+        XCTAssertTrue(joined.contains("2026-08-28T13:13:00Z"))
+        XCTAssertTrue(joined.contains("training"))
+        XCTAssertFalse(joined.contains("time paradox"))
+    }
+
+    func testSystemPromptAllowsVerificationToolsWithoutHijackingTheTab() {
+        let lines = ZenMuxChatSession.makeSystemPromptLines(
+            model: .geminiFlash,
+            pageContext: ZenMuxPageContext(title: "Example", url: "https://example.com"),
+            inputLanguage: .automatic,
+            responseLanguage: .matchInput,
+            transcriptContext: nil,
+            videoAnalysisContext: nil,
+            relevantMemories: [],
+            includesUserImages: false,
+            includesCurrentPageImage: false,
+            now: Date(timeIntervalSince1970: 1_788_000_000),
+            timeZone: TimeZone(secondsFromGMT: 0)!,
+            locale: Locale(identifier: "en_US_POSIX")
+        )
+        let prompt = lines.joined(separator: "\n")
+
+        XCTAssertTrue(prompt.contains("web_search"))
+        XCTAssertTrue(prompt.contains("fetch_url"))
+        XCTAssertTrue(prompt.contains("Do not use navigate or open_tab to search or verify facts"))
+        XCTAssertTrue(prompt.contains("Google"))
+        XCTAssertTrue(prompt.contains("three"))
+        XCTAssertTrue(prompt.contains("new tab"))
+        XCTAssertFalse(prompt.contains(
+            "only through the supplied tools when the user's latest message explicitly requests an action"
+        ))
+        XCTAssertTrue(prompt.contains("training cutoff"))
+    }
+
+    func testGroundingToolsAreRegisteredForEveryModel() {
+        for model in ZenMuxModel.allCases {
+            let names = APIClient.zenMuxToolNames(for: model)
+            XCTAssertTrue(names.contains("web_search"), "\(model.rawValue) missing web_search")
+            XCTAssertTrue(names.contains("fetch_url"), "\(model.rawValue) missing fetch_url")
+            XCTAssertTrue(names.contains("inspect_page"))
+        }
+        XCTAssertNil(BrowserAutomationAction.Kind(rawValue: "web_search"))
+        XCTAssertNil(BrowserAutomationAction.Kind(rawValue: "fetch_url"))
+        XCTAssertTrue(ZenMuxWebGrounding.isToolName("web_search"))
+        XCTAssertTrue(ZenMuxWebGrounding.isToolName("fetch_url"))
+        XCTAssertFalse(ZenMuxWebGrounding.isToolName("inspect_page"))
+    }
+
+    func testPublicWebURLPolicyBlocksPrivateAndNonWebTargets() {
+        XCTAssertNil(ZenMuxWebGrounding.validatedPublicWebURL(from: "http://localhost/secret"))
+        XCTAssertNil(ZenMuxWebGrounding.validatedPublicWebURL(from: "http://127.0.0.1/"))
+        XCTAssertNil(ZenMuxWebGrounding.validatedPublicWebURL(from: "http://10.0.0.4/admin"))
+        XCTAssertNil(ZenMuxWebGrounding.validatedPublicWebURL(from: "http://192.168.1.1/"))
+        XCTAssertNil(ZenMuxWebGrounding.validatedPublicWebURL(from: "http://169.254.169.254/latest/meta-data"))
+        XCTAssertNil(ZenMuxWebGrounding.validatedPublicWebURL(from: "http://[::1]/"))
+        XCTAssertNil(ZenMuxWebGrounding.validatedPublicWebURL(from: "file:///etc/passwd"))
+        XCTAssertNil(ZenMuxWebGrounding.validatedPublicWebURL(from: "javascript:alert(1)"))
+        XCTAssertNil(ZenMuxWebGrounding.validatedPublicWebURL(from: "https://user:pass@example.com/"))
+        XCTAssertNil(ZenMuxWebGrounding.validatedPublicWebURL(from: "https://metadata.google.internal/"))
+        XCTAssertEqual(
+            ZenMuxWebGrounding.validatedPublicWebURL(from: "https://www.xinhuanet.com/politics/2026-08/28/c_123.htm")?.host,
+            "www.xinhuanet.com"
+        )
+        XCTAssertFalse(ZenMuxWebGrounding.hostResolvesToPublicInternet("localhost"))
+        XCTAssertFalse(ZenMuxWebGrounding.hostResolvesToPublicInternet("127.0.0.1"))
+    }
+
+    func testDuckDuckGoSearchParserUnwrapsRedirectsAndStripsTags() {
+        let html = """
+        <div class="result">
+          <a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.xinhuanet.com%2Fpolitics%2Flist.htm">
+            NPC Standing Committee removal list
+          </a>
+          <a class="result__snippet">Authorized release dated August 28, 2026.</a>
+        </div>
+        <div class="result">
+          <a class="result__a" href="https://example.com/news">Example News</a>
+          <a class="result__snippet">Independent coverage &amp; quotes.</a>
+        </div>
+        """
+        let results = ZenMuxWebGrounding.parseDuckDuckGoSearchResults(from: html)
+
+        XCTAssertEqual(results.count, 2)
+        XCTAssertEqual(results[0].title, "NPC Standing Committee removal list")
+        XCTAssertEqual(results[0].url, "https://www.xinhuanet.com/politics/list.htm")
+        XCTAssertEqual(results[0].snippet, "Authorized release dated August 28, 2026.")
+        XCTAssertEqual(results[1].url, "https://example.com/news")
+        XCTAssertEqual(results[1].snippet, "Independent coverage & quotes.")
+
+        let extracted = ZenMuxWebGrounding.extractReadableText(
+            fromHTML: "<html><script>alert(1)</script><p>Headline</p><style>p{}</style><p>Body &amp; facts</p></html>",
+            maximumCharacters: 50_000
+        )
+        XCTAssertEqual(extracted.text, "Headline\nBody & facts")
+        XCTAssertFalse(extracted.isTruncated)
+        XCTAssertFalse(extracted.text.contains("alert"))
+    }
+
+    func testGoogleSearchURLsCoverTheFirstThreeResultPages() throws {
+        let urls = try XCTUnwrap(ZenMuxWebGrounding.googleSearchURLs(forQuery: "current cabinet appointment"))
+        XCTAssertEqual(urls.count, 3)
+        XCTAssertEqual(ZenMuxWebGrounding.googleSearchPageCount, 3)
+        XCTAssertEqual(urls[0].host, "www.google.com")
+        XCTAssertTrue(urls[0].absoluteString.contains("q="))
+        XCTAssertFalse(urls[0].absoluteString.contains("start="))
+        XCTAssertTrue(urls[1].absoluteString.contains("start=10"))
+        XCTAssertTrue(urls[2].absoluteString.contains("start=20"))
+        XCTAssertEqual(urls[0].absoluteString, URLProcessor.googleSearchURL(for: "current cabinet appointment"))
+        XCTAssertNil(ZenMuxWebGrounding.googleSearchURLs(forQuery: "   "))
+    }
+
+    func testGoogleSearchResultParserUnwrapsRedirectsAndDropsGoogleHosts() {
+        let json = """
+        [
+          {"title":"Xinhua list","url":"https://www.google.com/url?q=https%3A%2F%2Fwww.xinhuanet.com%2Flist.htm&sa=U","snippet":"NPC standing committee"},
+          {"title":"Google account","url":"https://accounts.google.com/ServiceLogin","snippet":"Sign in"},
+          {"title":"Example","url":"https://example.com/news","snippet":"Independent coverage"}
+        ]
+        """
+        let parsed = ZenMuxWebGrounding.parseGoogleSearchResults(fromJSON: json)
+        XCTAssertEqual(parsed.map(\.url), [
+            "https://www.xinhuanet.com/list.htm",
+            "https://example.com/news",
+        ])
+        XCTAssertEqual(parsed[0].source, "google")
+        XCTAssertEqual(parsed[0].title, "Xinhua list")
+
+        let merged = ZenMuxWebGrounding.mergeSearchResults(
+            [
+                ZenMuxWebSearchResult(
+                    title: "Google hit",
+                    url: "https://www.xinhuanet.com/list.htm",
+                    snippet: "from google",
+                    source: "google"
+                ),
+            ],
+            [
+                ZenMuxWebSearchResult(
+                    title: "DDG hit",
+                    url: "https://www.xinhuanet.com/list.htm",
+                    snippet: "from ddg",
+                    source: "duckduckgo"
+                ),
+                ZenMuxWebSearchResult(
+                    title: "Other",
+                    url: "https://example.com/other",
+                    snippet: "extra",
+                    source: "duckduckgo"
+                ),
+            ]
+        )
+        XCTAssertEqual(merged.map(\.url), [
+            "https://www.xinhuanet.com/list.htm",
+            "https://example.com/other",
+        ])
+        XCTAssertEqual(merged[0].source, "google")
+    }
+
+    func testWebGroundingBudgetCapsSearchAndFetch() {
+        var budget = ZenMuxWebGroundingBudget()
+        XCTAssertEqual(ZenMuxWebGroundingBudget.maximumSearchQueries, 3)
+        XCTAssertEqual(ZenMuxWebGroundingBudget.maximumPageFetches, 2)
+        XCTAssertTrue(budget.consumeSearch())
+        XCTAssertTrue(budget.consumeSearch())
+        XCTAssertTrue(budget.consumeSearch())
+        XCTAssertFalse(budget.consumeSearch())
+        XCTAssertTrue(budget.consumeFetch())
+        XCTAssertTrue(budget.consumeFetch())
+        XCTAssertFalse(budget.consumeFetch())
+    }
+
     func testVisualAutomationCoordinatesAreBoundedAndNormalized() throws {
         XCTAssertNil(BrowserAutomationPoint(x: -1, y: 500))
         XCTAssertNil(BrowserAutomationPoint(x: 500, y: 1_001))

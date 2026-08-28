@@ -278,7 +278,10 @@ final class NewTabViewController: NSViewController {
 
         Task { @MainActor in
             await session.send(
-                pageContext: ZenMuxPageContext(title: tab.title, url: tab.url)
+                pageContext: ZenMuxPageContext(title: tab.title, url: tab.url),
+                googleSearch: { [weak browserState] query in
+                    await browserState?.collectZenMuxGoogleSearchResults(query: query) ?? []
+                }
             )
             session.requestFocus()
         }
