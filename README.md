@@ -3,9 +3,9 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 60)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.60/Astra-Browser-build60.dmg)
+[Download Astra 1.0 (build 61)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.61/Astra-Browser-build61.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.60)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.61)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
@@ -35,6 +35,7 @@ and accepted by Apple's notarization service.
 - Chrome Web Store installs remain inside Astra and installed extension actions stay visible on Chromium-rendered pages.
 - Newly opened YouTube and other Chromium-heavy tabs stay attached to Astra, and close promptly even if the underlying Chromium window has already disappeared.
 - X and Twitter image viewers provide visible zoom-out, 100%–800% slider, zoom-in, percentage, and reset controls, alongside native trackpad pinch, wheel, double-click zoom, and drag-to-pan.
+- Selected-text Google searches on X and other WebKit-rendered pages open in a new Astra tab instead of Safari, including selections inside text fields.
 - X pages include a native local-first spam shield with whitelist precedence, reversible hiding, one-click Guard blocking with on-pill progress, a six-hour primary-source update check, GitHub mirror fallback, and manual database updates in General settings.
 - Astra's icon and installation identity remain stable across restarts; the legacy Phi updater cannot replace the installed app.
 - Google website sign-in remains available without associating the account with Astra at the browser level or enabling browser sync.

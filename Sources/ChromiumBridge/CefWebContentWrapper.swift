@@ -978,6 +978,58 @@ enum VisiblePageCaptureRoute: Equatable {
 }
 
 @MainActor
+final class SystemMediaWebView: WKWebView {
+    static let searchWebMenuItemIdentifier = NSUserInterfaceItemIdentifier(
+        "WKMenuItemIdentifierSearchWeb"
+    )
+
+    var onSearchSelectedText: ((String) -> Void)?
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = super.menu(for: event)
+        if let menu {
+            routeSearchWebMenuItems(in: menu)
+        }
+        return menu
+    }
+
+    func routeSearchWebMenuItems(in menu: NSMenu) {
+        for item in menu.items {
+            if item.identifier == Self.searchWebMenuItemIdentifier {
+                item.target = self
+                item.action = #selector(searchSelectedTextInNewTab(_:))
+            }
+            if let submenu = item.submenu {
+                routeSearchWebMenuItems(in: submenu)
+            }
+        }
+    }
+
+    @objc func searchSelectedTextInNewTab(_ sender: NSMenuItem) {
+        evaluateJavaScript(Self.selectedTextJavaScript) { [weak self] value, _ in
+            guard let selectedText = value as? String else { return }
+            let query = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !query.isEmpty else { return }
+            MainActor.assumeIsolated {
+                self?.onSearchSelectedText?(query)
+            }
+        }
+    }
+
+    private static let selectedTextJavaScript = """
+    (() => {
+      const activeElement = document.activeElement;
+      if ((activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement)
+          && Number.isInteger(activeElement.selectionStart)
+          && Number.isInteger(activeElement.selectionEnd)) {
+        return activeElement.value.slice(activeElement.selectionStart, activeElement.selectionEnd);
+      }
+      return window.getSelection()?.toString() || '';
+    })()
+    """
+}
+
+@MainActor
 final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, CefBrowserDelegate, PageContentProviding, BrowserAutomationProviding, MediaSessionCookieProviding, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
     private final class PendingConsoleEvaluation {
         let continuation: CheckedContinuation<String?, Never>
@@ -991,12 +1043,15 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     }
 
     private final class SystemMediaPopupHost: NSObject, WKUIDelegate, NSWindowDelegate {
-        let webView: WKWebView
+        let webView: SystemMediaWebView
         let window: NSWindow
         var onClose: (() -> Void)?
 
-        init(configuration: WKWebViewConfiguration) {
-            webView = WKWebView(frame: .zero, configuration: configuration)
+        init(
+            configuration: WKWebViewConfiguration,
+            onSearchSelectedText: @escaping (String) -> Void
+        ) {
+            webView = SystemMediaWebView(frame: .zero, configuration: configuration)
             window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 560, height: 720),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -1004,6 +1059,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                 defer: false
             )
             super.init()
+            webView.onSearchSelectedText = onSearchSelectedText
             webView.customUserAgent = SupportedBrowserUserAgent.safariCompatibleUserAgent
             webView.uiDelegate = self
             window.delegate = self
@@ -1335,7 +1391,10 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                 forMainFrameOnly: true
             )
         )
-        let webView = WKWebView(frame: hostView.bounds, configuration: configuration)
+        let webView = SystemMediaWebView(frame: hostView.bounds, configuration: configuration)
+        webView.onSearchSelectedText = { [weak self] query in
+            self?.openSystemMediaSearchInNewTab(query)
+        }
         webView.customUserAgent = SupportedBrowserUserAgent.safariCompatibleUserAgent
         webView.navigationDelegate = self
         webView.uiDelegate = self
@@ -1366,6 +1425,11 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         guard allowsCredentialStorage else { return .nonPersistent() }
         let identifier = SystemMediaCompatibilityPolicy.dataStoreIdentifier(forProfileId: profileId)
         return WKWebsiteDataStore(forIdentifier: identifier)
+    }
+
+    private func openSystemMediaSearchInNewTab(_ query: String) {
+        guard let url = URL(string: URLProcessor.googleSearchURL(for: query)) else { return }
+        onOpenURLInNewTab?(url, true)
     }
 
     private func removeSystemMediaWebView() {
@@ -3823,7 +3887,12 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     ) -> WKWebView? {
         guard let destination = navigationAction.request.url else { return nil }
         if BrowserWindowOpenPolicy.isIdentityProviderURL(destination) {
-            let popupHost = SystemMediaPopupHost(configuration: configuration)
+            let popupHost = SystemMediaPopupHost(
+                configuration: configuration,
+                onSearchSelectedText: { [weak self] query in
+                    self?.openSystemMediaSearchInNewTab(query)
+                }
+            )
             let identifier = ObjectIdentifier(popupHost)
             popupHost.onClose = { [weak self] in
                 self?.systemMediaPopupHosts.removeValue(forKey: identifier)
