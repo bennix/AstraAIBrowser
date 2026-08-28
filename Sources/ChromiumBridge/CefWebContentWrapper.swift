@@ -314,22 +314,31 @@ enum XImageZoomWebPolicy {
               else image.style.removeProperty(name);
             }
           };
-          const isVisible = (image) => {
-            if (!(image instanceof HTMLImageElement)) return false;
-            const rect = image.getBoundingClientRect();
-            const style = getComputedStyle(image);
+          const isMediaElement = (media) => {
+            const isImage = typeof HTMLImageElement !== 'undefined'
+              && media instanceof HTMLImageElement;
+            const isVideo = typeof HTMLVideoElement !== 'undefined'
+              && media instanceof HTMLVideoElement;
+            return isImage || isVideo;
+          };
+          const isVisible = (media) => {
+            if (!isMediaElement(media)) return false;
+            const rect = media.getBoundingClientRect();
+            const style = getComputedStyle(media);
             return rect.width >= 120 && rect.height >= 120
               && style.display !== 'none' && style.visibility !== 'hidden';
           };
-          const isViewerImage = (image) => {
-            if (!isVisible(image)) return false;
-            const source = sourceFor(image);
+          const isViewerMedia = (media) => {
+            if (!isVisible(media)) return false;
+            const source = sourceFor(media);
             const isXMedia = source.includes('pbs.twimg.com/media/');
-            const isSwipeImage = Boolean(image.closest('[data-testid="swipe-to-dismiss"]'));
-            return Boolean(image.closest('[role="dialog"], [data-testid="swipe-to-dismiss"]'))
-              && (isXMedia || isSwipeImage);
+            const isVideo = typeof HTMLVideoElement !== 'undefined'
+              && media instanceof HTMLVideoElement;
+            const isSwipeMedia = Boolean(media.closest('[data-testid="swipe-to-dismiss"]'));
+            return Boolean(media.closest('[role="dialog"], [data-testid="swipe-to-dismiss"]'))
+              && (isVideo || isXMedia || isSwipeMedia);
           };
-          const currentViewerImage = () => {
+          const currentViewerMedia = () => {
             let selected = null;
             let selectedScore = 0;
             const viewportWidth = Math.max(
@@ -341,10 +350,12 @@ enum XImageZoomWebPolicy {
               Number(window.innerHeight) || 0
             );
             document.querySelectorAll(
-              '[role="dialog"] img, [data-testid="swipe-to-dismiss"] img'
-            ).forEach((image) => {
-              if (!isViewerImage(image)) return;
-              const rect = image.getBoundingClientRect();
+              '[role="dialog"] img, [role="dialog"] video, '
+                + '[data-testid="swipe-to-dismiss"] img, '
+                + '[data-testid="swipe-to-dismiss"] video'
+            ).forEach((media) => {
+              if (!isViewerMedia(media)) return;
+              const rect = media.getBoundingClientRect();
               const rectRight = Number.isFinite(rect.right) ? rect.right : rect.left + rect.width;
               const rectBottom = Number.isFinite(rect.bottom) ? rect.bottom : rect.top + rect.height;
               const visibleWidth = Math.max(
@@ -359,17 +370,18 @@ enum XImageZoomWebPolicy {
               if (visibleArea <= 0) return;
               const totalArea = Math.max(1, rect.width * rect.height);
               const visibleRatio = visibleArea / totalArea;
-              const mediaWeight = sourceFor(image).includes('pbs.twimg.com/media/') ? 2 : 1;
+              const mediaWeight = sourceFor(media).includes('pbs.twimg.com/media/') ? 2 : 1;
               let hitWeight = 1;
               if (typeof document.elementsFromPoint === 'function') {
                 const sampleX = Math.max(0, Math.min(viewportWidth - 1, rect.left + rect.width / 2));
                 const sampleY = Math.max(0, Math.min(viewportHeight - 1, rect.top + rect.height / 2));
                 const hitStack = document.elementsFromPoint(sampleX, sampleY);
-                hitWeight = hitStack.includes(image) ? 4 : 0.25;
+                const topMedia = hitStack.find(isMediaElement);
+                hitWeight = topMedia === media ? 8 : (hitStack.includes(media) ? 0.5 : 0.25);
               }
               const score = visibleArea * (1 + visibleRatio) * mediaWeight * hitWeight;
               if (score > selectedScore) {
-                selected = image;
+                selected = media;
                 selectedScore = score;
               }
             });
@@ -398,7 +410,7 @@ enum XImageZoomWebPolicy {
             updateControlState();
           };
           const activate = (image) => {
-            if (!isViewerImage(image)) return false;
+            if (!isViewerMedia(image)) return false;
             const source = sourceFor(image);
             if (state.image === image && state.source === source) return true;
             reset();
@@ -563,7 +575,7 @@ enum XImageZoomWebPolicy {
 
           const updateControlState = (preferredImage) => {
             if (!controls) return;
-            const image = preferredImage || currentViewerImage();
+            const image = preferredImage || currentViewerMedia();
             controls.host.style.setProperty('display', image ? 'flex' : 'none', 'important');
             if (!image) return;
             const scale = state.image === image ? state.scale : minimumScale;
@@ -579,7 +591,7 @@ enum XImageZoomWebPolicy {
             );
           };
           const controlScaleTo = (requestedScale, animated = false) => {
-            const image = currentViewerImage();
+            const image = currentViewerMedia();
             if (!image || !Number.isFinite(requestedScale)) return;
             zoomTo(image, requestedScale, undefined, undefined, animated);
             updateControlState(image);
@@ -587,13 +599,13 @@ enum XImageZoomWebPolicy {
           if (controls) {
             controls.zoomOut.addEventListener('click', (event) => {
               event.preventDefault();
-              const image = currentViewerImage();
+              const image = currentViewerMedia();
               const scale = state.image === image ? state.scale : minimumScale;
               controlScaleTo(scale / 1.25, true);
             });
             controls.zoomIn.addEventListener('click', (event) => {
               event.preventDefault();
-              const image = currentViewerImage();
+              const image = currentViewerMedia();
               const scale = state.image === image ? state.scale : minimumScale;
               controlScaleTo(scale * 1.25, true);
             });
@@ -608,7 +620,7 @@ enum XImageZoomWebPolicy {
 
           window.__astraXImageZoom = Object.freeze({
             magnify(rawMagnification) {
-              const image = currentViewerImage();
+              const image = currentViewerMedia();
               const magnification = Number(rawMagnification);
               if (!image || !Number.isFinite(magnification) || magnification === 0) return false;
               const currentScale = state.image === image ? state.scale : minimumScale;
@@ -619,7 +631,7 @@ enum XImageZoomWebPolicy {
           });
 
           document.addEventListener('gesturestart', (event) => {
-            const image = currentViewerImage();
+            const image = currentViewerMedia();
             if (!image || !activate(image)) return;
             event.preventDefault();
             event.stopPropagation();
@@ -627,7 +639,7 @@ enum XImageZoomWebPolicy {
             state.gestureStartScale = state.scale;
           }, { capture: true, passive: false });
           document.addEventListener('gesturechange', (event) => {
-            const image = currentViewerImage();
+            const image = currentViewerMedia();
             if (!image || !state.gestureActive) return;
             event.preventDefault();
             event.stopPropagation();
@@ -646,7 +658,7 @@ enum XImageZoomWebPolicy {
           }, { capture: true, passive: false });
           document.addEventListener('wheel', (event) => {
             if (controls?.host.contains(event.target)) return;
-            const image = currentViewerImage();
+            const image = currentViewerMedia();
             if (!image || state.gestureActive || event.deltaY === 0) return;
             event.preventDefault();
             event.stopPropagation();
@@ -656,7 +668,7 @@ enum XImageZoomWebPolicy {
             zoomTo(image, currentScale * factor, event.clientX, event.clientY);
           }, { capture: true, passive: false });
           document.addEventListener('dblclick', (event) => {
-            const image = currentViewerImage();
+            const image = currentViewerMedia();
             if (!image || event.target !== image) return;
             event.preventDefault();
             event.stopPropagation();
@@ -710,7 +722,7 @@ enum XImageZoomWebPolicy {
           let refreshScheduled = false;
           const refresh = () => {
             refreshScheduled = false;
-            const image = currentViewerImage();
+            const image = currentViewerMedia();
             if (state.image && (image !== state.image || sourceFor(image) !== state.source)) reset();
             updateControlState(image);
           };

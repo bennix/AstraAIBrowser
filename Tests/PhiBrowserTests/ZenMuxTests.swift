@@ -826,6 +826,7 @@ final class ZenMuxTests: XCTestCase {
 
         XCTAssertTrue(script.contains("pbs.twimg.com/media/"))
         XCTAssertTrue(script.contains("[role=\"dialog\"] img"))
+        XCTAssertTrue(script.contains("[role=\"dialog\"] video"))
         XCTAssertTrue(script.contains("gesturestart"))
         XCTAssertTrue(script.contains("gesturechange"))
         XCTAssertTrue(script.contains("addEventListener('wheel'"))
@@ -928,6 +929,7 @@ final class ZenMuxTests: XCTestCase {
             globalThis.innerHeight = 900;
             globalThis.__styleValues = {};
             globalThis.__offscreenStyleValues = {};
+            globalThis.__videoStyleValues = {};
             globalThis.__listeners = [];
             globalThis.__documentListeners = {};
             globalThis.__controlHost = null;
@@ -945,6 +947,7 @@ final class ZenMuxTests: XCTestCase {
               append(...children) { this.children.push(...children); }
             });
             globalThis.HTMLImageElement = function () {};
+            globalThis.HTMLVideoElement = function () {};
             globalThis.__viewer = {
               getBoundingClientRect: () => ({ width: 900, height: 700, left: 0, top: 0 })
             };
@@ -984,6 +987,8 @@ final class ZenMuxTests: XCTestCase {
             __offscreenImage.getAttribute = () => null;
             __offscreenImage.setAttribute = () => {};
             __offscreenImage.removeAttribute = () => {};
+            globalThis.__mediaElements = [__offscreenImage, __image];
+            globalThis.__hitStack = [__image];
             globalThis.document = {
               documentElement: { lang: 'zh-CN' },
               body: { appendChild: (element) => { __controlHost = element; } },
@@ -992,7 +997,8 @@ final class ZenMuxTests: XCTestCase {
                 __listeners.push(name);
                 __documentListeners[name] = callback;
               },
-              querySelectorAll: () => [__offscreenImage, __image]
+              querySelectorAll: () => __mediaElements,
+              elementsFromPoint: () => __hitStack
             };
             globalThis.MutationObserver = function () { this.observe = function () {}; };
             globalThis.getComputedStyle = () => ({ display: 'block', visibility: 'visible' });
@@ -1116,6 +1122,53 @@ final class ZenMuxTests: XCTestCase {
                 "__controlHost.children.find((element) => element.tagName === 'SPAN').textContent"
             )?.toString(),
             "100%"
+        )
+
+        context.evaluateScript(
+            """
+            globalThis.__video = new HTMLVideoElement();
+            __video.currentSrc = 'blob:https://x.com/active-video';
+            __video.src = __video.currentSrc;
+            __video.style = {
+              getPropertyValue: (name) => __videoStyleValues[name]?.value || '',
+              getPropertyPriority: (name) => __videoStyleValues[name]?.priority || '',
+              setProperty: (name, value, priority) => {
+                __videoStyleValues[name] = { value, priority };
+              },
+              removeProperty: (name) => { delete __videoStyleValues[name]; }
+            };
+            __video.getBoundingClientRect = () => ({
+              width: 800, height: 600, left: 100, top: 100
+            });
+            __video.closest = () => __viewer;
+            __video.getAttribute = () => null;
+            __video.setAttribute = () => {};
+            __video.removeAttribute = () => {};
+            __mediaElements = [__offscreenImage, __image, __video];
+            __hitStack = [__video, __image];
+            window.__astraXImageZoom.magnify(0.5);
+            __documentListeners.pointerdown(__pointerEvent({
+              target: __video,
+              pointerId: 9,
+              clientX: 500,
+              clientY: 400
+            }));
+            __documentListeners.pointermove(__pointerEvent({
+              target: __video,
+              pointerId: 9,
+              clientX: 525,
+              clientY: 420
+            }));
+            """
+        )
+
+        XCTAssertNil(scriptException?.toString())
+        XCTAssertTrue(
+            context.evaluateScript("__videoStyleValues.transform.value")?.toString()?
+                .contains("translate3d(25px, 20px, 0) scale(1.648") ?? false
+        )
+        XCTAssertFalse(
+            context.evaluateScript("Boolean(__styleValues.transform)")?.toBool() ?? true
         )
     }
 
