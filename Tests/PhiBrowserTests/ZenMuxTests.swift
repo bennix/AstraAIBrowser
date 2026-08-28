@@ -833,6 +833,22 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertTrue(script.contains("addEventListener('pointermove'"))
         XCTAssertTrue(script.contains("const maximumScale = 8"))
         XCTAssertTrue(script.contains("window.__astraXImageZoomInstalled"))
+        XCTAssertTrue(script.contains("window.__astraXImageZoom = Object.freeze"))
+        XCTAssertTrue(script.contains("magnify(rawMagnification)"))
+    }
+
+    func testXImageZoomNativeMagnificationBuildsSafeBridgeCalls() {
+        XCTAssertEqual(
+            XImageZoomWebPolicy.nativeMagnificationJavaScript(0.25),
+            "window.__astraXImageZoom?.magnify(0.25);"
+        )
+        XCTAssertEqual(
+            XImageZoomWebPolicy.nativeMagnificationJavaScript(-0.125),
+            "window.__astraXImageZoom?.magnify(-0.125);"
+        )
+        XCTAssertNil(XImageZoomWebPolicy.nativeMagnificationJavaScript(0))
+        XCTAssertNil(XImageZoomWebPolicy.nativeMagnificationJavaScript(.nan))
+        XCTAssertNil(XImageZoomWebPolicy.nativeMagnificationJavaScript(.infinity))
     }
 
     func testXImageZoomScriptParsesAndLeavesOtherHostsUntouched() throws {
@@ -891,6 +907,64 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertTrue(context.evaluateScript("__listeners.includes('gesturestart')")?.toBool() ?? false)
         XCTAssertTrue(context.evaluateScript("__listeners.includes('wheel')")?.toBool() ?? false)
         XCTAssertTrue(context.evaluateScript("__listeners.includes('pointermove')")?.toBool() ?? false)
+    }
+
+    func testXImageZoomNativeBridgeMagnifiesTheVisibleXImage() throws {
+        let context = try XCTUnwrap(JSContext())
+        var scriptException: JSValue?
+        context.exceptionHandler = { _, exception in
+            scriptException = exception
+        }
+        context.evaluateScript(
+            """
+            globalThis.window = globalThis;
+            globalThis.location = { hostname: 'x.com' };
+            globalThis.innerWidth = 1200;
+            globalThis.innerHeight = 900;
+            globalThis.__styleValues = {};
+            globalThis.__listeners = [];
+            globalThis.HTMLImageElement = function () {};
+            globalThis.__viewer = {
+              getBoundingClientRect: () => ({ width: 900, height: 700, left: 0, top: 0 })
+            };
+            globalThis.__image = new HTMLImageElement();
+            __image.currentSrc = 'https://pbs.twimg.com/media/example.jpg';
+            __image.src = __image.currentSrc;
+            __image.style = {
+              getPropertyValue: (name) => __styleValues[name]?.value || '',
+              getPropertyPriority: (name) => __styleValues[name]?.priority || '',
+              setProperty: (name, value, priority) => {
+                __styleValues[name] = { value, priority };
+              },
+              removeProperty: (name) => { delete __styleValues[name]; }
+            };
+            __image.getBoundingClientRect = () => ({
+              width: 800, height: 600, left: 100, top: 100
+            });
+            __image.closest = () => __viewer;
+            __image.getAttribute = () => null;
+            __image.setAttribute = () => {};
+            __image.removeAttribute = () => {};
+            globalThis.document = {
+              documentElement: {},
+              addEventListener: (name) => __listeners.push(name),
+              querySelectorAll: () => [__image]
+            };
+            globalThis.MutationObserver = function () { this.observe = function () {}; };
+            globalThis.getComputedStyle = () => ({ display: 'block', visibility: 'visible' });
+            globalThis.addEventListener = (name) => __listeners.push(name);
+            globalThis.requestAnimationFrame = (callback) => callback();
+            """,
+            withSourceURL: nil
+        )
+
+        context.evaluateScript(XImageZoomWebPolicy.javaScript, withSourceURL: nil)
+        let handled = context.evaluateScript("window.__astraXImageZoom.magnify(0.25)")
+        let transform = context.evaluateScript("__styleValues.transform.value")
+
+        XCTAssertNil(scriptException?.toString())
+        XCTAssertTrue(handled?.toBool() ?? false)
+        XCTAssertTrue(transform?.toString()?.contains("scale(1.284") ?? false)
     }
 
     @MainActor

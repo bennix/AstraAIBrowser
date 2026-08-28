@@ -3,9 +3,9 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 54)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.54/Astra-Browser-build54.dmg)
+[Download Astra 1.0 (build 55)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.55/Astra-Browser-build55.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.54)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.55)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
@@ -33,7 +33,7 @@ and accepted by Apple's notarization service.
 - Grok stays in its persistent Chromium session after sign-in, and X OAuth popups retain their originating page relationship.
 - Chrome Web Store installs remain inside Astra and installed extension actions stay visible on Chromium-rendered pages.
 - Newly opened YouTube and other Chromium-heavy tabs stay attached to Astra, and close promptly even if the underlying Chromium window has already disappeared.
-- X and Twitter image viewers support trackpad pinch, wheel, and double-click zoom up to 8×, with drag-to-pan and automatic reset when the viewer closes or changes media.
+- X and Twitter image viewers support native macOS trackpad pinch, wheel, and double-click zoom up to 8×, with drag-to-pan and automatic reset when the viewer closes or changes media.
 - X pages include a native local-first spam shield with whitelist precedence, reversible hiding, one-click Guard blocking with on-pill progress, a six-hour primary-source update check, GitHub mirror fallback, and manual database updates in General settings.
 - Astra's icon and installation identity remain stable across restarts; the legacy Phi updater cannot replace the installed app.
 - Google website sign-in remains available without associating the account with Astra at the browser level or enabling browser sync.

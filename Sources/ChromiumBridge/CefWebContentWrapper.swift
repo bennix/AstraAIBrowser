@@ -251,6 +251,11 @@ enum XImageZoomWebPolicy {
         }
     }
 
+    static func nativeMagnificationJavaScript(_ magnification: CGFloat) -> String? {
+        guard magnification.isFinite, magnification != 0 else { return nil }
+        return "window.__astraXImageZoom?.magnify(\(Double(magnification)));"
+    }
+
     static var javaScript: String {
         let domainList = supportedDomains
             .map { "'\($0)'" }
@@ -429,6 +434,18 @@ enum XImageZoomWebPolicy {
             state.scale = nextScale;
             render(animated);
           };
+
+          window.__astraXImageZoom = Object.freeze({
+            magnify(rawMagnification) {
+              const image = currentViewerImage();
+              const magnification = Number(rawMagnification);
+              if (!image || !Number.isFinite(magnification) || magnification === 0) return false;
+              const currentScale = state.image === image ? state.scale : minimumScale;
+              zoomTo(image, currentScale * Math.exp(magnification));
+              return true;
+            },
+            reset
+          });
 
           document.addEventListener('gesturestart', (event) => {
             const image = currentViewerImage();
@@ -773,6 +790,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     private(set) var browser: CefBrowser?
     private var chromeBrowser: CefChromeBrowser?
     private var systemMediaWebView: WKWebView?
+    private var systemMediaMagnificationMonitor: Any?
     private let hostView = HostView(frame: .zero)
     private var pendingURL: URL
     private let retainedProfile: CefProfile
@@ -1055,6 +1073,22 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         webView.autoresizingMask = [.width, .height]
         hostView.addSubview(webView)
         systemMediaWebView = webView
+        systemMediaMagnificationMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: .magnify
+        ) { [weak webView] event in
+            guard let webView,
+                  event.window === webView.window,
+                  !webView.isHiddenOrHasHiddenAncestor,
+                  XImageZoomWebPolicy.supports(host: webView.url?.host),
+                  webView.bounds.contains(webView.convert(event.locationInWindow, from: nil)),
+                  let script = XImageZoomWebPolicy.nativeMagnificationJavaScript(
+                      event.magnification
+                  ) else {
+                return event
+            }
+            webView.evaluateJavaScript(script)
+            return nil
+        }
         webView.load(URLRequest(url: pendingURL))
         schedulePageContextSmokeIfNeeded()
     }
@@ -1066,6 +1100,10 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     }
 
     private func removeSystemMediaWebView() {
+        if let systemMediaMagnificationMonitor {
+            NSEvent.removeMonitor(systemMediaMagnificationMonitor)
+            self.systemMediaMagnificationMonitor = nil
+        }
         systemMediaWebView?.configuration.userContentController.removeScriptMessageHandler(
             forName: XSpamShieldWebPolicy.messageHandlerName
         )
