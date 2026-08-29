@@ -530,6 +530,30 @@
         }
       }
     },
+    "chat.zenMux.last30DaysResearchButton" : {
+      "comment" : "ZenMux chat - Empty-state action that prepares a cross-platform recent-discussion research request",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Research the last 30 days"
+          }
+        }
+      }
+    },
+    "chat.zenMux.last30DaysResearchDraft" : {
+      "comment" : "ZenMux chat - Draft prefix inserted before the user enters a topic for recent cross-platform research",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Research the last 30 days about "
+          }
+        }
+      }
+    },
     "chat.zenMux.newConversationTooltip" : {
       "comment" : "ZenMux chat - Tooltip for clearing the current conversation",
       "extractionState" : "extracted_with_value",
@@ -538,6 +562,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "New conversation"
+          }
+        }
+      }
+    },
+    "chat.zenMux.researchingLast30DaysStatus" : {
+      "comment" : "ZenMux chat - Status shown while collecting recent discussion evidence across public platforms",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Researching the last 30 days…"
           }
         }
       }

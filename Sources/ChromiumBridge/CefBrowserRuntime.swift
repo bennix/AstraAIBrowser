@@ -1141,22 +1141,66 @@ struct BrowserAutomationTarget: Equatable {
         const targetSelector = \(encodedSelector);
         const targetIndex = \(encodedIndex);
         const targetMatchIndex = \(matchIndex);
+        const targetDocuments = (() => {
+          const documents = [];
+          const queue = [document];
+          const seen = new Set();
+          while (queue.length > 0 && documents.length < 32) {
+            const candidate = queue.shift();
+            if (!candidate || seen.has(candidate)) continue;
+            seen.add(candidate);
+            documents.push(candidate);
+            for (const frame of candidate.querySelectorAll('iframe,frame')) {
+              try {
+                if (frame.contentDocument) queue.push(frame.contentDocument);
+              } catch (_) {}
+            }
+          }
+          return documents;
+        })();
+        const targetQueryAll = (selector) => {
+          const matches = [];
+          for (const candidateDocument of targetDocuments) {
+            matches.push(...candidateDocument.querySelectorAll(selector));
+          }
+          return matches;
+        };
+        const targetRectInTopViewport = (candidate) => {
+          const rect = candidate.getBoundingClientRect();
+          let left = rect.left;
+          let top = rect.top;
+          let ownerWindow = candidate.ownerDocument?.defaultView;
+          while (ownerWindow && ownerWindow !== window) {
+            let frameElement;
+            try {
+              frameElement = ownerWindow.frameElement;
+            } catch (_) {
+              return null;
+            }
+            if (!frameElement) return null;
+            const frameRect = frameElement.getBoundingClientRect();
+            left += frameRect.left;
+            top += frameRect.top;
+            ownerWindow = frameElement.ownerDocument?.defaultView;
+          }
+          return { left, top, width: rect.width, height: rect.height };
+        };
         let targetError = null;
         let element = null;
         if (targetRef) {
-          element = Array.from(document.querySelectorAll('[data-astra-ai-ref]')).find(
+          element = targetQueryAll('[data-astra-ai-ref]').find(
             (candidate) => candidate.getAttribute('data-astra-ai-ref') === targetRef
           ) || null;
         }
         if (!element && targetSelector) {
           try {
-            element = document.querySelectorAll(targetSelector)[targetMatchIndex] || null;
+            element = targetQueryAll(targetSelector)[targetMatchIndex] || null;
           } catch (_) {
             targetError = 'The CSS selector is invalid.';
           }
         }
         if (!element && Number.isInteger(targetIndex)) {
-          element = document.querySelector(`[data-astra-ai-index="${targetIndex}"]`);
+          element = targetQueryAll(`[data-astra-ai-index="${targetIndex}"]`)[0] || null;
         }
         """
     }

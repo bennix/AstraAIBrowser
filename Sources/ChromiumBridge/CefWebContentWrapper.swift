@@ -2379,6 +2379,37 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             return
         }
 
+        if arguments.contains("--cef-rich-editor-automation-smoke") {
+            guard !isLoading, browser != nil else { return }
+            didStartSmokeCheck = true
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let editorTarget = BrowserAutomationTarget(
+                    index: nil,
+                    ref: nil,
+                    selector: "#astra-mail-body",
+                    matchIndex: nil
+                )
+                let inspection = await inspectPageForAutomation()
+                let typed = await typeAutomationText(
+                    "Astra rich editor\nSecond line",
+                    into: editorTarget
+                )
+                let finalInspection = await inspectPageForAutomation()
+                let succeeded = inspection.succeeded
+                    && inspection.message.contains("\"frameDepth\":1")
+                    && inspection.message.contains("\"editor\":\"designMode\"")
+                    && typed.succeeded
+                    && finalInspection.message.contains("Astra rich editor Second line")
+                let status = succeeded ? "passed" : "failed"
+                FileHandle.standardOutput.write(
+                    Data("[cef-smoke] rich editor automation \(status): \(typed.message)\n".utf8)
+                )
+                NSApp.terminate(nil)
+            }
+            return
+        }
+
         if arguments.contains("--cef-automation-smoke") {
             guard !isLoading, browser != nil else { return }
             didStartSmokeCheck = true
@@ -2416,8 +2447,15 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                     && waited.succeeded
                     && finalInspection.message.contains("Automation complete")
                 let status = succeeded ? "passed" : "failed"
+                let detail = [
+                    "inspection=\(inspection.succeeded)",
+                    "typed=\(typed.succeeded):\(typed.message)",
+                    "clicked=\(clicked.succeeded):\(clicked.message)",
+                    "waited=\(waited.succeeded):\(waited.message)",
+                    "final=\(finalInspection.message.contains("Automation complete"))",
+                ].joined(separator: " | ")
                 FileHandle.standardOutput.write(
-                    Data("[cef-smoke] DOM automation \(status)\n".utf8)
+                    Data("[cef-smoke] DOM automation \(status): \(detail)\n".utf8)
                 )
                 NSApp.terminate(nil)
             }
@@ -3413,24 +3451,69 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             return .init(succeeded: false, message: "The page is not ready.")
         }
         let operation = """
+        const collectDocuments = () => {
+          const documents = [];
+          const queue = [{ document, depth: 0 }];
+          const seen = new Set();
+          while (queue.length > 0 && documents.length < 32) {
+            const entry = queue.shift();
+            const candidateDocument = entry?.document;
+            if (!candidateDocument || seen.has(candidateDocument)) continue;
+            seen.add(candidateDocument);
+            documents.push(entry);
+            for (const frame of candidateDocument.querySelectorAll('iframe,frame')) {
+              try {
+                if (frame.contentDocument) {
+                  queue.push({ document: frame.contentDocument, depth: entry.depth + 1 });
+                }
+              } catch (_) {}
+            }
+          }
+          return documents;
+        };
+        const documents = collectDocuments();
+        const rectInTopViewport = (element) => {
+          const rect = element.getBoundingClientRect();
+          let left = rect.left;
+          let top = rect.top;
+          let ownerWindow = element.ownerDocument?.defaultView;
+          while (ownerWindow && ownerWindow !== window) {
+            let frameElement;
+            try {
+              frameElement = ownerWindow.frameElement;
+            } catch (_) {
+              return null;
+            }
+            if (!frameElement) return null;
+            const frameRect = frameElement.getBoundingClientRect();
+            left += frameRect.left;
+            top += frameRect.top;
+            ownerWindow = frameElement.ownerDocument?.defaultView;
+          }
+          return { left, top, width: rect.width, height: rect.height };
+        };
         const visible = (element) => {
           if (element.hidden || element.style?.display === 'none' || element.style?.visibility === 'hidden') return false;
-          const rect = element.getBoundingClientRect();
-          if (rect.width <= 1 || rect.height <= 1 || rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) return false;
-          const style = window.getComputedStyle(element);
+          const rect = rectInTopViewport(element);
+          if (!rect) return false;
+          const bottom = rect.top + rect.height;
+          const right = rect.left + rect.width;
+          if (rect.width <= 1 || rect.height <= 1 || bottom < 0 || rect.top > window.innerHeight || right < 0 || rect.left > window.innerWidth) return false;
+          const style = element.ownerDocument.defaultView.getComputedStyle(element);
           return style.visibility !== 'hidden' && style.display !== 'none';
         };
         const stableSelector = (element) => {
+          const ownerDocument = element.ownerDocument;
           if (element.id) {
             const candidate = `#${CSS.escape(element.id)}`;
-            if (document.getElementById(element.id) === element) return candidate;
+            if (ownerDocument.getElementById(element.id) === element) return candidate;
           }
           for (const name of ['data-testid', 'data-test', 'data-automation-id']) {
             const value = element.getAttribute(name);
             if (!value) continue;
             const candidate = `${element.tagName.toLowerCase()}[${name}="${CSS.escape(value)}"]`;
             try {
-              if (document.querySelector(candidate) === element) return candidate;
+              if (ownerDocument.querySelector(candidate) === element) return candidate;
             } catch (_) {}
           }
           const role = element.getAttribute('role');
@@ -3438,7 +3521,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
           if (role && ariaLabel) {
             const candidate = `[role="${CSS.escape(role)}"][aria-label="${CSS.escape(ariaLabel)}"]`;
             try {
-              if (document.querySelector(candidate) === element) return candidate;
+              if (ownerDocument.querySelector(candidate) === element) return candidate;
             } catch (_) {}
           }
           const path = [];
@@ -3464,9 +3547,21 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
           }
           return clone.outerHTML.slice(0, 500);
         };
-        document.querySelectorAll('[data-astra-ai-index]').forEach((element) => element.removeAttribute('data-astra-ai-index'));
-        const interactiveSelector = 'a[href],button,input,textarea,select,[contenteditable="true"],[role="button"],[role="checkbox"],[role="radio"],[role="menuitem"],[role="menuitemcheckbox"],[role="option"],[role="tab"],[role="combobox"],[role="textbox"]';
-        const candidates = document.querySelectorAll(interactiveSelector);
+        for (const entry of documents) {
+          entry.document.querySelectorAll('[data-astra-ai-index]').forEach(
+            (element) => element.removeAttribute('data-astra-ai-index')
+          );
+        }
+        const interactiveSelector = 'a[href],button,input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="button"],[role="checkbox"],[role="radio"],[role="menuitem"],[role="menuitemcheckbox"],[role="option"],[role="tab"],[role="combobox"],[role="textbox"]';
+        const candidates = [];
+        const documentDepth = new Map();
+        for (const entry of documents) {
+          documentDepth.set(entry.document, entry.depth);
+          candidates.push(...entry.document.querySelectorAll(interactiveSelector));
+          if (entry.document.designMode?.toLowerCase() === 'on' && entry.document.body) {
+            candidates.push(entry.document.body);
+          }
+        }
         const elements = [];
         let estimatedLength = 0;
         const scanDeadline = performance.now() + 900;
@@ -3481,9 +3576,14 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             ref = `e-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
             element.setAttribute('data-astra-ai-ref', ref);
           }
-          const label = (element.getAttribute('aria-label') || element.getAttribute('title') || element.getAttribute('placeholder') || element.innerText || element.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 180);
+          const isDesignModeBody = element.ownerDocument.designMode?.toLowerCase() === 'on'
+            && element === element.ownerDocument.body;
+          const label = (element.getAttribute('aria-label') || element.getAttribute('title') || element.getAttribute('placeholder') || element.innerText || element.textContent || (isDesignModeBody ? 'Editable document body' : '')).replace(/\\s+/g, ' ').trim().slice(0, 180);
           const href = element.href && /^https?:/i.test(element.href) ? element.href.slice(0, 500) : null;
-          const inputType = element instanceof HTMLInputElement || element instanceof HTMLButtonElement ? (element.type || 'text') : null;
+          const elementWindow = element.ownerDocument.defaultView;
+          const isInputOrButton = (elementWindow.HTMLInputElement && element instanceof elementWindow.HTMLInputElement)
+            || (elementWindow.HTMLButtonElement && element instanceof elementWindow.HTMLButtonElement);
+          const inputType = isInputOrButton ? (element.type || 'text') : null;
           const descriptor = {
             index,
             ref,
@@ -3494,6 +3594,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             type: inputType,
             label,
             href,
+            frameDepth: documentDepth.get(element.ownerDocument) || 0,
+            editor: isDesignModeBody ? 'designMode' : (element.isContentEditable ? 'contenteditable' : null),
             aria: {
               checked: element.getAttribute('aria-checked'),
               expanded: element.getAttribute('aria-expanded'),
@@ -3508,7 +3610,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
           elements.push(descriptor);
         }
         const pageRoot = document.querySelector('main,[role="main"],article') || document.body;
-        const pageText = pageRoot?.textContent || '';
+        const frameText = documents.slice(1).map((entry) => entry.document.body?.textContent || '').join(' ');
+        const pageText = `${pageRoot?.textContent || ''} ${frameText}`;
         return JSON.stringify({ ok: true, title: document.title, url: location.href, viewport: { scrollY: Math.round(window.scrollY), height: window.innerHeight }, text: pageText.replace(/\\s+/g, ' ').trim().slice(0, 6000), elements });
         """
         guard let response = await evaluateJavaScriptResult(
@@ -3564,12 +3667,28 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         if (targetError) return JSON.stringify({ found: false, message: targetError });
         if (!element) return JSON.stringify({ found: false });
         element.scrollIntoView({ block: 'center', inline: 'center' });
-        const rect = element.getBoundingClientRect();
+        let ownerWindow = element.ownerDocument?.defaultView;
+        while (ownerWindow && ownerWindow !== window) {
+          let frameElement;
+          try {
+            frameElement = ownerWindow.frameElement;
+          } catch (_) {
+            frameElement = null;
+          }
+          if (!frameElement) break;
+          frameElement.scrollIntoView({ block: 'center', inline: 'center' });
+          ownerWindow = frameElement.ownerDocument?.defaultView;
+        }
+        const rect = targetRectInTopViewport(element);
+        if (!rect) return JSON.stringify({ found: false });
         if (rect.width <= 0 || rect.height <= 0) return JSON.stringify({ found: false });
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
         const label = (element.getAttribute('aria-label') || element.getAttribute('title') || element.innerText || element.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 240);
-        const type = element instanceof HTMLInputElement || element instanceof HTMLButtonElement ? element.type : null;
+        const elementWindow = element.ownerDocument.defaultView;
+        const isInputOrButton = (elementWindow.HTMLInputElement && element instanceof elementWindow.HTMLInputElement)
+          || (elementWindow.HTMLButtonElement && element instanceof elementWindow.HTMLButtonElement);
+        const type = isInputOrButton ? element.type : null;
         return JSON.stringify({
           found: true, label, tag: element.tagName.toLowerCase(),
           role: element.getAttribute('role'), type,
@@ -3622,21 +3741,69 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         if (blockedTypes.has((element.type || '').toLowerCase()) || /password|one-time-code|cc-|credit-card/.test(autocomplete)) {
           return JSON.stringify({ ok: false, message: 'Astra Browser will not let AI enter passwords, verification codes, or payment information.' });
         }
-        if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element.isContentEditable)) {
+        const ownerDocument = element.ownerDocument;
+        const ownerWindow = ownerDocument?.defaultView;
+        const isInput = Boolean(ownerWindow?.HTMLInputElement && element instanceof ownerWindow.HTMLInputElement);
+        const isTextArea = Boolean(ownerWindow?.HTMLTextAreaElement && element instanceof ownerWindow.HTMLTextAreaElement);
+        const isDesignModeBody = ownerDocument?.designMode?.toLowerCase() === 'on'
+          && element === ownerDocument.body;
+        const isRichEditor = element.isContentEditable || isDesignModeBody;
+        if (!(isInput || isTextArea || isRichEditor)) {
           return JSON.stringify({ ok: false, message: 'The target is not editable.' });
         }
         element.focus();
         const text = \(encodedText);
-        if (element.isContentEditable) {
-          element.textContent = text;
+        let insertionAccepted = true;
+        if (isRichEditor) {
+          const selection = ownerWindow.getSelection();
+          const range = ownerDocument.createRange();
+          range.selectNodeContents(element);
+          selection.removeAllRanges();
+          selection.addRange(range);
+          element.dispatchEvent(new InputEvent('beforeinput', {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            inputType: 'insertText',
+            data: text,
+          }));
+          insertionAccepted = ownerDocument.execCommand('insertText', false, text);
+          if (!insertionAccepted) {
+            element.replaceChildren();
+            const lines = text.split('\\n');
+            lines.forEach((line, index) => {
+              if (index > 0) element.appendChild(ownerDocument.createElement('br'));
+              element.appendChild(ownerDocument.createTextNode(line));
+            });
+          }
         } else {
-          const prototype = element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+          const prototype = isTextArea ? ownerWindow.HTMLTextAreaElement.prototype : ownerWindow.HTMLInputElement.prototype;
           const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
           if (setter) setter.call(element, text); else element.value = text;
         }
-        element.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
-        element.dispatchEvent(new Event('change', { bubbles: true }));
-        return JSON.stringify({ ok: true, message: 'Entered text without submitting the form.' });
+        element.dispatchEvent(new InputEvent('input', {
+          bubbles: true,
+          composed: true,
+          inputType: 'insertText',
+          data: text,
+        }));
+        element.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        const actual = isRichEditor ? (element.innerText || element.textContent || '') : element.value;
+        const normalize = (value) => (value || '')
+          .replace(/\\r\\n/g, '\\n')
+          .replace(/\\u00a0/g, ' ')
+          .trim();
+        if (normalize(actual) !== normalize(text)) {
+          return JSON.stringify({
+            ok: false,
+            message: 'The editor did not retain the requested text. Inspect the page again before retrying.',
+          });
+        }
+        return JSON.stringify({
+          ok: true,
+          message: `Entered and verified ${text.length} characters without submitting the form.`,
+        });
         """
         return automationResult(await evaluateJavaScriptResult(operation: operation))
     }
@@ -3698,19 +3865,23 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         let operation = """
         const resolveTarget = () => {
           \(resolver)
-          return { element, targetError };
+          return {
+            element,
+            targetError,
+            rect: element ? targetRectInTopViewport(element) : null,
+          };
         };
-        const visible = (candidate) => {
+        const visible = (candidate, rect) => {
           if (!candidate) return false;
-          const style = window.getComputedStyle(candidate);
-          const rect = candidate.getBoundingClientRect();
+          const style = candidate.ownerDocument.defaultView.getComputedStyle(candidate);
+          if (!rect) return false;
           return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 1 && rect.height > 1;
         };
         const deadline = Date.now() + \(timeout);
         while (true) {
           const resolved = resolveTarget();
           if (resolved.targetError) return JSON.stringify({ ok: false, message: resolved.targetError });
-          if (visible(resolved.element)) {
+          if (visible(resolved.element, resolved.rect)) {
             const element = resolved.element;
             let ref = element.getAttribute('data-astra-ai-ref');
             if (!ref) {

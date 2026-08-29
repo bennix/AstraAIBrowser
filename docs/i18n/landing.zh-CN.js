@@ -13,7 +13,7 @@
     "features.richAnswers.title": "丰富的技术内容渲染",
     "features.richAnswers.body": "AI 回复可在助手面板中渲染可横向滚动的 Markdown 表格、代码、数学 LaTeX 和化学公式，并兼容常见模型的公式包装格式。",
     "features.pageControl.title": "能理解并操作网页的 AI",
-    "features.pageControl.body": "助手可检查当前标签页并执行经确认的浏览器操作，同时 Chromium 浏览体验始终内嵌在 Astra 中。",
+    "features.pageControl.body": "浏览器自动化可遍历可访问的同源框架，识别 contenteditable 与 designMode 富文本编辑器，将嵌套框架坐标转换到顶层视口，并在报告成功前验证输入内容确实保留。",
     "features.youtube.title": "减少等待 YouTube 广告",
     "features.youtube.body": "YouTube 将当前播放标记为广告时，Astra 会临时使用 8 倍速，并在正片开始后恢复原播放速度。",
     "features.mediaCompatibility.title": "X 媒体、图片缩放与原生守护",
@@ -24,7 +24,9 @@
     "features.browserOwnership.body": "通用设置可让 Astra 完整接管 HTTP 与 HTTPS。其他 Mac 应用打开的链接会进入 Astra 内嵌的 Chromium 标签页，网站检测到的浏览器语言也会与 Astra 界面语言保持一致。",
     "features.history.title": "完整保留浏览历史",
     "features.history.body": "Astra 将浏览历史保存在持久化 Chromium 配置中，可从原生“历史记录”菜单和“通用”设置查看或清除，也可按 Command-Y 打开完整记录。",
-    "download.summary": "Build 61 会将选中文本的 Google 搜索留在 Astra 中。在 X 及其他由 WebKit 渲染的页面上，“用 Google 搜索”会在当前 Astra 窗口中新建并聚焦标签页，而不再启动 Safari；输入框内的选中文本同样支持。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "features.recentResearch.title": "基于证据的 30 天研究",
+    "features.recentResearch.body": "ZenMux 可发现 Reddit、X、YouTube、TikTok、Hacker News、GitHub 与 Polymarket 的公开讨论，去除重复链接，说明各来源覆盖情况，并要求结论提供引用与置信度。无法验证的互动量或增长会被明确披露，不会当作已测量事实呈现。",
+    "download.summary": "Build 62 新增有边界的 30 天跨平台研究，提供来源覆盖、去重、引用、评分与置信度指引。浏览器自动化现在可访问同源嵌套框架与富文本编辑器，转换嵌套坐标，并在报告成功前验证输入内容确实保留。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

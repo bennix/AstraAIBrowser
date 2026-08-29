@@ -606,13 +606,67 @@ final class ZenMuxTests: XCTestCase {
             let names = APIClient.zenMuxToolNames(for: model)
             XCTAssertTrue(names.contains("web_search"), "\(model.rawValue) missing web_search")
             XCTAssertTrue(names.contains("fetch_url"), "\(model.rawValue) missing fetch_url")
+            XCTAssertTrue(
+                names.contains(ZenMuxLast30DaysResearch.toolName),
+                "\(model.rawValue) missing last30days_research"
+            )
             XCTAssertTrue(names.contains("inspect_page"))
         }
         XCTAssertNil(BrowserAutomationAction.Kind(rawValue: "web_search"))
         XCTAssertNil(BrowserAutomationAction.Kind(rawValue: "fetch_url"))
         XCTAssertTrue(ZenMuxWebGrounding.isToolName("web_search"))
         XCTAssertTrue(ZenMuxWebGrounding.isToolName("fetch_url"))
+        XCTAssertTrue(ZenMuxWebGrounding.isToolName(ZenMuxLast30DaysResearch.toolName))
         XCTAssertFalse(ZenMuxWebGrounding.isToolName("inspect_page"))
+    }
+
+    func testLast30DaysResearchQueriesCoverEveryRequestedSourceAndDateWindow() throws {
+        let formatter = ISO8601DateFormatter()
+        let from = try XCTUnwrap(formatter.date(from: "2026-07-30T00:00:00Z"))
+        let through = try XCTUnwrap(formatter.date(from: "2026-08-29T00:00:00Z"))
+        let queries = ZenMuxLast30DaysResearch.sourceQueries(
+            topic: "local AI",
+            from: from,
+            through: through
+        )
+
+        XCTAssertEqual(queries.map(\.source), [
+            "Reddit", "X", "YouTube", "TikTok", "Hacker News", "GitHub", "Polymarket",
+        ])
+        XCTAssertTrue(queries.allSatisfy { $0.query.contains("local AI") })
+        XCTAssertTrue(queries.allSatisfy { $0.query.contains("after:2026-07-30") })
+        XCTAssertTrue(queries.allSatisfy { $0.query.contains("before:2026-08-29") })
+        XCTAssertTrue(queries.first(where: { $0.source == "X" })?.query.contains("site:x.com") == true)
+        XCTAssertNil(ZenMuxLast30DaysResearch.normalizedTopic("   "))
+    }
+
+    func testLast30DaysEvidenceDeduplicatesAndDisclosesPartialCoverage() throws {
+        let formatter = ISO8601DateFormatter()
+        let from = try XCTUnwrap(formatter.date(from: "2026-07-30T00:00:00Z"))
+        let through = try XCTUnwrap(formatter.date(from: "2026-08-29T00:00:00Z"))
+        let duplicate = ZenMuxWebSearchResult(
+            title: "Recurring setup pain",
+            url: "https://reddit.com/r/example/comments/1",
+            snippet: "Discussion"
+        )
+        let evidence = ZenMuxLast30DaysResearch.formatEvidence(
+            topic: "local AI",
+            from: from,
+            through: through,
+            discoveries: [
+                .init(source: "Reddit", status: .completed, results: [duplicate, duplicate]),
+                .init(source: "X", status: .failed, results: []),
+            ]
+        )
+
+        XCTAssertEqual(
+            evidence.components(separatedBy: "https://reddit.com/r/example/comments/1").count - 1,
+            1
+        )
+        XCTAssertTrue(evidence.contains("Reddit: completed, 1 unique discovery results"))
+        XCTAssertTrue(evidence.contains("X: failed; coverage is unknown, not quiet"))
+        XCTAssertTrue(evidence.contains("Search discovery is not proof"))
+        XCTAssertTrue(evidence.contains("show High, Medium, or Low confidence"))
     }
 
     func testPublicWebURLPolicyBlocksPrivateAndNonWebTargets() {
@@ -736,6 +790,8 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertTrue(budget.consumeFetch())
         XCTAssertTrue(budget.consumeFetch())
         XCTAssertFalse(budget.consumeFetch())
+        XCTAssertTrue(budget.consumeLast30DaysResearch())
+        XCTAssertFalse(budget.consumeLast30DaysResearch())
     }
 
     func testVisualAutomationCoordinatesAreBoundedAndNormalized() throws {
@@ -769,6 +825,9 @@ final class ZenMuxTests: XCTestCase {
         )
         XCTAssertTrue(script.contains("const targetRef = \"e-stable_ref-1\";"))
         XCTAssertTrue(script.contains("const targetMatchIndex = 50;"))
+        XCTAssertTrue(script.contains("frame.contentDocument"))
+        XCTAssertTrue(script.contains("targetRectInTopViewport"))
+        XCTAssertTrue(script.contains("targetQueryAll(targetSelector)"))
     }
 
     func testBrowserAutomationTargetRejectsInvalidRefsAndOversizedSelectors() {
