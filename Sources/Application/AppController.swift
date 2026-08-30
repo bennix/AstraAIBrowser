@@ -314,7 +314,7 @@ import PostHog
             || ApplicationState.shared.canUseBrowser
         guard canUseBrowser else { return }
 
-        if CefBrowserRuntime.shared.reopenStatePreservedWindowIfNeeded() {
+        if reopenBrowserWindowIfNeeded() {
             return
         }
 
@@ -346,18 +346,7 @@ import PostHog
             } else {
                 AppLogDebug("reopen: Guest Mode or fresh access token, skipping renew")
             }
-            if CefBrowserRuntime.shared.reopenStatePreservedWindowIfNeeded() {
-                return true
-            }
-            // With no surviving browser window, spawn the persisted
-            // last-active Space ourselves instead of letting Chromium's
-            // reopen create the window: Chromium seeds it from its own
-            // last-used-profile pref, which the window-close cascade
-            // pollutes, and the coordinator then re-resolves the Space to
-            // match that profile — reopening on the default Space instead
-            // of the one the user closed. See
-            // `SpaceManager.reopenOnPersistedSpaceIfWindowless`.
-            if SpaceManager.shared.reopenOnPersistedSpaceIfWindowless() {
+            if reopenBrowserWindowIfNeeded() {
                 return true
             }
             let handled = ChromiumLauncher.sharedInstance().bridge?.applicationShouldHandleReopen(sender, hasVisibleWindows: hasVisibleWindows) ?? false
@@ -368,6 +357,38 @@ import PostHog
             SpaceManager.shared.reconcileSlotVisibilityAfterReopen()
             return handled
         }
+    }
+
+    /// Restores a browser window after Dock activation without depending on
+    /// which AppKit reopen callback was delivered. The Space restore remains
+    /// authoritative when it can resolve a saved window. CEF needs a final
+    /// plain-window fallback because closing the last tab can also remove the
+    /// last Space model, leaving no persisted Space available to spawn.
+    @MainActor
+    private func reopenBrowserWindowIfNeeded() -> Bool {
+        if CefBrowserRuntime.shared.reopenStatePreservedWindowIfNeeded() {
+            return true
+        }
+
+        guard MainBrowserWindowControllersManager.shared.getFirstAvailableWindowId() == nil else {
+            return false
+        }
+
+        // Prefer the saved Space so profiles and restored tabs retain their
+        // existing ownership whenever that state is available.
+        if SpaceManager.shared.reopenOnPersistedSpaceIfWindowless() {
+            return true
+        }
+
+        // A non-nil framework bridge owns its own fallback below. Only the CEF
+        // runtime should create a native window directly here.
+        guard ChromiumLauncher.sharedInstance().bridge == nil else {
+            return false
+        }
+
+        AppLogInfo("[CEF] opening a fallback window after windowless activation")
+        CefBrowserRuntime.shared.openBrowserWindow()
+        return true
     }
     
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
