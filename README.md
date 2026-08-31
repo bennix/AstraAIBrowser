@@ -3,9 +3,9 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 63)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.63/Astra-Browser-build63.dmg)
+[Download Astra 1.0 (build 64)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.64/Astra-Browser-build64.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.63)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.64)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
@@ -22,7 +22,7 @@ and accepted by Apple's notarization service.
 - Integrated AI workspace for browsing and task assistance.
 - ZenMux page vision and up to five removable image attachments with thumbnail previews.
 - ZenMux can verify current claims with bounded Google and DuckDuckGo search plus public-page fetching, while treating retrieved content as untrusted data and blocking private-network targets.
-- ZenMux can collect bounded 30-day public-discussion evidence across Reddit, X, YouTube, TikTok, Hacker News, GitHub, and Polymarket, with deduplication, source-coverage disclosure, citations, scoring, and confidence labels.
+- ZenMux requires a complete six-item research brief, enforces an explicit time zone and a maximum 30-day hard window, searches primary and professional fact sources before discussion platforms, and separates confirmed facts, trends, disputes, pain points, opportunities, and follow-up checks with source tiers and confidence labels.
 - Paste images directly into ZenMux, or add a removable capture of the exact visible browser viewport from the composer, including the current standard video frame.
 - ZenMux answers render GitHub-style Markdown tables and normalize common model-specific LaTeX wrappers before native math rendering.
 - YouTube ad playback acceleration: detected ads play at 8× and the previous content speed is restored afterward.

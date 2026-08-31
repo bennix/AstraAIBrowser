@@ -25,8 +25,8 @@
     "features.history.title": "完整保留浏览历史",
     "features.history.body": "Astra 将浏览历史保存在持久化 Chromium 配置中，可从原生“历史记录”菜单和“通用”设置查看或清除，也可按 Command-Y 打开完整记录。",
     "features.recentResearch.title": "基于证据的 30 天研究",
-    "features.recentResearch.body": "ZenMux 可发现 Reddit、X、YouTube、TikTok、Hacker News、GitHub 与 Polymarket 的公开讨论，去除重复链接，说明各来源覆盖情况，并要求结论提供引用与置信度。无法验证的互动量或增长会被明确披露，不会当作已测量事实呈现。",
-    "download.summary": "Build 63 增强了 macOS 窗口生命周期恢复。当最后一个浏览器窗口被完全关闭，且已保存的 Space 无法恢复时，从 Dock 激活 Astra 现在会创建新的原生浏览器窗口，避免应用仍在运行但没有可用界面。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "features.recentResearch.body": "ZenMux 现在要求完整填写六项研究简报，明确时区，并将硬时间窗限制在最多 30 天。系统会先检索官方、原始数据、主流媒体、专业机构和论文，再检索社媒讨论；报告会分开呈现已确认事实、讨论趋势、争议、痛点、机会与待验证事项，并标注来源层级、置信度和局限性。",
+    "download.summary": "Build 64 让近期研究流程更加严格且可审计。缺项会在检索前被拒绝，事实源先于社媒讨论检索，每项结论都遵循明确的来源层级与时间窗，并将已确认事实和趋势、争议、痛点、机会及待验证任务分开呈现。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

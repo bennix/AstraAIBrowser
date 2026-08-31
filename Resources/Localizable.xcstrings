@@ -543,13 +543,13 @@
       }
     },
     "chat.zenMux.last30DaysResearchDraft" : {
-      "comment" : "ZenMux chat - Draft prefix inserted before the user enters a topic for recent cross-platform research",
+      "comment" : "ZenMux chat - Six-item research brief inserted before recent cross-platform research; placeholders are start date, end date, and IANA time zone",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Research the last 30 days about "
+            "value" : "Research brief (complete all 6 items before sending):\n1. Topic (one sentence): [required]\n2. Time window: %1$@ to %2$@ (%3$@)\n3. Geography / subjects / industry: [required]\n4. Purpose (understand, decide, create content, or find a business): [required]\n5. Required source types: official/primary; mainstream/professional; social/video; data/markets; research papers\n6. Exclusions: ads; sponsored or promotional content; recycled old news; context-free emotional posts; unrelated brands"
           }
         }
       }
