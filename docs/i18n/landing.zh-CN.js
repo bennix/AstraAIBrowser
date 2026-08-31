@@ -24,9 +24,9 @@
     "features.browserOwnership.body": "通用设置可让 Astra 完整接管 HTTP 与 HTTPS。其他 Mac 应用打开的链接会留在 Astra 内；当旧式服务器无法通过 Chromium 连接时，显式 HTTP 页面会自动使用现有的应用内兼容引擎。",
     "features.history.title": "完整保留浏览历史",
     "features.history.body": "Astra 将浏览历史保存在持久化 Chromium 配置中，可从原生“历史记录”菜单和“通用”设置查看或清除，也可按 Command-Y 打开完整记录。",
-    "features.recentResearch.title": "可审计的 30 天研究",
-    "features.recentResearch.body": "ZenMux 按文档类型划分证据层级，将已确认事实限制为单一主体、动作和日期，记录 Announced、Artifact、Runnable 与 Replicated 四档状态，并保留完整检索式。报告固定为九个区块，返回前执行六项质量检查；长篇研究简报在输入框展开和滚动时会保持稳定，不再出现文字重叠或闪烁。",
-    "download.summary": "Build 67 修复了 AI 输入框在换行文字达到滚动临界点时的闪烁问题。编辑器现在保持稳定的文字视口宽度，避免滚动条触发反复重排，同时保留自动展开和滚动能力。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "features.recentResearch.title": "可审计的循证研究",
+    "features.recentResearch.body": "ZenMux 从明确问题出发，既支持限定时间窗，也支持逐条标注日期的不限时研究。检索会先使用短实体词，再组合动作词和站点；专业来源按主题启用，并将已确认事实、低层级观察、对象状态、局限性和可复现检索日志严格分开。",
+    "download.summary": "Build 68 将固定 30 天扫描升级为由问题驱动的通用研究协议。它支持限定时间窗或逐条标注日期的不限时研究，依次执行短实体词、动作词和站点检索，按主题选择专业来源，并将已确认事实与观察、不确定性及可复现检索日志分开。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

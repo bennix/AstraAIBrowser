@@ -600,9 +600,10 @@ final class ZenMuxTests: XCTestCase {
         ))
         XCTAssertTrue(prompt.contains("training cutoff"))
         XCTAssertTrue(prompt.contains("six-item brief"))
-        XCTAssertTrue(prompt.contains("Do not infer a missing item"))
-        XCTAssertTrue(prompt.contains("optional domain module"))
-        XCTAssertTrue(prompt.contains("single source never establishes a trend"))
+        XCTAssertTrue(prompt.contains("exact question to answer"))
+        XCTAssertTrue(prompt.contains("3 to 8 short entity terms"))
+        XCTAssertTrue(prompt.contains("never use the report title"))
+        XCTAssertTrue(prompt.contains("empty result page"))
     }
 
     func testGroundingToolsAreRegisteredForEveryModel() {
@@ -611,8 +612,8 @@ final class ZenMuxTests: XCTestCase {
             XCTAssertTrue(names.contains("web_search"), "\(model.rawValue) missing web_search")
             XCTAssertTrue(names.contains("fetch_url"), "\(model.rawValue) missing fetch_url")
             XCTAssertTrue(
-                names.contains(ZenMuxLast30DaysResearch.toolName),
-                "\(model.rawValue) missing last30days_research"
+                names.contains(ZenMuxResearch.toolName),
+                "\(model.rawValue) missing general_research"
             )
             XCTAssertTrue(names.contains("inspect_page"))
         }
@@ -620,119 +621,153 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertNil(BrowserAutomationAction.Kind(rawValue: "fetch_url"))
         XCTAssertTrue(ZenMuxWebGrounding.isToolName("web_search"))
         XCTAssertTrue(ZenMuxWebGrounding.isToolName("fetch_url"))
-        XCTAssertTrue(ZenMuxWebGrounding.isToolName(ZenMuxLast30DaysResearch.toolName))
+        XCTAssertTrue(ZenMuxWebGrounding.isToolName(ZenMuxResearch.toolName))
         XCTAssertFalse(ZenMuxWebGrounding.isToolName("inspect_page"))
     }
 
-    func testLast30DaysResearchBriefRequiresEveryFieldAndBoundsTheWindow() throws {
-        XCTAssertThrowsError(try ZenMuxLast30DaysResearch.makeResearchBrief(
+    func testResearchBriefRequiresQuestionAndSupportsBoundedOrUnlimitedTime() throws {
+        XCTAssertThrowsError(try ZenMuxResearch.makeResearchBrief(
             topic: "[required]",
-            startDate: "2026-08-02",
-            endDate: "2026-08-31",
-            timeZone: "Asia/Tokyo",
+            question: "[required]",
+            timeRange: "unlimited",
+            timeZone: "",
             scope: "[required]",
-            purpose: "product decision",
-            requiredSourceTypes: "official, media, social, data, papers",
-            exclusions: "ads and recycled old news"
+            purpose: "understand",
+            exclusions: "ads and recycled old news",
+            entities: "local AI, on-device models, private inference"
         )) { error in
             XCTAssertEqual(
-                error as? ZenMuxLast30DaysResearch.ResearchBriefError,
-                .missingFields(["geography / subjects / industry scope", "topic"])
-            )
-        }
-        XCTAssertThrowsError(try ZenMuxLast30DaysResearch.makeResearchBrief(
-            topic: "local AI",
-            startDate: "2026-08-01",
-            endDate: "2026-08-31",
-            timeZone: "Asia/Tokyo",
-            scope: "Japan consumer software",
-            purpose: "product decision",
-            requiredSourceTypes: "official, media, social, data, papers",
-            exclusions: "ads and recycled old news"
-        )) { error in
-            XCTAssertEqual(
-                error as? ZenMuxLast30DaysResearch.ResearchBriefError,
-                .windowTooLong
+                error as? ZenMuxResearch.ResearchBriefError,
+                .missingFields(["question", "scope", "topic"])
             )
         }
 
-        let brief = try ZenMuxLast30DaysResearch.makeResearchBrief(
+        let unlimitedBrief = try ZenMuxResearch.makeResearchBrief(
             topic: "local AI",
-            startDate: "2026-08-02",
-            endDate: "2026-08-31",
+            question: "Which local AI capabilities have independent evidence?",
+            timeRange: "unlimited",
+            timeZone: "",
+            scope: "Japan consumer software",
+            purpose: "understand",
+            exclusions: "ads and recycled old news",
+            entities: "local AI, on-device models, private inference"
+        )
+        XCTAssertFalse(unlimitedBrief.hasBoundedWindow)
+        XCTAssertEqual(unlimitedBrief.timeRangeText, "unlimited")
+        XCTAssertNil(unlimitedBrief.timeZoneIdentifier)
+        XCTAssertEqual(unlimitedBrief.purpose, .understand)
+
+        let boundedBrief = try ZenMuxResearch.makeResearchBrief(
+            topic: "local AI",
+            question: "How did local AI availability change?",
+            timeRange: "2024-01-01 to 2026-08-31",
             timeZone: "Asia/Tokyo",
             scope: "Japan consumer software",
-            purpose: "product decision",
-            requiredSourceTypes: "official, media, social, data, papers",
+            purpose: "decide",
             exclusions: "ads and recycled old news",
+            entities: "local AI, on-device models, private inference",
             domainModule: "technology"
         )
-        XCTAssertEqual(brief.topic, "local AI")
-        XCTAssertEqual(brief.timeZoneIdentifier, "Asia/Tokyo")
-        XCTAssertEqual(brief.startDateText, "2026-08-02")
-        XCTAssertEqual(brief.endDateText, "2026-08-31")
-        XCTAssertEqual(brief.domainModule, .technology)
+        XCTAssertTrue(boundedBrief.hasBoundedWindow)
+        XCTAssertEqual(boundedBrief.timeRangeText, "2024-01-01 to 2026-08-31")
+        XCTAssertEqual(boundedBrief.timeZoneIdentifier, "Asia/Tokyo")
+        XCTAssertEqual(boundedBrief.domainModule, .technology)
+
+        XCTAssertThrowsError(try ZenMuxResearch.makeResearchBrief(
+            topic: "local AI",
+            question: "What changed?",
+            timeRange: "unlimited",
+            timeZone: "",
+            scope: "global",
+            purpose: "verify",
+            exclusions: "ads",
+            entities: "site:github.com local AI, models"
+        )) { error in
+            XCTAssertEqual(error as? ZenMuxResearch.ResearchBriefError, .invalidEntityTerms)
+        }
     }
 
-    func testLast30DaysResearchQueriesSearchFactsBeforeDiscussionInsideWindow() throws {
-        let brief = try ZenMuxLast30DaysResearch.makeResearchBrief(
-            topic: "local AI",
-            startDate: "2026-07-31",
-            endDate: "2026-08-29",
+    func testResearchQueriesUseEntityActionAndSiteOrder() throws {
+        let brief = try ZenMuxResearch.makeResearchBrief(
+            topic: "A complete report about local AI products and adoption",
+            question: "Which products have independently verified runnable artifacts?",
+            timeRange: "2026-07-31 to 2026-08-29",
             timeZone: "UTC",
             scope: "global consumer software",
-            purpose: "product decision",
-            requiredSourceTypes: "official, media, social, data, papers",
-            exclusions: "ads and recycled old news"
+            purpose: "verify",
+            exclusions: "ads and recycled old news",
+            entities: "OpenAI, GPT-5, ChatGPT",
+            requestedSources: "Reddit, YouTube",
+            domainModule: "technology"
         )
-        let queries = ZenMuxLast30DaysResearch.sourceQueries(brief: brief)
+        let queries = ZenMuxResearch.sourceQueries(brief: brief)
+        let entityQueries = ZenMuxResearch.sourceQueries(brief: brief, phase: .entities)
+        let actionQueries = ZenMuxResearch.sourceQueries(brief: brief, phase: .actions)
+        let factQueries = ZenMuxResearch.sourceQueries(brief: brief, phase: .facts)
+        let discussionQueries = ZenMuxResearch.sourceQueries(brief: brief, phase: .discussion)
 
-        XCTAssertEqual(queries.map(\.source), [
-            "Official / primary candidates",
-            "Mainstream media",
-            "Professional / data candidates",
-            "Research papers",
-            "Reddit", "X", "YouTube", "TikTok", "Hacker News", "GitHub", "Polymarket",
+        XCTAssertEqual(entityQueries.map(\.source), [
+            "Entity: OpenAI", "Entity: GPT-5", "Entity: ChatGPT",
         ])
-        XCTAssertTrue(queries.allSatisfy { $0.query.contains("local AI") })
+        XCTAssertEqual(actionQueries.count, 2)
+        XCTAssertEqual(
+            Array(queries.map(\.source).prefix(entityQueries.count + actionQueries.count)),
+            (entityQueries + actionQueries).map(\.source)
+        )
+        XCTAssertTrue(factQueries.map(\.source).contains("GitHub"))
+        XCTAssertTrue(factQueries.map(\.source).contains("Hugging Face"))
+        XCTAssertTrue(factQueries.map(\.source).contains("arXiv"))
+        XCTAssertEqual(discussionQueries.map(\.source), ["Reddit", "YouTube"])
+        XCTAssertFalse(queries.map(\.source).contains("TikTok"))
+        XCTAssertFalse(queries.map(\.source).contains("Hacker News"))
+        XCTAssertFalse(queries.map(\.source).contains("Polymarket"))
         XCTAssertTrue(queries.allSatisfy { $0.query.contains("after:2026-07-31") })
         XCTAssertTrue(queries.allSatisfy { $0.query.contains("before:2026-08-30") })
-        XCTAssertTrue(queries.allSatisfy {
-            $0.query.count <= ZenMuxWebGrounding.maximumQueryLength
+        XCTAssertTrue(queries.allSatisfy { $0.query.count <= ZenMuxWebGrounding.maximumQueryLength })
+        XCTAssertTrue(queries.allSatisfy { !$0.query.contains(brief.topic) })
+        XCTAssertTrue(queries.allSatisfy { !$0.query.contains(brief.question) })
+        XCTAssertTrue(queries.allSatisfy { !$0.query.contains(brief.scope) })
+        XCTAssertTrue(factQueries.first(where: { $0.source == "GitHub" })?.query.contains("site:github.com") == true)
+
+        let unlimitedBrief = try ZenMuxResearch.makeResearchBrief(
+            topic: "local AI",
+            question: "What is independently verified?",
+            timeRange: "unlimited",
+            timeZone: "",
+            scope: "global",
+            purpose: "understand",
+            exclusions: "ads",
+            entities: "OpenAI, GPT-5, ChatGPT"
+        )
+        XCTAssertTrue(ZenMuxResearch.sourceQueries(brief: unlimitedBrief).allSatisfy {
+            !$0.query.contains("after:") && !$0.query.contains("before:")
         })
-        XCTAssertTrue(queries.first(where: { $0.source == "X" })?.query.contains("site:x.com") == true)
-        XCTAssertEqual(
-            ZenMuxLast30DaysResearch.sourceQueries(brief: brief, phase: .facts).map(\.source),
-            Array(queries.map(\.source).prefix(4))
-        )
-        XCTAssertEqual(
-            ZenMuxLast30DaysResearch.sourceQueries(brief: brief, phase: .discussion).map(\.source),
-            Array(queries.map(\.source).dropFirst(4))
-        )
-        XCTAssertNil(ZenMuxLast30DaysResearch.normalizedTopic("   "))
+        XCTAssertNil(ZenMuxResearch.normalizedTopic("   "))
     }
 
-    func testLast30DaysEvidenceDeduplicatesAndDisclosesPartialCoverage() throws {
-        let brief = try ZenMuxLast30DaysResearch.makeResearchBrief(
+    func testResearchEvidenceSeparatesCoverageZeroResultsAndObservations() throws {
+        let brief = try ZenMuxResearch.makeResearchBrief(
             topic: "local AI",
-            startDate: "2026-07-31",
-            endDate: "2026-08-29",
-            timeZone: "UTC",
+            question: "What limitations recur in user reports?",
+            timeRange: "unlimited",
+            timeZone: "",
             scope: "global consumer software",
-            purpose: "product decision",
-            requiredSourceTypes: "official, media, social, data, papers",
-            exclusions: "ads and recycled old news"
+            purpose: "understand",
+            exclusions: "ads and recycled old news",
+            entities: "local AI, on-device models, private inference",
+            requestedSources: "Reddit"
         )
         let duplicate = ZenMuxWebSearchResult(
             title: "Recurring setup pain",
             url: "https://reddit.com/r/example/comments/1",
             snippet: "Discussion"
         )
-        let evidence = ZenMuxLast30DaysResearch.formatEvidence(
+        let evidence = ZenMuxResearch.formatEvidence(
             brief: brief,
             discoveries: [
                 .init(source: "Reddit", status: .completed, results: [duplicate, duplicate]),
-                .init(source: "X", status: .failed, results: []),
+                .init(source: "Entity: local AI", status: .completed, results: []),
+                .init(source: "Action: local AI + announce", status: .failed, results: []),
             ]
         )
 
@@ -740,66 +775,59 @@ final class ZenMuxTests: XCTestCase {
             evidence.components(separatedBy: "https://reddit.com/r/example/comments/1").count - 1,
             1
         )
-        XCTAssertTrue(evidence.contains("Reddit: completed, 1 unique discovery results"))
-        XCTAssertTrue(evidence.contains("X: failed; coverage is unknown, not quiet"))
+        XCTAssertTrue(evidence.contains("Reddit: searched, 1 unique discovery candidates"))
+        XCTAssertTrue(evidence.contains("searched with no discovery hits; this is not a confirmed blank"))
+        XCTAssertTrue(evidence.contains("retrieval failed; coverage is unknown"))
+        XCTAssertTrue(evidence.contains("Not covered this run"))
+        XCTAssertTrue(evidence.contains("TikTok"))
         XCTAssertTrue(evidence.contains("Search discovery is not proof"))
-        XCTAssertTrue(evidence.contains("High confidence requires"))
-        XCTAssertTrue(evidence.contains("Return exactly these nine top-level sections"))
+        XCTAssertTrue(evidence.contains("A confirmed fact requires one L1 source or two independent L2 sources"))
+        XCTAssertTrue(evidence.contains("Question and scope"))
+        XCTAssertTrue(evidence.contains("Observations from L3/L4"))
         XCTAssertTrue(evidence.contains("A single source never establishes a trend"))
-        XCTAssertTrue(evidence.contains("no valid in-window sample"))
-        XCTAssertTrue(evidence.contains("query=local AI global consumer software"))
-        XCTAssertTrue(evidence.contains("Announced, Artifact, Runnable, or Replicated"))
-        XCTAssertTrue(evidence.contains("each confirmed fact has only one subject"))
-        XCTAssertTrue(evidence.contains("every Measured label has a number or linkable object"))
-        XCTAssertTrue(evidence.contains("label the whole output DRAFT"))
+        XCTAssertTrue(evidence.contains("Announced, Artifact, Runnable, Replicated, or Unverified"))
+        XCTAssertTrue(evidence.contains("no query is a report-title sentence"))
+        XCTAssertTrue(evidence.contains("no empty result is mislabeled as a confirmed blank"))
+        XCTAssertTrue(evidence.contains("Do not include business opportunities"))
     }
 
-    func testLast30DaysDomainModulesStayTaskSpecific() throws {
-        let brief = try ZenMuxLast30DaysResearch.makeResearchBrief(
+    func testResearchDomainModulesAndOpportunitiesStayTaskSpecific() throws {
+        let brief = try ZenMuxResearch.makeResearchBrief(
             topic: "new model releases",
-            startDate: "2026-08-02",
-            endDate: "2026-08-31",
+            question: "Which model is ready for integration?",
+            timeRange: "2026-08-02 to 2026-08-31",
             timeZone: "UTC",
             scope: "global AI developers",
-            purpose: "product decision",
-            requiredSourceTypes: "official, code, papers, media",
+            purpose: "decide",
             exclusions: "sponsored benchmarks",
+            entities: "OpenAI, Qwen, Grok",
             domainModule: "technology"
         )
-        let evidence = ZenMuxLast30DaysResearch.formatEvidence(
+        let evidence = ZenMuxResearch.formatEvidence(
             brief: brief,
             discoveries: []
         )
 
         XCTAssertEqual(brief.domainModule, .technology)
         XCTAssertTrue(evidence.contains("vendor self-tests"))
-        XCTAssertFalse(evidence.contains("official operational claims"))
+        XCTAssertTrue(evidence.contains("Add a separate Opportunities section"))
+        XCTAssertTrue(ZenMuxResearch.sourceQueries(brief: brief, phase: .facts).map(\.source).contains("GitHub"))
+        XCTAssertFalse(ZenMuxResearch.sourceQueries(brief: brief).map(\.source).contains("Polymarket"))
         XCTAssertEqual(
-            ZenMuxLast30DaysResearch.DomainModule.selected(from: "unknown"),
+            ZenMuxResearch.DomainModule.selected(from: "unknown"),
             .general
         )
     }
 
-    func testLast30DaysResearchDraftIncludesSixItemsAndExactLocalWindow() throws {
-        let timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Tokyo"))
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-        let now = try XCTUnwrap(calendar.date(from: DateComponents(
-            year: 2026,
-            month: 8,
-            day: 31,
-            hour: 12
-        )))
-        let draft = ZenMuxChatSession.last30DaysResearchDraft(
-            now: now,
-            timeZone: timeZone
-        )
+    func testResearchDraftIncludesQuestionPurposeAndFlexibleTime() {
+        let draft = ZenMuxChatSession.researchDraft()
 
         XCTAssertTrue(draft.contains("complete all 6 items"))
-        XCTAssertTrue(draft.contains("2026-08-02 to 2026-08-31 (Asia/Tokyo)"))
+        XCTAssertTrue(draft.contains("Question to answer"))
+        XCTAssertTrue(draft.contains("unlimited OR YYYY-MM-DD to YYYY-MM-DD"))
         XCTAssertTrue(draft.contains("1. Topic"))
         XCTAssertTrue(draft.contains("6. Exclusions"))
-        XCTAssertTrue(draft.contains("official/primary"))
+        XCTAssertTrue(draft.contains("understand / verify / decide / content / business"))
         XCTAssertTrue(draft.contains("recycled old news"))
     }
 
@@ -924,8 +952,8 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertTrue(budget.consumeFetch())
         XCTAssertTrue(budget.consumeFetch())
         XCTAssertFalse(budget.consumeFetch())
-        XCTAssertTrue(budget.consumeLast30DaysResearch())
-        XCTAssertFalse(budget.consumeLast30DaysResearch())
+        XCTAssertTrue(budget.consumeResearchReport())
+        XCTAssertFalse(budget.consumeResearchReport())
     }
 
     func testVisualAutomationCoordinatesAreBoundedAndNormalized() throws {
@@ -1990,10 +2018,7 @@ final class ZenMuxTests: XCTestCase {
         textView.textContainerInset = NSSize(width: 2, height: 4)
         ZenMuxComposerLayout.configureDocumentView(textView, in: scrollView)
         scrollView.documentView = textView
-        textView.string = ZenMuxChatSession.last30DaysResearchDraft(
-            now: Date(timeIntervalSince1970: 1_788_109_200),
-            timeZone: try XCTUnwrap(TimeZone(identifier: "Asia/Tokyo"))
-        )
+        textView.string = ZenMuxChatSession.researchDraft()
 
         let measuredHeight = try XCTUnwrap(
             ZenMuxComposerLayout.updateDocumentFrame(textView, in: scrollView)

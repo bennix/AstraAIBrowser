@@ -25,7 +25,7 @@ pipeline used by pasted and selected files. The user sees a removable thumbnail
 before the capture is sent. Each request also includes the client-supplied local
 and UTC date so the model cannot treat today's calendar date as a future event.
 When the user asks whether a claim is true or current, ZenMux can call
-`web_search` and `fetch_url`. `web_search` opens Google Search in a new tab in
+`web_search`, `fetch_url`, and `general_research`. `web_search` opens Google Search in a new tab in
 this browser (the same destination as Search with Google), reads the first three
 result pages from that tab, and supplements those hits with a DuckDuckGo HTML
 search in `APIClient`. It does not replace the current tab. `fetch_url` stays in
@@ -57,13 +57,24 @@ raw display delimiters.
 ZenMux chat can request a bounded set of OpenAI-compatible browser tools:
 inspect the current page, navigate, click a DOM element, enter non-secret text,
 press a safe key, wait for a dynamic element, scroll, go back, reload, or open a
-URL in a new tab. It can also request two grounding tools: `web_search` and
-`fetch_url`. The chat session owns the tool-call loop. `BrowserState` opens
+URL in a new tab. It can also request three grounding tools: `web_search`,
+`fetch_url`, and `general_research`. The chat session owns the tool-call loop. `BrowserState` opens
 Google Search in a new Chromium tab for `web_search` (three result pages),
 `CefWebContentWrapper` owns SERP extraction plus DOM inspection and action
 execution, and `APIClient` owns the DuckDuckGo supplement and public page fetch.
 This preserves the Chromium integration boundary and keeps HTTP search/fetch in
 `APIClient`.
+
+`general_research` requires a topic, an explicit question, a bounded or
+unrestricted time range, scope, purpose, exclusions, and three to eight short
+entity terms. It searches entities before entity-plus-action and site-specific
+queries, prioritizes first-party artifacts and independent reporting, and only
+opens topic-specific social or specialist sources when the selected module or
+the user requests them. Search results are opened to verify their title, date,
+and subject instead of treating snippets as evidence. The resulting evidence
+contract distinguishes confirmed facts from lower-tier observations, records
+unsearched sources separately from unsuccessful queries, and labels product or
+policy states as announced, artifact, runnable, replicated, or unverified.
 
 Page inspection returns sanitized element HTML, accessibility state, a CSS
 selector, a stable per-node reference, and a compatibility numeric index for

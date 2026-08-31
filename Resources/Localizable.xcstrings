@@ -530,26 +530,26 @@
         }
       }
     },
-    "chat.zenMux.last30DaysResearchButton" : {
-      "comment" : "ZenMux chat - Empty-state action that prepares a cross-platform recent-discussion research request",
+    "chat.zenMux.researchButton" : {
+      "comment" : "ZenMux chat - Empty-state action that prepares a verifiable research request",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Research the last 30 days"
+            "value" : "Start source-backed research"
           }
         }
       }
     },
-    "chat.zenMux.last30DaysResearchDraft" : {
-      "comment" : "ZenMux chat - Six-item research brief inserted before recent cross-platform research; placeholders are start date, end date, and IANA time zone",
+    "chat.zenMux.researchDraft" : {
+      "comment" : "ZenMux chat - Six-item source-backed research brief supporting bounded or unlimited time ranges",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Research brief (complete all 6 items before sending):\n1. Topic (one sentence): [required]\n2. Time window: %1$@ to %2$@ (%3$@)\n3. Geography / subjects / industry: [required]\n4. Purpose (understand, decide, create content, or find a business): [required]\n5. Required source types: official/primary; mainstream/professional; social/video; data/markets; research papers\n6. Exclusions: ads; sponsored or promotional content; recycled old news; context-free emotional posts; unrelated brands"
+            "value" : "Source-backed research brief (complete all 6 items before sending):\n1. Topic: [required]\n2. Question to answer: [required]\n3. Time range: unlimited OR YYYY-MM-DD to YYYY-MM-DD (IANA time zone)\n4. Geography / subjects: [required]\n5. Purpose (understand / verify / decide / content / business): [required]\n6. Exclusions: ads; sponsored or promotional content; recycled old news; context-free emotional posts; unrelated brands"
           }
         }
       }
@@ -566,14 +566,14 @@
         }
       }
     },
-    "chat.zenMux.researchingLast30DaysStatus" : {
-      "comment" : "ZenMux chat - Status shown while collecting recent discussion evidence across public platforms",
+    "chat.zenMux.researchStatus" : {
+      "comment" : "ZenMux chat - Status shown while collecting source-backed research evidence",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Researching the last 30 days…"
+            "value" : "Researching public sources…"
           }
         }
       }
