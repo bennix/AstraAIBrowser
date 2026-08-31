@@ -858,7 +858,12 @@ enum WebContentEnginePolicy {
     ) -> Bool {
         _ = profileId
         _ = allowsCredentialStorage
-        return forceSystemMediaEngine
+        // Some legacy HTTP servers time out in the embedded Chromium network
+        // stack even though WebKit can load the same explicit URL. Keep HTTPS
+        // on Chromium unless an existing compatibility rule selects WebKit,
+        // while honoring user-entered HTTP through the established fallback.
+        return url.scheme?.lowercased() == "http"
+            || forceSystemMediaEngine
             || SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(for: url)
     }
 }

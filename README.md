@@ -3,9 +3,9 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 65)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.65/Astra-Browser-build65.dmg)
+[Download Astra 1.0 (build 66)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.66/Astra-Browser-build66.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.65)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.66)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
@@ -19,6 +19,7 @@ and accepted by Apple's notarization service.
 - Browsing history stays in each persistent Chromium profile; the native History menu, Command-Y, and General settings provide direct access to viewing or clearing it.
 - Account settings show whether Astra owns both HTTP and HTTPS and can request complete macOS default-browser ownership.
 - Links opened by other macOS apps enter Astra's embedded Chromium tabs, and exposed browser language follows Astra's selected interface language.
+- Explicit HTTP pages use Astra's existing in-app compatibility engine when the embedded Chromium network stack cannot reach a legacy server, while HTTPS browsing keeps its normal Chromium path.
 - Integrated AI workspace for browsing and task assistance.
 - ZenMux page vision and up to five removable image attachments with thumbnail previews.
 - ZenMux can verify current claims with bounded Google and DuckDuckGo search plus public-page fetching, while treating retrieved content as untrusted data and blocking private-network targets.

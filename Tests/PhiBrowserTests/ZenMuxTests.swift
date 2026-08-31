@@ -1809,6 +1809,11 @@ final class ZenMuxTests: XCTestCase {
 
     @MainActor
     func testRegularWebPagesUseChromeRuntimeAcrossProfiles() {
+        XCTAssertTrue(WebContentEnginePolicy.usesPersistentWebKit(
+            for: URL(string: "http://www.dzkbw.com/books/gaozhong-xinxijishu/")!,
+            profileId: LocalStore.defaultProfileId,
+            allowsCredentialStorage: true
+        ))
         XCTAssertFalse(WebContentEnginePolicy.usesPersistentWebKit(
             for: URL(string: "https://accounts.google.com/")!,
             profileId: LocalStore.defaultProfileId,

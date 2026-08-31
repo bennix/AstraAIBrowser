@@ -20,13 +20,13 @@
     "features.mediaCompatibility.body": "X 和 Twitter 使用持久化的系统 WebKit 会话，直接获得 macOS 的 H.264/AAC 播放能力。图片查看器提供可见的缩小按钮、100%–800% 滑块、放大按钮、实时百分比和重置按钮，同时支持触控板捏合、滚轮、双击缩放与拖动查看。Astra 还会在本机匹配公开垃圾账号数据库，且只有用户明确点击“守护”或“屏蔽”后才执行账号操作。",
     "features.localMemory.title": "本地第二大脑",
     "features.localMemory.body": "Astra 将笔记和完整的用户/AI 对话保存到账号独立的本地向量索引，并镜像成可迁移的 Markdown 文件，在本机检索相关上下文。记忆内容支持 Markdown、可横向滚动的表格、本地 LaTeX 数学及化学公式渲染，并可将单条或多条记忆导出为 Markdown 文件。过期会话会先完成摘要，再删除原记录。",
-    "features.browserOwnership.title": "原生链接与语言集成",
-    "features.browserOwnership.body": "通用设置可让 Astra 完整接管 HTTP 与 HTTPS。其他 Mac 应用打开的链接会进入 Astra 内嵌的 Chromium 标签页，网站检测到的浏览器语言也会与 Astra 界面语言保持一致。",
+    "features.browserOwnership.title": "原生链接与旧式 HTTP 兼容",
+    "features.browserOwnership.body": "通用设置可让 Astra 完整接管 HTTP 与 HTTPS。其他 Mac 应用打开的链接会留在 Astra 内；当旧式服务器无法通过 Chromium 连接时，显式 HTTP 页面会自动使用现有的应用内兼容引擎。",
     "features.history.title": "完整保留浏览历史",
     "features.history.body": "Astra 将浏览历史保存在持久化 Chromium 配置中，可从原生“历史记录”菜单和“通用”设置查看或清除，也可按 Command-Y 打开完整记录。",
     "features.recentResearch.title": "可审计的 30 天研究",
     "features.recentResearch.body": "ZenMux 按文档类型划分证据层级，将已确认事实限制为单一主体、动作和日期，记录 Announced、Artifact、Runnable 与 Replicated 四档状态，并保留完整检索式。报告固定为九个区块，返回前执行六项质量检查；长篇研究简报也可在不会重叠文字的输入框中展开和滚动。",
-    "download.summary": "Build 65 修复了 AI 提问区长文本换行重叠，并让研究简报自动展开为可滚动编辑器。30 天研究新增原子事实、四档状态、可复现检索日志、按任务启用的证据模块，以及六项自动质量检查。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 66 恢复了旧式基础设施所提供的显式 HTTP 页面访问。此类页面现在会自动使用 Astra 现有的应用内兼容引擎，HTTPS 浏览仍保留常规 Chromium 路径。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {
