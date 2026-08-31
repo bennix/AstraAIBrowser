@@ -2054,6 +2054,10 @@ enum ZenMuxComposerLayout {
         _ textView: NSTextView,
         in scrollView: NSScrollView
     ) {
+        // Keep the text viewport width stable when the vertical scroller
+        // appears. Legacy scrollers consume width and can otherwise make
+        // wrapped text alternate endlessly between two document heights.
+        scrollView.scrollerStyle = .overlay
         let viewportSize = scrollView.contentSize
         textView.minSize = NSSize(width: 0, height: 0)
         textView.maxSize = NSSize(

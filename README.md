@@ -3,9 +3,9 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 66)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.66/Astra-Browser-build66.dmg)
+[Download Astra 1.0 (build 67)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.67/Astra-Browser-build67.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.66)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.67)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
@@ -24,7 +24,7 @@ and accepted by Apple's notarization service.
 - ZenMux page vision and up to five removable image attachments with thumbnail previews.
 - ZenMux can verify current claims with bounded Google and DuckDuckGo search plus public-page fetching, while treating retrieved content as untrusted data and blocking private-network targets.
 - ZenMux requires a complete six-item research brief, enforces an explicit time zone and a maximum 30-day hard window, searches primary and professional fact sources before discussion platforms, and produces atomic facts, availability states, reproducible queries, nine report sections, and six automated quality gates.
-- The AI composer actively lays out wrapped text, expands for research briefs, and scrolls long drafts without overlapping lines.
+- The AI composer actively lays out wrapped text, keeps its viewport width stable while scrolling, expands for research briefs, and scrolls long drafts without overlapping or flickering lines.
 - Paste images directly into ZenMux, or add a removable capture of the exact visible browser viewport from the composer, including the current standard video frame.
 - ZenMux answers render GitHub-style Markdown tables and normalize common model-specific LaTeX wrappers before native math rendering.
 - YouTube ad playback acceleration: detected ads play at 8× and the previous content speed is restored afterward.

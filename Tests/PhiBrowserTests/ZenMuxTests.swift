@@ -2020,4 +2020,40 @@ final class ZenMuxTests: XCTestCase {
             ZenMuxComposerLayout.expandedHeight
         )
     }
+
+    func testComposerLayoutKeepsWrappedTextHeightStableWhenScrollerAppears() throws {
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 220, height: 62))
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.scrollerStyle = .legacy
+        let textView = NSTextView()
+        textView.font = .systemFont(ofSize: 13)
+        textView.textContainerInset = NSSize(width: 2, height: 4)
+        ZenMuxComposerLayout.configureDocumentView(textView, in: scrollView)
+        scrollView.documentView = textView
+        textView.string = """
+        Explain every key idea and exam topic in this book for middle school students. Continue in another response when the output limit is reached.
+        """
+
+        XCTAssertEqual(scrollView.scrollerStyle, .overlay)
+
+        var editorHeight = ZenMuxComposerLayout.minimumHeight
+        var measuredHeights: [CGFloat] = []
+        for _ in 0..<6 {
+            scrollView.setFrameSize(NSSize(
+                width: 220,
+                height: max(1, editorHeight - 10)
+            ))
+            scrollView.layoutSubtreeIfNeeded()
+            let measuredHeight = try XCTUnwrap(
+                ZenMuxComposerLayout.updateDocumentFrame(textView, in: scrollView)
+            )
+            editorHeight = ZenMuxComposerLayout.automaticHeight(for: measuredHeight)
+            measuredHeights.append(editorHeight)
+        }
+
+        let stableHeights = measuredHeights.suffix(4)
+        XCTAssertEqual(Set(stableHeights).count, 1)
+        XCTAssertEqual(scrollView.contentSize.width, 220, accuracy: 0.5)
+    }
 }

@@ -25,8 +25,8 @@
     "features.history.title": "完整保留浏览历史",
     "features.history.body": "Astra 将浏览历史保存在持久化 Chromium 配置中，可从原生“历史记录”菜单和“通用”设置查看或清除，也可按 Command-Y 打开完整记录。",
     "features.recentResearch.title": "可审计的 30 天研究",
-    "features.recentResearch.body": "ZenMux 按文档类型划分证据层级，将已确认事实限制为单一主体、动作和日期，记录 Announced、Artifact、Runnable 与 Replicated 四档状态，并保留完整检索式。报告固定为九个区块，返回前执行六项质量检查；长篇研究简报也可在不会重叠文字的输入框中展开和滚动。",
-    "download.summary": "Build 66 恢复了旧式基础设施所提供的显式 HTTP 页面访问。此类页面现在会自动使用 Astra 现有的应用内兼容引擎，HTTPS 浏览仍保留常规 Chromium 路径。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "features.recentResearch.body": "ZenMux 按文档类型划分证据层级，将已确认事实限制为单一主体、动作和日期，记录 Announced、Artifact、Runnable 与 Replicated 四档状态，并保留完整检索式。报告固定为九个区块，返回前执行六项质量检查；长篇研究简报在输入框展开和滚动时会保持稳定，不再出现文字重叠或闪烁。",
+    "download.summary": "Build 67 修复了 AI 输入框在换行文字达到滚动临界点时的闪烁问题。编辑器现在保持稳定的文字视口宽度，避免滚动条触发反复重排，同时保留自动展开和滚动能力。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {
