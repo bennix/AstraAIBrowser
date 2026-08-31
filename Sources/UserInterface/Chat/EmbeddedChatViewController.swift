@@ -775,6 +775,7 @@ final class ZenMuxChatSession: ObservableObject {
         let purpose: String?
         let requiredSourceTypes: String?
         let exclusions: String?
+        let domainModule: String?
         let pixels: Int?
         let milliseconds: Int?
         let x: Int?
@@ -796,6 +797,7 @@ final class ZenMuxChatSession: ObservableObject {
             case purpose
             case requiredSourceTypes = "required_source_types"
             case exclusions
+            case domainModule = "domain_module"
             case pixels
             case milliseconds
             case x
@@ -839,6 +841,7 @@ final class ZenMuxChatSession: ObservableObject {
             purpose: nil,
             requiredSourceTypes: nil,
             exclusions: nil,
+            domainModule: nil,
             pixels: nil,
             milliseconds: nil,
             x: nil,
@@ -908,7 +911,8 @@ final class ZenMuxChatSession: ObservableObject {
                 scope: arguments?.scope ?? "",
                 purpose: arguments?.purpose ?? "",
                 requiredSourceTypes: arguments?.requiredSourceTypes ?? "",
-                exclusions: arguments?.exclusions ?? ""
+                exclusions: arguments?.exclusions ?? "",
+                domainModule: arguments?.domainModule ?? ZenMuxLast30DaysResearch.DomainModule.general.rawValue
             )
             return .init(succeeded: outcome.succeeded, message: outcome.message)
         case ZenMuxWebGrounding.searchToolName:
@@ -1681,7 +1685,10 @@ struct ZenMuxChatView: View {
                     .padding(.horizontal, 7)
                     .padding(.vertical, 5)
                 }
-                .frame(height: isComposerExpanded ? 220 : composerHeight)
+                .frame(height: ZenMuxComposerLayout.editorHeight(
+                    measuredHeight: composerHeight,
+                    isExpanded: isComposerExpanded
+                ))
                 .animation(.easeInOut(duration: 0.16), value: isComposerExpanded)
                 .animation(.easeInOut(duration: 0.12), value: composerHeight)
 
@@ -1744,6 +1751,7 @@ struct ZenMuxChatView: View {
 
     private func prepareLast30DaysResearch() {
         session.draft = ZenMuxChatSession.last30DaysResearchDraft()
+        isComposerExpanded = true
         composerFocusRequest = UUID()
     }
 
@@ -2025,6 +2033,96 @@ enum ZenMuxComposerKeyPolicy {
     }
 }
 
+enum ZenMuxComposerLayout {
+    static let minimumHeight: CGFloat = 72
+    static let maximumAutomaticHeight: CGFloat = 164
+    static let expandedHeight: CGFloat = 220
+    private static let editorVerticalPadding: CGFloat = 10
+
+    static func editorHeight(
+        measuredHeight: CGFloat,
+        isExpanded: Bool
+    ) -> CGFloat {
+        isExpanded ? expandedHeight : automaticHeight(for: measuredHeight)
+    }
+
+    static func automaticHeight(for measuredHeight: CGFloat) -> CGFloat {
+        min(maximumAutomaticHeight, max(minimumHeight, measuredHeight))
+    }
+
+    static func configureDocumentView(
+        _ textView: NSTextView,
+        in scrollView: NSScrollView
+    ) {
+        let viewportSize = scrollView.contentSize
+        textView.minSize = NSSize(width: 0, height: 0)
+        textView.maxSize = NSSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        textView.frame = NSRect(
+            origin: .zero,
+            size: NSSize(
+                width: max(1, viewportSize.width),
+                height: max(1, viewportSize.height)
+            )
+        )
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.heightTracksTextView = false
+        textView.textContainer?.containerSize = NSSize(
+            width: max(1, viewportSize.width),
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+    }
+
+    @discardableResult
+    static func updateDocumentFrame(
+        _ textView: NSTextView,
+        in scrollView: NSScrollView
+    ) -> CGFloat? {
+        guard let layoutManager = textView.layoutManager,
+              let textContainer = textView.textContainer else { return nil }
+        let viewportSize = scrollView.contentSize
+        let documentWidth = max(1, viewportSize.width)
+        if abs(textView.frame.width - documentWidth) > 0.5 {
+            textView.setFrameSize(NSSize(
+                width: documentWidth,
+                height: max(1, textView.frame.height)
+            ))
+        }
+        if !textContainer.widthTracksTextView,
+           abs(textContainer.containerSize.width - documentWidth) > 0.5 {
+            textContainer.containerSize = NSSize(
+                width: documentWidth,
+                height: CGFloat.greatestFiniteMagnitude
+            )
+        }
+        if textView.textStorage?.length ?? 0 > 0 {
+            layoutManager.ensureLayout(forCharacterRange: NSRange(
+                location: 0,
+                length: textView.textStorage?.length ?? 0
+            ))
+        } else {
+            layoutManager.ensureLayout(for: textContainer)
+        }
+        let textDocumentHeight = ceil(
+            layoutManager.usedRect(for: textContainer).height
+                + textView.textContainerInset.height * 2
+        )
+        let documentHeight = max(viewportSize.height, textDocumentHeight)
+        if abs(textView.frame.height - documentHeight) > 0.5 {
+            textView.setFrameSize(NSSize(
+                width: documentWidth,
+                height: documentHeight
+            ))
+        }
+        return textDocumentHeight + editorVerticalPadding
+    }
+}
+
 private final class ZenMuxComposerNativeTextView: NSTextView {
     var onSend: (() -> Void)?
     var onPasteImages: (([ZenMuxImageAttachmentSource]) -> Void)?
@@ -2051,6 +2149,15 @@ private final class ZenMuxComposerNativeTextView: NSTextView {
     }
 }
 
+private final class ZenMuxComposerScrollView: NSScrollView {
+    var onLayout: (() -> Void)?
+
+    override func layout() {
+        super.layout()
+        onLayout?()
+    }
+}
+
 private struct ZenMuxComposerEditor: NSViewRepresentable {
     @Binding var text: String
     @Binding var measuredHeight: CGFloat
@@ -2059,15 +2166,12 @@ private struct ZenMuxComposerEditor: NSViewRepresentable {
     let onSend: () -> Void
     let onPasteImages: ([ZenMuxImageAttachmentSource]) -> Void
 
-    private let minimumHeight: CGFloat = 72
-    private let maximumHeight: CGFloat = 164
-
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
     }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSScrollView()
+        let scrollView = ZenMuxComposerScrollView()
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
         scrollView.hasHorizontalScroller = false
@@ -2084,22 +2188,21 @@ private struct ZenMuxComposerEditor: NSViewRepresentable {
         textView.allowsUndo = true
         textView.font = .systemFont(ofSize: 13)
         textView.textContainerInset = NSSize(width: 2, height: 4)
-        textView.textContainer?.widthTracksTextView = true
-        textView.textContainer?.containerSize = NSSize(
-            width: 0,
-            height: CGFloat.greatestFiniteMagnitude
-        )
-        textView.isVerticallyResizable = true
-        textView.isHorizontallyResizable = false
-        textView.autoresizingMask = [.width]
+        ZenMuxComposerLayout.configureDocumentView(textView, in: scrollView)
         textView.string = text
         textView.onSend = onSend
         textView.onPasteImages = onPasteImages
         textView.setAccessibilityLabel(accessibilityLabel)
         scrollView.documentView = textView
         context.coordinator.textView = textView
+        context.coordinator.scrollView = scrollView
+        scrollView.onLayout = { [weak coordinator = context.coordinator] in
+            coordinator?.updateLayout()
+        }
         context.coordinator.installPasteMonitorIfNeeded()
-        context.coordinator.updateMeasuredHeight()
+        DispatchQueue.main.async { [weak coordinator = context.coordinator] in
+            coordinator?.updateLayout()
+        }
         return scrollView
     }
 
@@ -2111,8 +2214,8 @@ private struct ZenMuxComposerEditor: NSViewRepresentable {
         textView.setAccessibilityLabel(accessibilityLabel)
         if textView.string != text {
             textView.string = text
-            context.coordinator.updateMeasuredHeight()
         }
+        context.coordinator.updateLayout()
         if context.coordinator.lastFocusRequest != focusRequest {
             context.coordinator.lastFocusRequest = focusRequest
             DispatchQueue.main.async {
@@ -2124,8 +2227,10 @@ private struct ZenMuxComposerEditor: NSViewRepresentable {
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: ZenMuxComposerEditor
         weak var textView: NSTextView?
+        weak var scrollView: NSScrollView?
         var lastFocusRequest: UUID?
         private var pasteMonitor: Any?
+        private var isUpdatingLayout = false
 
         init(parent: ZenMuxComposerEditor) {
             self.parent = parent
@@ -2161,18 +2266,20 @@ private struct ZenMuxComposerEditor: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let textView else { return }
             parent.text = textView.string
-            updateMeasuredHeight()
+            updateLayout()
         }
 
-        func updateMeasuredHeight() {
-            guard let textView,
-                  let layoutManager = textView.layoutManager,
-                  let textContainer = textView.textContainer else { return }
-            layoutManager.ensureLayout(for: textContainer)
-            let contentHeight = layoutManager.usedRect(for: textContainer).height
-                + textView.textContainerInset.height * 2
-                + 10
-            let nextHeight = min(parent.maximumHeight, max(parent.minimumHeight, contentHeight))
+        func updateLayout() {
+            guard !isUpdatingLayout,
+                  let textView,
+                  let scrollView else { return }
+            isUpdatingLayout = true
+            defer { isUpdatingLayout = false }
+            guard let measuredHeight = ZenMuxComposerLayout.updateDocumentFrame(
+                textView,
+                in: scrollView
+            ) else { return }
+            let nextHeight = ZenMuxComposerLayout.automaticHeight(for: measuredHeight)
             guard abs(parent.measuredHeight - nextHeight) > 0.5 else { return }
             DispatchQueue.main.async { [weak self] in
                 self?.parent.measuredHeight = nextHeight

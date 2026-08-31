@@ -24,9 +24,9 @@
     "features.browserOwnership.body": "通用设置可让 Astra 完整接管 HTTP 与 HTTPS。其他 Mac 应用打开的链接会进入 Astra 内嵌的 Chromium 标签页，网站检测到的浏览器语言也会与 Astra 界面语言保持一致。",
     "features.history.title": "完整保留浏览历史",
     "features.history.body": "Astra 将浏览历史保存在持久化 Chromium 配置中，可从原生“历史记录”菜单和“通用”设置查看或清除，也可按 Command-Y 打开完整记录。",
-    "features.recentResearch.title": "基于证据的 30 天研究",
-    "features.recentResearch.body": "ZenMux 现在要求完整填写六项研究简报，明确时区，并将硬时间窗限制在最多 30 天。系统会先检索官方、原始数据、主流媒体、专业机构和论文，再检索社媒讨论；报告会分开呈现已确认事实、讨论趋势、争议、痛点、机会与待验证事项，并标注来源层级、置信度和局限性。",
-    "download.summary": "Build 64 让近期研究流程更加严格且可审计。缺项会在检索前被拒绝，事实源先于社媒讨论检索，每项结论都遵循明确的来源层级与时间窗，并将已确认事实和趋势、争议、痛点、机会及待验证任务分开呈现。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "features.recentResearch.title": "可审计的 30 天研究",
+    "features.recentResearch.body": "ZenMux 按文档类型划分证据层级，将已确认事实限制为单一主体、动作和日期，记录 Announced、Artifact、Runnable 与 Replicated 四档状态，并保留完整检索式。报告固定为九个区块，返回前执行六项质量检查；长篇研究简报也可在不会重叠文字的输入框中展开和滚动。",
+    "download.summary": "Build 65 修复了 AI 提问区长文本换行重叠，并让研究简报自动展开为可滚动编辑器。30 天研究新增原子事实、四档状态、可复现检索日志、按任务启用的证据模块，以及六项自动质量检查。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

@@ -601,6 +601,7 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertTrue(prompt.contains("training cutoff"))
         XCTAssertTrue(prompt.contains("six-item brief"))
         XCTAssertTrue(prompt.contains("Do not infer a missing item"))
+        XCTAssertTrue(prompt.contains("optional domain module"))
         XCTAssertTrue(prompt.contains("single source never establishes a trend"))
     }
 
@@ -663,12 +664,14 @@ final class ZenMuxTests: XCTestCase {
             scope: "Japan consumer software",
             purpose: "product decision",
             requiredSourceTypes: "official, media, social, data, papers",
-            exclusions: "ads and recycled old news"
+            exclusions: "ads and recycled old news",
+            domainModule: "technology"
         )
         XCTAssertEqual(brief.topic, "local AI")
         XCTAssertEqual(brief.timeZoneIdentifier, "Asia/Tokyo")
         XCTAssertEqual(brief.startDateText, "2026-08-02")
         XCTAssertEqual(brief.endDateText, "2026-08-31")
+        XCTAssertEqual(brief.domainModule, .technology)
     }
 
     func testLast30DaysResearchQueriesSearchFactsBeforeDiscussionInsideWindow() throws {
@@ -741,10 +744,40 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertTrue(evidence.contains("X: failed; coverage is unknown, not quiet"))
         XCTAssertTrue(evidence.contains("Search discovery is not proof"))
         XCTAssertTrue(evidence.contains("High confidence requires"))
-        XCTAssertTrue(evidence.contains("Return exactly these seven top-level sections"))
+        XCTAssertTrue(evidence.contains("Return exactly these nine top-level sections"))
         XCTAssertTrue(evidence.contains("A single source never establishes a trend"))
         XCTAssertTrue(evidence.contains("no valid in-window sample"))
+        XCTAssertTrue(evidence.contains("query=local AI global consumer software"))
+        XCTAssertTrue(evidence.contains("Announced, Artifact, Runnable, or Replicated"))
+        XCTAssertTrue(evidence.contains("each confirmed fact has only one subject"))
+        XCTAssertTrue(evidence.contains("every Measured label has a number or linkable object"))
         XCTAssertTrue(evidence.contains("label the whole output DRAFT"))
+    }
+
+    func testLast30DaysDomainModulesStayTaskSpecific() throws {
+        let brief = try ZenMuxLast30DaysResearch.makeResearchBrief(
+            topic: "new model releases",
+            startDate: "2026-08-02",
+            endDate: "2026-08-31",
+            timeZone: "UTC",
+            scope: "global AI developers",
+            purpose: "product decision",
+            requiredSourceTypes: "official, code, papers, media",
+            exclusions: "sponsored benchmarks",
+            domainModule: "technology"
+        )
+        let evidence = ZenMuxLast30DaysResearch.formatEvidence(
+            brief: brief,
+            discoveries: []
+        )
+
+        XCTAssertEqual(brief.domainModule, .technology)
+        XCTAssertTrue(evidence.contains("vendor self-tests"))
+        XCTAssertFalse(evidence.contains("official operational claims"))
+        XCTAssertEqual(
+            ZenMuxLast30DaysResearch.DomainModule.selected(from: "unknown"),
+            .general
+        )
     }
 
     func testLast30DaysResearchDraftIncludesSixItemsAndExactLocalWindow() throws {
@@ -1942,5 +1975,44 @@ final class ZenMuxTests: XCTestCase {
             modifierFlags: [],
             hasMarkedText: true
         ))
+    }
+
+    func testComposerLayoutResizesWrappedDocumentAndKeepsHeightBounded() throws {
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 260, height: 72))
+        scrollView.hasVerticalScroller = true
+        let textView = NSTextView()
+        textView.font = .systemFont(ofSize: 13)
+        textView.textContainerInset = NSSize(width: 2, height: 4)
+        ZenMuxComposerLayout.configureDocumentView(textView, in: scrollView)
+        scrollView.documentView = textView
+        textView.string = ZenMuxChatSession.last30DaysResearchDraft(
+            now: Date(timeIntervalSince1970: 1_788_109_200),
+            timeZone: try XCTUnwrap(TimeZone(identifier: "Asia/Tokyo"))
+        )
+
+        let measuredHeight = try XCTUnwrap(
+            ZenMuxComposerLayout.updateDocumentFrame(textView, in: scrollView)
+        )
+        let layoutManager = try XCTUnwrap(textView.layoutManager)
+        let textContainer = try XCTUnwrap(textView.textContainer)
+        layoutManager.ensureLayout(for: textContainer)
+        let requiredDocumentHeight = ceil(
+            layoutManager.usedRect(for: textContainer).height
+                + textView.textContainerInset.height * 2
+        )
+
+        XCTAssertGreaterThan(requiredDocumentHeight, scrollView.contentSize.height)
+        XCTAssertGreaterThanOrEqual(textView.frame.height, requiredDocumentHeight)
+        XCTAssertEqual(
+            ZenMuxComposerLayout.automaticHeight(for: measuredHeight),
+            ZenMuxComposerLayout.maximumAutomaticHeight
+        )
+        XCTAssertEqual(
+            ZenMuxComposerLayout.editorHeight(
+                measuredHeight: measuredHeight,
+                isExpanded: true
+            ),
+            ZenMuxComposerLayout.expandedHeight
+        )
     }
 }
