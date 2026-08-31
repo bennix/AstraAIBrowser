@@ -769,6 +769,8 @@ final class ZenMuxChatSession: ObservableObject {
         let url: String?
         let query: String?
         let question: String?
+        let objects: String?
+        let accountingBasis: String?
         let timeRange: String?
         let timeZone: String?
         let scope: String?
@@ -792,6 +794,8 @@ final class ZenMuxChatSession: ObservableObject {
             case url
             case query
             case question
+            case objects
+            case accountingBasis = "accounting_basis"
             case timeRange = "time_range"
             case timeZone = "time_zone"
             case scope
@@ -837,6 +841,8 @@ final class ZenMuxChatSession: ObservableObject {
             url: nil,
             query: nil,
             question: nil,
+            objects: nil,
+            accountingBasis: nil,
             timeRange: nil,
             timeZone: nil,
             scope: nil,
@@ -907,8 +913,9 @@ final class ZenMuxChatSession: ObservableObject {
                 )
             }
             let outcome = await APIClient.shared.researchZenMux(
-                topic: arguments?.query ?? "",
                 question: arguments?.question ?? "",
+                objects: arguments?.objects ?? "",
+                accountingBasis: arguments?.accountingBasis ?? "",
                 timeRange: arguments?.timeRange ?? "",
                 timeZone: arguments?.timeZone ?? "",
                 scope: arguments?.scope ?? "",
@@ -1031,15 +1038,17 @@ final class ZenMuxChatSession: ObservableObject {
         NSLocalizedString(
             "chat.zenMux.researchDraft",
             value: """
-            Source-backed research brief (complete all 6 items before sending):
-            1. Topic: [required]
-            2. Question to answer: [required]
-            3. Time range: unlimited OR YYYY-MM-DD to YYYY-MM-DD (IANA time zone)
-            4. Geography / subjects: [required]
-            5. Purpose (understand / verify / decide / content / business): [required]
-            6. Exclusions: ads; sponsored or promotional content; recycled old news; context-free emotional posts; unrelated brands
+            Source-backed research task card (complete all 6 items before sending):
+            1. Question (one sentence): [required]
+            2. Objects (one metric, product, policy, fund, or account per item): [required]
+            3. Accounting basis (geography; flow/stock; inclusions; exclusions; overlap; can values be added?): [required]
+            4. Time: unlimited OR YYYY-MM-DD to YYYY-MM-DD (IANA time zone)
+            5. Scope (optional) and exclusions (required): [required]
+            6. Purpose (understand / verify / decide / content / business): [required]
+
+            First map overlap and aggregation, then search short entities and responsible-authority sites. Do not strengthen official wording.
             """,
-            comment: "ZenMux chat - Six-item source-backed research brief supporting bounded or unlimited time ranges"
+            comment: "ZenMux chat - Six-item research task card that defines objects, accounting basis, time, scope, exclusions, and purpose"
         )
     }
 

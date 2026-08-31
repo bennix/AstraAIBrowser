@@ -543,13 +543,13 @@
       }
     },
     "chat.zenMux.researchDraft" : {
-      "comment" : "ZenMux chat - Six-item source-backed research brief supporting bounded or unlimited time ranges",
+      "comment" : "ZenMux chat - Six-item research task card that defines objects, accounting basis, time, scope, exclusions, and purpose",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Source-backed research brief (complete all 6 items before sending):\n1. Topic: [required]\n2. Question to answer: [required]\n3. Time range: unlimited OR YYYY-MM-DD to YYYY-MM-DD (IANA time zone)\n4. Geography / subjects: [required]\n5. Purpose (understand / verify / decide / content / business): [required]\n6. Exclusions: ads; sponsored or promotional content; recycled old news; context-free emotional posts; unrelated brands"
+            "value" : "Source-backed research task card (complete all 6 items before sending):\n1. Question (one sentence): [required]\n2. Objects (one metric, product, policy, fund, or account per item): [required]\n3. Accounting basis (geography; flow/stock; inclusions; exclusions; overlap; can values be added?): [required]\n4. Time: unlimited OR YYYY-MM-DD to YYYY-MM-DD (IANA time zone)\n5. Scope (optional) and exclusions (required): [required]\n6. Purpose (understand / verify / decide / content / business): [required]\n\nFirst map overlap and aggregation, then search short entities and responsible-authority sites. Do not strengthen official wording."
           }
         }
       }

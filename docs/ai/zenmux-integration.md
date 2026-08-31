@@ -65,16 +65,44 @@ execution, and `APIClient` owns the DuckDuckGo supplement and public page fetch.
 This preserves the Chromium integration boundary and keeps HTTP search/fetch in
 `APIClient`.
 
-`general_research` requires a topic, an explicit question, a bounded or
-unrestricted time range, scope, purpose, exclusions, and three to eight short
-entity terms. It searches entities before entity-plus-action and site-specific
-queries, prioritizes first-party artifacts and independent reporting, and only
-opens topic-specific social or specialist sources when the selected module or
-the user requests them. Search results are opened to verify their title, date,
-and subject instead of treating snippets as evidence. The resulting evidence
-contract distinguishes confirmed facts from lower-tier observations, records
-unsearched sources separately from unsuccessful queries, and labels product or
-policy states as announced, artifact, runnable, replicated, or unverified.
+`general_research` requires a six-item task card: one question, a separate
+object list, an accounting basis, a bounded or unrestricted time rule, scope
+and exclusions, and a purpose. The model also supplies three to eight short
+entity terms. It searches entities before entity-plus-action and responsible-
+site queries, uses official and primary sources before independent reporting,
+and leaves TikTok, full-site Reddit or Hacker News searches, and unofficial
+social reposts disabled unless the user explicitly requests them. Topic
+modules enable specialist sources such as GitHub, Hugging Face, arXiv,
+government and disclosure sites, X, or Polymarket only when relevant.
+
+Search results are opened to verify their date, object, exact accounting term,
+overlap, and document type instead of treating snippets as evidence. The
+evidence contract keeps one account per object, prevents a subset from being
+added to its parent, preserves distinctions among flows, stocks, assets,
+equity, income, and balances, and never strengthens an official
+characterization. Reports separate confirmed facts from lower-tier
+observations, retain three distinct zero-result states, record uncovered sites,
+and include a comparison table with object, accounting basis, as-of date,
+value, overlap, and source URL. Product or technical object states use
+announced, artifact, runnable, replicated, or unverified; policies use a
+policy-appropriate state family, and statistical values are never labeled as
+artifacts.
+
+A concise user task can follow this form:
+
+```text
+Run the general research protocol.
+Question: {one sentence}
+Objects: {A}, {B}, {C}
+Time: {unlimited or START-END plus time zone}
+Purpose: {understand, verify, decide, content, or business}
+Scope: {optional}
+Exclusions: {required}
+First map which objects overlap and whether they may be added.
+Search short entities before site-constrained responsible-authority queries.
+Use only the enabled framework source map for L1 evidence.
+Do not strengthen the source's official characterization.
+```
 
 Page inspection returns sanitized element HTML, accessibility state, a CSS
 selector, a stable per-node reference, and a compatibility numeric index for

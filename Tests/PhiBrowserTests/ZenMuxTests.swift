@@ -599,11 +599,13 @@ final class ZenMuxTests: XCTestCase {
             "only through the supplied tools when the user's latest message explicitly requests an action"
         ))
         XCTAssertTrue(prompt.contains("training cutoff"))
-        XCTAssertTrue(prompt.contains("six-item brief"))
-        XCTAssertTrue(prompt.contains("exact question to answer"))
+        XCTAssertTrue(prompt.contains("six-item task card"))
+        XCTAssertTrue(prompt.contains("one exact question"))
+        XCTAssertTrue(prompt.contains("separate object list"))
+        XCTAssertTrue(prompt.contains("accounting basis"))
         XCTAssertTrue(prompt.contains("3 to 8 short entity terms"))
         XCTAssertTrue(prompt.contains("never use the report title"))
-        XCTAssertTrue(prompt.contains("empty result page"))
+        XCTAssertTrue(prompt.contains("never add an overlapping subset to its parent"))
     }
 
     func testGroundingToolsAreRegisteredForEveryModel() {
@@ -627,27 +629,29 @@ final class ZenMuxTests: XCTestCase {
 
     func testResearchBriefRequiresQuestionAndSupportsBoundedOrUnlimitedTime() throws {
         XCTAssertThrowsError(try ZenMuxResearch.makeResearchBrief(
-            topic: "[required]",
             question: "[required]",
+            objects: "[required]",
+            accountingBasis: "[required]",
             timeRange: "unlimited",
             timeZone: "",
             scope: "[required]",
             purpose: "understand",
-            exclusions: "ads and recycled old news",
+            exclusions: "[required]",
             entities: "local AI, on-device models, private inference"
         )) { error in
             XCTAssertEqual(
                 error as? ZenMuxResearch.ResearchBriefError,
-                .missingFields(["question", "scope", "topic"])
+                .missingFields(["accounting basis", "exclusions", "objects", "question"])
             )
         }
 
         let unlimitedBrief = try ZenMuxResearch.makeResearchBrief(
-            topic: "local AI",
             question: "Which local AI capabilities have independent evidence?",
+            objects: "ChatGPT product, local model artifacts",
+            accountingBasis: "Global availability; products and artifacts stay separate and cannot be added.",
             timeRange: "unlimited",
             timeZone: "",
-            scope: "Japan consumer software",
+            scope: "",
             purpose: "understand",
             exclusions: "ads and recycled old news",
             entities: "local AI, on-device models, private inference"
@@ -656,10 +660,14 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertEqual(unlimitedBrief.timeRangeText, "unlimited")
         XCTAssertNil(unlimitedBrief.timeZoneIdentifier)
         XCTAssertEqual(unlimitedBrief.purpose, .understand)
+        XCTAssertEqual(unlimitedBrief.scope, "not specified")
+        XCTAssertEqual(unlimitedBrief.objects, ["ChatGPT product", "local model artifacts"])
+        XCTAssertTrue(unlimitedBrief.accountingBasis.contains("cannot be added"))
 
         let boundedBrief = try ZenMuxResearch.makeResearchBrief(
-            topic: "local AI",
             question: "How did local AI availability change?",
+            objects: "ChatGPT product, local model artifacts",
+            accountingBasis: "Japan availability as a stock at each date; no aggregation.",
             timeRange: "2024-01-01 to 2026-08-31",
             timeZone: "Asia/Tokyo",
             scope: "Japan consumer software",
@@ -674,23 +682,25 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertEqual(boundedBrief.domainModule, .technology)
 
         XCTAssertThrowsError(try ZenMuxResearch.makeResearchBrief(
-            topic: "local AI",
             question: "What changed?",
+            objects: "site:github.com local AI",
+            accountingBasis: "Global product availability; no aggregation.",
             timeRange: "unlimited",
             timeZone: "",
             scope: "global",
             purpose: "verify",
             exclusions: "ads",
-            entities: "site:github.com local AI, models"
+            entities: "local AI, model artifacts, product access"
         )) { error in
-            XCTAssertEqual(error as? ZenMuxResearch.ResearchBriefError, .invalidEntityTerms)
+            XCTAssertEqual(error as? ZenMuxResearch.ResearchBriefError, .invalidObjects)
         }
     }
 
     func testResearchQueriesUseEntityActionAndSiteOrder() throws {
         let brief = try ZenMuxResearch.makeResearchBrief(
-            topic: "A complete report about local AI products and adoption",
             question: "Which products have independently verified runnable artifacts?",
+            objects: "GPT-5 product, ChatGPT application, OpenAI model artifacts",
+            accountingBasis: "Global product availability; product and artifact states are separate and cannot be added.",
             timeRange: "2026-07-31 to 2026-08-29",
             timeZone: "UTC",
             scope: "global consumer software",
@@ -724,14 +734,15 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertTrue(queries.allSatisfy { $0.query.contains("after:2026-07-31") })
         XCTAssertTrue(queries.allSatisfy { $0.query.contains("before:2026-08-30") })
         XCTAssertTrue(queries.allSatisfy { $0.query.count <= ZenMuxWebGrounding.maximumQueryLength })
-        XCTAssertTrue(queries.allSatisfy { !$0.query.contains(brief.topic) })
         XCTAssertTrue(queries.allSatisfy { !$0.query.contains(brief.question) })
         XCTAssertTrue(queries.allSatisfy { !$0.query.contains(brief.scope) })
+        XCTAssertTrue(queries.allSatisfy { !$0.query.contains(brief.accountingBasis) })
         XCTAssertTrue(factQueries.first(where: { $0.source == "GitHub" })?.query.contains("site:github.com") == true)
 
         let unlimitedBrief = try ZenMuxResearch.makeResearchBrief(
-            topic: "local AI",
             question: "What is independently verified?",
+            objects: "GPT-5 product, ChatGPT application",
+            accountingBasis: "Global availability; no aggregation.",
             timeRange: "unlimited",
             timeZone: "",
             scope: "global",
@@ -742,13 +753,13 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertTrue(ZenMuxResearch.sourceQueries(brief: unlimitedBrief).allSatisfy {
             !$0.query.contains("after:") && !$0.query.contains("before:")
         })
-        XCTAssertNil(ZenMuxResearch.normalizedTopic("   "))
     }
 
     func testResearchEvidenceSeparatesCoverageZeroResultsAndObservations() throws {
         let brief = try ZenMuxResearch.makeResearchBrief(
-            topic: "local AI",
             question: "What limitations recur in user reports?",
+            objects: "local AI product, on-device model artifact",
+            accountingBasis: "Global user reports; product and artifact observations stay separate and cannot be added.",
             timeRange: "unlimited",
             timeZone: "",
             scope: "global consumer software",
@@ -782,19 +793,23 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertTrue(evidence.contains("TikTok"))
         XCTAssertTrue(evidence.contains("Search discovery is not proof"))
         XCTAssertTrue(evidence.contains("A confirmed fact requires one L1 source or two independent L2 sources"))
-        XCTAssertTrue(evidence.contains("Question and scope"))
+        XCTAssertTrue(evidence.contains("Question and accounting basis"))
         XCTAssertTrue(evidence.contains("Observations from L3/L4"))
-        XCTAssertTrue(evidence.contains("A single source never establishes a trend"))
         XCTAssertTrue(evidence.contains("Announced, Artifact, Runnable, Replicated, or Unverified"))
+        XCTAssertTrue(evidence.contains("keep one object per account"))
+        XCTAssertTrue(evidence.contains("never describe or add B as an amount outside A"))
+        XCTAssertTrue(evidence.contains("Object, accounting basis, as-of date, value, overlaps with, and source URL"))
         XCTAssertTrue(evidence.contains("no query is a report-title sentence"))
-        XCTAssertTrue(evidence.contains("no empty result is mislabeled as a confirmed blank"))
-        XCTAssertTrue(evidence.contains("Do not include business opportunities"))
+        XCTAssertTrue(evidence.contains("no subset is added to its parent total"))
+        XCTAssertTrue(evidence.contains("no conclusion is stronger than the official wording"))
+        XCTAssertTrue(evidence.contains("Do not include an Opportunities section"))
     }
 
     func testResearchDomainModulesAndOpportunitiesStayTaskSpecific() throws {
         let brief = try ZenMuxResearch.makeResearchBrief(
-            topic: "new model releases",
             question: "Which model is ready for integration?",
+            objects: "OpenAI model, Qwen model, Grok model",
+            accountingBasis: "Global technical availability; each model has an independent status and values are not additive.",
             timeRange: "2026-08-02 to 2026-08-31",
             timeZone: "UTC",
             scope: "global AI developers",
@@ -809,13 +824,38 @@ final class ZenMuxTests: XCTestCase {
         )
 
         XCTAssertEqual(brief.domainModule, .technology)
+        XCTAssertTrue(ZenMuxResearch.Purpose.content.needsOpportunities)
         XCTAssertTrue(evidence.contains("vendor self-tests"))
-        XCTAssertTrue(evidence.contains("Add a separate Opportunities section"))
+        XCTAssertTrue(evidence.contains("Add section 12, Opportunities"))
         XCTAssertTrue(ZenMuxResearch.sourceQueries(brief: brief, phase: .facts).map(\.source).contains("GitHub"))
         XCTAssertFalse(ZenMuxResearch.sourceQueries(brief: brief).map(\.source).contains("Polymarket"))
         XCTAssertEqual(
             ZenMuxResearch.DomainModule.selected(from: "unknown"),
             .general
+        )
+
+        let accountingBrief = try ZenMuxResearch.makeResearchBrief(
+            question: "Which figures are directly comparable?",
+            objects: "national total, transferred operating amount, independent reserve",
+            accountingBasis: "China national stock figures; identify subsets and do not add overlapping accounts.",
+            timeRange: "unlimited",
+            timeZone: "",
+            scope: "China public accounts",
+            purpose: "verify",
+            exclusions: "commentary without primary links",
+            entities: "national total, operating transfer, independent reserve",
+            domainModule: "accounting"
+        )
+        XCTAssertEqual(accountingBrief.domainModule, .accounting)
+        let accountingSources = ZenMuxResearch.sourceQueries(brief: accountingBrief, phase: .facts)
+            .map(\.source)
+        XCTAssertTrue(accountingSources.contains("China government and primary data"))
+        XCTAssertTrue(accountingSources.contains("China disclosures and exchanges"))
+        XCTAssertTrue(accountingSources.contains("International official sources"))
+        XCTAssertTrue(
+            ZenMuxResearch.sourceQueries(brief: accountingBrief).contains {
+                $0.query.contains("site:nfra.gov.cn")
+            }
         )
     }
 
@@ -823,12 +863,15 @@ final class ZenMuxTests: XCTestCase {
         let draft = ZenMuxChatSession.researchDraft()
 
         XCTAssertTrue(draft.contains("complete all 6 items"))
-        XCTAssertTrue(draft.contains("Question to answer"))
+        XCTAssertTrue(draft.contains("Question (one sentence)"))
+        XCTAssertTrue(draft.contains("Objects (one metric, product, policy, fund, or account per item)"))
+        XCTAssertTrue(draft.contains("Accounting basis"))
         XCTAssertTrue(draft.contains("unlimited OR YYYY-MM-DD to YYYY-MM-DD"))
-        XCTAssertTrue(draft.contains("1. Topic"))
-        XCTAssertTrue(draft.contains("6. Exclusions"))
+        XCTAssertTrue(draft.contains("5. Scope (optional) and exclusions (required)"))
+        XCTAssertTrue(draft.contains("6. Purpose"))
         XCTAssertTrue(draft.contains("understand / verify / decide / content / business"))
-        XCTAssertTrue(draft.contains("recycled old news"))
+        XCTAssertTrue(draft.contains("First map overlap and aggregation"))
+        XCTAssertTrue(draft.contains("Do not strengthen official wording"))
     }
 
     func testPublicWebURLPolicyBlocksPrivateAndNonWebTargets() {

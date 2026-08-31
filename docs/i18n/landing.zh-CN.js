@@ -24,9 +24,9 @@
     "features.browserOwnership.body": "通用设置可让 Astra 完整接管 HTTP 与 HTTPS。其他 Mac 应用打开的链接会留在 Astra 内；当旧式服务器无法通过 Chromium 连接时，显式 HTTP 页面会自动使用现有的应用内兼容引擎。",
     "features.history.title": "完整保留浏览历史",
     "features.history.body": "Astra 将浏览历史保存在持久化 Chromium 配置中，可从原生“历史记录”菜单和“通用”设置查看或清除，也可按 Command-Y 打开完整记录。",
-    "features.recentResearch.title": "可审计的循证研究",
-    "features.recentResearch.body": "ZenMux 从明确问题出发，既支持限定时间窗，也支持逐条标注日期的不限时研究。检索会先使用短实体词，再组合动作词和站点；专业来源按主题启用，并将已确认事实、低层级观察、对象状态、局限性和可复现检索日志严格分开。",
-    "download.summary": "Build 68 将固定 30 天扫描升级为由问题驱动的通用研究协议。它支持限定时间窗或逐条标注日期的不限时研究，依次执行短实体词、动作词和站点检索，按主题选择专业来源，并将已确认事实与观察、不确定性及可复现检索日志分开。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "features.recentResearch.title": "口径安全的循证研究",
+    "features.recentResearch.body": "ZenMux 在检索前先确定问题、对象清单、统计口径、时间规则、范围、排除项与目的。它优先使用主管机构和一手来源，保留官方原词及报告时点，禁止重叠账户加总，并输出可审计的对象对照表。",
+    "download.summary": "Build 69 增加口径安全的调研任务卡、权威来源路由、明确的重叠与加总规则、对象独立报告时点、强制对照表以及七项防钻空子质检。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {
