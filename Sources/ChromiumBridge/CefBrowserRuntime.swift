@@ -1713,6 +1713,10 @@ private final class CefBrowserWindow: NSWindow {
             guard let self, let state else { return }
             self.createTab(in: state, urlString: url.absoluteString, customGuid: nil, focusAfterCreate: focus)
         }
+        wrapper.onTranslateSelectedText = { [weak state, weak tab] selection in
+            guard let state, let tab else { return }
+            state.translateSelectedText(selection, in: tab)
+        }
 
         state.handleNewTabFromChromium(tab)
         if focusAfterCreate {

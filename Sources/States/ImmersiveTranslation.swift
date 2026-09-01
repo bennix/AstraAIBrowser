@@ -18,6 +18,46 @@ struct ImmersiveTranslationPageSnapshot: Equatable, Sendable {
     let segments: [ImmersiveTranslationSegment]
 }
 
+enum ImmersiveTranslationBatchPlanner {
+    static let maximumSegmentCount = 8
+    static let maximumCharacterCount = 4_000
+
+    static func batches(
+        for segments: [ImmersiveTranslationSegment],
+        maximumSegmentCount: Int = maximumSegmentCount,
+        maximumCharacterCount: Int = maximumCharacterCount
+    ) -> [[ImmersiveTranslationSegment]] {
+        guard maximumSegmentCount > 0, maximumCharacterCount > 0 else { return [] }
+
+        var result: [[ImmersiveTranslationSegment]] = []
+        var batch: [ImmersiveTranslationSegment] = []
+        var characterCount = 0
+        for segment in segments {
+            if !batch.isEmpty,
+               (batch.count >= maximumSegmentCount
+                    || characterCount + segment.text.count > maximumCharacterCount) {
+                result.append(batch)
+                batch.removeAll(keepingCapacity: true)
+                characterCount = 0
+            }
+            batch.append(segment)
+            characterCount += segment.text.count
+        }
+        if !batch.isEmpty {
+            result.append(batch)
+        }
+        return result
+    }
+}
+
+enum SelectionTranslationPolicy {
+    static let maximumCharacterCount = 6_000
+
+    static func normalizedText(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 enum ImmersiveTranslationLanguage: String, CaseIterable, Identifiable {
     case simplifiedChinese = "zh-Hans"
     case traditionalChinese = "zh-Hant"
@@ -115,6 +155,7 @@ enum ImmersiveTranslationError: LocalizedError {
     case onDeviceUnavailable
     case missingZenMuxCredential
     case pageChanged
+    case selectionTooLong
 
     var errorDescription: String? {
         switch self {
@@ -147,6 +188,12 @@ enum ImmersiveTranslationError: LocalizedError {
                 "translation.error.pageChanged",
                 value: "The page changed before translation finished. Try again.",
                 comment: "Immersive translation - Navigation occurred during translation error"
+            )
+        case .selectionTooLong:
+            return NSLocalizedString(
+                "translation.error.selectionTooLong",
+                value: "The selection is too long. Select a shorter passage or translate the full page instead.",
+                comment: "Selection translation - Error shown when selected webpage text exceeds the supported length"
             )
         }
     }
@@ -208,6 +255,35 @@ extension BrowserState {
     }
 
     @MainActor
+    private func translateImmersiveBatch(
+        _ segments: [ImmersiveTranslationSegment],
+        language: ImmersiveTranslationLanguage,
+        provider: ImmersiveTranslationProvider
+    ) async throws -> [ImmersiveTranslationSegment] {
+        switch provider {
+        case .onDevice:
+            guard #available(macOS 26.0, *) else {
+                throw ImmersiveTranslationError.onDeviceUnavailable
+            }
+            return try await OnDeviceImmersiveTranslator.translate(
+                segments,
+                to: language
+            )
+        case .zenMux:
+            guard let apiKey = try ZenMuxCredentialStore.shared.loadAPIKey(),
+                  !apiKey.isEmpty else {
+                throw ImmersiveTranslationError.missingZenMuxCredential
+            }
+            return try await APIClient.shared.translateImmersiveSegments(
+                segments,
+                to: language,
+                apiKey: apiKey,
+                model: PhiPreferences.AISettings.loadZenMuxModel()
+            )
+        }
+    }
+
+    @MainActor
     func toggleImmersiveTranslation(
         language: ImmersiveTranslationLanguage,
         provider: ImmersiveTranslationProvider
@@ -241,8 +317,8 @@ extension BrowserState {
         tab.immersiveTranslationOperationID = operationID
         tab.immersiveTranslationState = .translating
 
-        tab.immersiveTranslationTask = Task { @MainActor [weak tab] in
-            guard let tab else { return }
+        tab.immersiveTranslationTask = Task { @MainActor [weak self, weak tab] in
+            guard let self, let tab else { return }
             defer {
                 if tab.immersiveTranslationOperationID == operationID {
                     tab.immersiveTranslationTask = nil
@@ -254,48 +330,136 @@ extension BrowserState {
                 try Task.checkCancellation()
                 let segments = snapshot.segments
                 guard !segments.isEmpty else { throw ImmersiveTranslationError.emptyPage }
+                let batches = ImmersiveTranslationBatchPlanner.batches(for: segments)
+                var completedTranslations: [ImmersiveTranslationSegment] = []
+                completedTranslations.reserveCapacity(segments.count)
 
-                let translations: [ImmersiveTranslationSegment]
-                switch provider {
-                case .onDevice:
-                    guard #available(macOS 26.0, *) else {
-                        throw ImmersiveTranslationError.onDeviceUnavailable
-                    }
-                    translations = try await OnDeviceImmersiveTranslator.translate(
-                        segments,
-                        to: language
+                for batch in batches {
+                    try Task.checkCancellation()
+                    let translations = try await self.translateImmersiveBatch(
+                        batch,
+                        language: language,
+                        provider: provider
                     )
-                case .zenMux:
-                    guard let apiKey = try ZenMuxCredentialStore.shared.loadAPIKey(),
-                          !apiKey.isEmpty else {
-                        throw ImmersiveTranslationError.missingZenMuxCredential
+                    guard translations.map(\.id) == batch.map(\.id) else {
+                        throw ImmersiveTranslationError.pageChanged
                     }
-                    translations = try await APIClient.shared.translateImmersiveSegments(
-                        segments,
-                        to: language,
-                        apiKey: apiKey,
-                        model: PhiPreferences.AISettings.loadZenMuxModel()
+                    completedTranslations.append(contentsOf: translations)
+
+                    try Task.checkCancellation()
+                    guard tab.immersiveTranslationOperationID == operationID,
+                          tab.webContentWrapper === content,
+                          tab.immersiveTranslationState == .translating else { return }
+                    let applied = await content.applyImmersiveTranslations(
+                        completedTranslations,
+                        targetLanguage: language.rawValue,
+                        sessionID: snapshot.sessionID
                     )
+                    try Task.checkCancellation()
+                    guard tab.immersiveTranslationOperationID == operationID else { return }
+                    guard applied else { throw ImmersiveTranslationError.pageChanged }
                 }
 
-                try Task.checkCancellation()
-                guard tab.immersiveTranslationOperationID == operationID,
-                      tab.webContentWrapper === content,
-                      tab.immersiveTranslationState == .translating else { return }
-                let applied = await content.applyImmersiveTranslations(
-                    translations,
-                    targetLanguage: language.rawValue,
-                    sessionID: snapshot.sessionID
-                )
-                try Task.checkCancellation()
-                guard tab.immersiveTranslationOperationID == operationID else { return }
-                guard applied else { throw ImmersiveTranslationError.pageChanged }
                 tab.immersiveTranslationState = .active(language: language, provider: provider)
             } catch {
                 guard !Task.isCancelled,
                       tab.immersiveTranslationOperationID == operationID,
                       tab.url == pageURL else { return }
                 tab.immersiveTranslationState = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    @MainActor
+    func translateSelectedText(_ text: String, in tab: Tab) {
+        let selection = SelectionTranslationPolicy.normalizedText(text)
+        guard !selection.isEmpty else {
+            NSSound.beep()
+            return
+        }
+
+        let language = ImmersiveTranslationPreferences.loadLanguage()
+        let provider = ImmersiveTranslationPreferences.loadProvider()
+        guard selection.count <= SelectionTranslationPolicy.maximumCharacterCount else {
+            OverlayToastCenter.shared.show(
+                title: NSLocalizedString(
+                    "translation.selection.failedTitle",
+                    value: "Selection translation failed",
+                    comment: "Selection translation - Toast title shown when selected text could not be translated"
+                ),
+                message: ImmersiveTranslationError.selectionTooLong.localizedDescription,
+                duration: 6,
+                in: self
+            )
+            return
+        }
+
+        tab.selectionTranslationTask?.cancel()
+        let operationID = UUID()
+        let pageURL = tab.url
+        tab.selectionTranslationOperationID = operationID
+        OverlayToastCenter.shared.show(
+            title: NSLocalizedString(
+                "translation.selection.progressTitle",
+                value: "Translating selection…",
+                comment: "Selection translation - Brief toast shown while selected webpage text is being translated"
+            ),
+            duration: 1.2,
+            in: self
+        )
+
+        tab.selectionTranslationTask = Task { @MainActor [weak self, weak tab] in
+            guard let self, let tab else { return }
+            defer {
+                if tab.selectionTranslationOperationID == operationID {
+                    tab.selectionTranslationTask = nil
+                    tab.selectionTranslationOperationID = nil
+                }
+            }
+            do {
+                let segment = ImmersiveTranslationSegment(
+                    id: "selection-\(operationID.uuidString)",
+                    text: selection
+                )
+                let translations = try await self.translateImmersiveBatch(
+                    [segment],
+                    language: language,
+                    provider: provider
+                )
+                try Task.checkCancellation()
+                guard tab.selectionTranslationOperationID == operationID,
+                      tab.url == pageURL,
+                      self.tabs.contains(where: { $0 === tab }),
+                      let translation = translations.first,
+                      translation.id == segment.id else { return }
+                let title = String(
+                    format: NSLocalizedString(
+                        "translation.selection.resultTitle",
+                        value: "Translated to %@",
+                        comment: "Selection translation - Result toast title; placeholder is the target language name"
+                    ),
+                    language.displayName
+                )
+                OverlayToastCenter.shared.show(
+                    title: title,
+                    message: translation.text,
+                    duration: 8,
+                    in: self
+                )
+            } catch {
+                guard !Task.isCancelled,
+                      tab.selectionTranslationOperationID == operationID,
+                      tab.url == pageURL else { return }
+                OverlayToastCenter.shared.show(
+                    title: NSLocalizedString(
+                        "translation.selection.failedTitle",
+                        value: "Selection translation failed",
+                        comment: "Selection translation - Toast title shown when selected text could not be translated"
+                    ),
+                    message: error.localizedDescription,
+                    duration: 6,
+                    in: self
+                )
             }
         }
     }

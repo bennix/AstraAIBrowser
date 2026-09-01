@@ -1002,8 +1002,12 @@ final class SystemMediaWebView: WKWebView {
     static let searchWebMenuItemIdentifier = NSUserInterfaceItemIdentifier(
         "WKMenuItemIdentifierSearchWeb"
     )
+    static let translateSelectionMenuItemIdentifier = NSUserInterfaceItemIdentifier(
+        "AstraMenuItemIdentifierTranslateSelection"
+    )
 
     var onSearchSelectedText: ((String) -> Void)?
+    var onTranslateSelectedText: ((String) -> Void)?
 
     override func menu(for event: NSEvent) -> NSMenu? {
         let menu = super.menu(for: event)
@@ -1014,10 +1018,27 @@ final class SystemMediaWebView: WKWebView {
     }
 
     func routeSearchWebMenuItems(in menu: NSMenu) {
-        for item in menu.items {
+        for (index, item) in menu.items.enumerated() {
             if item.identifier == Self.searchWebMenuItemIdentifier {
                 item.target = self
                 item.action = #selector(searchSelectedTextInNewTab(_:))
+                if onTranslateSelectedText != nil,
+                   !menu.items.contains(where: {
+                    $0.identifier == Self.translateSelectionMenuItemIdentifier
+                }) {
+                    let translateItem = NSMenuItem(
+                        title: NSLocalizedString(
+                            "translation.selection.contextMenuAction",
+                            value: "Translate Selection",
+                            comment: "Webpage context menu - Action that translates the currently selected text"
+                        ),
+                        action: #selector(translateSelectedText(_:)),
+                        keyEquivalent: ""
+                    )
+                    translateItem.identifier = Self.translateSelectionMenuItemIdentifier
+                    translateItem.target = self
+                    menu.insertItem(translateItem, at: index)
+                }
             }
             if let submenu = item.submenu {
                 routeSearchWebMenuItems(in: submenu)
@@ -1026,12 +1047,24 @@ final class SystemMediaWebView: WKWebView {
     }
 
     @objc func searchSelectedTextInNewTab(_ sender: NSMenuItem) {
-        evaluateJavaScript(Self.selectedTextJavaScript) { [weak self] value, _ in
+        readSelectedText { [weak self] selection in
+            self?.onSearchSelectedText?(selection)
+        }
+    }
+
+    @objc func translateSelectedText(_ sender: NSMenuItem) {
+        readSelectedText { [weak self] selection in
+            self?.onTranslateSelectedText?(selection)
+        }
+    }
+
+    private func readSelectedText(_ completion: @escaping (String) -> Void) {
+        evaluateJavaScript(Self.selectedTextJavaScript) { value, _ in
             guard let selectedText = value as? String else { return }
-            let query = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !query.isEmpty else { return }
+            let selection = SelectionTranslationPolicy.normalizedText(selectedText)
+            guard !selection.isEmpty else { return }
             MainActor.assumeIsolated {
-                self?.onSearchSelectedText?(query)
+                completion(selection)
             }
         }
     }
@@ -1069,7 +1102,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
 
         init(
             configuration: WKWebViewConfiguration,
-            onSearchSelectedText: @escaping (String) -> Void
+            onSearchSelectedText: @escaping (String) -> Void,
+            onTranslateSelectedText: ((String) -> Void)?
         ) {
             webView = SystemMediaWebView(frame: .zero, configuration: configuration)
             window = NSWindow(
@@ -1080,6 +1114,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             )
             super.init()
             webView.onSearchSelectedText = onSearchSelectedText
+            webView.onTranslateSelectedText = onTranslateSelectedText
             webView.customUserAgent = SupportedBrowserUserAgent.safariCompatibleUserAgent
             webView.uiDelegate = self
             window.delegate = self
@@ -1146,6 +1181,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     private var customGuid = ""
     private var didRequestClose = false
     private static var closingChromeBrowsers: [ObjectIdentifier: CefChromeBrowser] = [:]
+    private static let translateSelectionContextMenuCommandID =
+        CefMenuModel.userCommandIDFirst + 71
 
     private static func retainClosingChromeBrowser(_ browser: CefChromeBrowser) {
         closingChromeBrowsers[ObjectIdentifier(browser)] = browser
@@ -1172,6 +1209,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     var onClose: (() -> Void)?
     var onMove: ((Int, Bool) -> Void)?
     var onOpenURLInNewTab: ((URL, Bool) -> Void)?
+    var onTranslateSelectedText: ((String) -> Void)?
 
     @objc dynamic var nativeView: NSView? { hostView }
     @objc dynamic private(set) var isLoading = false
@@ -1231,6 +1269,38 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
 
     func browser(_ browser: CefBrowser, downloadDidProgress download: CefDownload) {
         downloadsManager?.handleCEFDownloadProgress(download)
+    }
+
+    func browser(
+        _ browser: CefBrowser,
+        configureContextMenu menu: CefMenuModel,
+        params: CefContextMenuParams
+    ) {
+        let selection = SelectionTranslationPolicy.normalizedText(params.selectionText)
+        guard allowsCredentialStorage, !selection.isEmpty else { return }
+        if menu.count > 0 {
+            menu.addSeparator()
+        }
+        menu.addItem(
+            commandID: Self.translateSelectionContextMenuCommandID,
+            title: NSLocalizedString(
+                "translation.selection.contextMenuAction",
+                value: "Translate Selection",
+                comment: "Webpage context menu - Action that translates the currently selected text"
+            )
+        )
+    }
+
+    func browser(
+        _ browser: CefBrowser,
+        contextMenuCommand commandID: Int,
+        params: CefContextMenuParams
+    ) -> Bool {
+        guard commandID == Self.translateSelectionContextMenuCommandID else { return false }
+        let selection = SelectionTranslationPolicy.normalizedText(params.selectionText)
+        guard !selection.isEmpty else { return true }
+        onTranslateSelectedText?(selection)
+        return true
     }
 
     func browser(
@@ -1414,6 +1484,11 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         let webView = SystemMediaWebView(frame: hostView.bounds, configuration: configuration)
         webView.onSearchSelectedText = { [weak self] query in
             self?.openSystemMediaSearchInNewTab(query)
+        }
+        if allowsCredentialStorage {
+            webView.onTranslateSelectedText = { [weak self] selection in
+                self?.onTranslateSelectedText?(selection)
+            }
         }
         webView.customUserAgent = SupportedBrowserUserAgent.safariCompatibleUserAgent
         webView.navigationDelegate = self
@@ -2473,10 +2548,33 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
 
                 do {
                     let snapshot = try await immersiveTranslationSnapshot()
+                    let translations = snapshot.segments.enumerated().map { index, segment in
+                        ImmersiveTranslationSegment(
+                            id: segment.id,
+                            text: "Translated segment \(index + 1)"
+                        )
+                    }
+                    let firstBatch = Array(translations.prefix(3))
+                    let firstApplied = await applyImmersiveTranslations(
+                        firstBatch,
+                        targetLanguage: "en",
+                        sessionID: snapshot.sessionID
+                    )
+                    let firstVerification = await evaluateJavaScriptResult(
+                        operation: """
+                        return String(document.querySelectorAll(
+                          '[data-phi-immersive-translation]'
+                        ).length);
+                        """,
+                        timeout: 5
+                    )
                     let redraw = await evaluateJavaScriptResult(
                         operation: """
                         const original = document.querySelector('main');
                         const replacement = original.cloneNode(true);
+                        replacement.querySelectorAll('[data-phi-immersive-translation]').forEach(
+                          (node) => node.remove()
+                        );
                         replacement.querySelectorAll('[data-phi-translation-source-id]').forEach((node) => {
                           node.removeAttribute('data-phi-translation-source-id');
                         });
@@ -2488,12 +2586,6 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                         """,
                         timeout: 5
                     )
-                    let translations = snapshot.segments.enumerated().map { index, segment in
-                        ImmersiveTranslationSegment(
-                            id: segment.id,
-                            text: "Translated segment \(index + 1)"
-                        )
-                    }
                     let applied = await applyImmersiveTranslations(
                         translations,
                         targetLanguage: "en",
@@ -2521,6 +2613,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                     ) ?? "unavailable"
                     let expected = snapshot.segments.count
                     let succeeded = setup == "ready"
+                        && firstApplied
+                        && firstVerification == "3"
                         && redraw == "redrawn"
                         && expected == 8
                         && applied
@@ -2532,6 +2626,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                     let status = succeeded ? "passed" : "failed"
                     let detail = [
                         "setup=\(setup ?? "unavailable")",
+                        "firstApplied=\(firstApplied)",
+                        "firstCount=\(firstVerification ?? "unavailable")",
                         "redraw=\(redraw ?? "unavailable")",
                         "expected=\(expected)",
                         "applied=\(applied)",
@@ -3535,10 +3631,10 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
           }
           return null;
         };
-        document.querySelectorAll('[data-phi-immersive-translation]').forEach((node) => node.remove());
         const candidates = Array.from(document.querySelectorAll(selector));
         const usedSources = new Set();
         let applied = 0;
+        let existingMatches = 0;
         let missingRecords = 0;
         let connectedMatches = 0;
         let markerMatches = 0;
@@ -3550,6 +3646,15 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             missingRecords += 1;
             continue;
           }
+          const existing = document.querySelector(
+            `[data-phi-immersive-translation="${CSS.escape(translation.id)}"]`
+          );
+          if (existing && existing.isConnected && existing.textContent === translation.text) {
+            applied += 1;
+            existingMatches += 1;
+            continue;
+          }
+          if (existing) existing.remove();
           let source = record.node;
           if (source instanceof Element && source.isConnected) {
             connectedMatches += 1;
@@ -3615,6 +3720,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
           reason: applied > 0 ? 'applied' : 'no-matches',
           requested: translations.length,
           applied,
+          existingMatches,
           missingRecords,
           connectedMatches,
           markerMatches,
@@ -3633,6 +3739,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         let succeeded = object["ok"] as? Bool == true
         let reason = object["reason"] as? String ?? "unknown"
         let applied = object["applied"] as? Int ?? 0
+        let existingMatches = object["existingMatches"] as? Int ?? 0
         let missingRecords = object["missingRecords"] as? Int ?? 0
         let connectedMatches = object["connectedMatches"] as? Int ?? 0
         let markerMatches = object["markerMatches"] as? Int ?? 0
@@ -3640,7 +3747,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         let insertionErrors = object["insertionErrors"] as? Int ?? 0
         AppLogInfo(
             "[ImmersiveTranslation] apply reason=\(reason) requested=\(translations.count) "
-                + "applied=\(applied) recordsMissing=\(missingRecords) "
+                + "applied=\(applied) existing=\(existingMatches) recordsMissing=\(missingRecords) "
                 + "matches=\(connectedMatches)/\(markerMatches)/\(textMatches) "
                 + "insertionErrors=\(insertionErrors)"
         )
@@ -4558,7 +4665,10 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                 configuration: configuration,
                 onSearchSelectedText: { [weak self] query in
                     self?.openSystemMediaSearchInNewTab(query)
-                }
+                },
+                onTranslateSelectedText: allowsCredentialStorage ? { [weak self] selection in
+                    self?.onTranslateSelectedText?(selection)
+                } : nil
             )
             let identifier = ObjectIdentifier(popupHost)
             popupHost.onClose = { [weak self] in

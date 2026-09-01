@@ -35,6 +35,7 @@ final class SystemMediaContextMenuTests: XCTestCase {
         let searchItem = NSMenuItem(title: "Search", action: nil, keyEquivalent: "")
         searchItem.identifier = SystemMediaWebView.searchWebMenuItemIdentifier
         menu.addItem(searchItem)
+        webView.onTranslateSelectedText = { _ in }
 
         webView.routeSearchWebMenuItems(in: menu)
 
@@ -42,6 +43,20 @@ final class SystemMediaContextMenuTests: XCTestCase {
         XCTAssertEqual(
             searchItem.action.map(NSStringFromSelector),
             "searchSelectedTextInNewTab:"
+        )
+        let translateItem = menu.items.first {
+            $0.identifier == SystemMediaWebView.translateSelectionMenuItemIdentifier
+        }
+        XCTAssertTrue(translateItem?.target === webView)
+        XCTAssertEqual(
+            translateItem?.action.map(NSStringFromSelector),
+            "translateSelectedText:"
+        )
+        XCTAssertEqual(
+            menu.items.firstIndex {
+                $0.identifier == SystemMediaWebView.translateSelectionMenuItemIdentifier
+            },
+            0
         )
     }
 
@@ -110,5 +125,48 @@ final class SystemMediaContextMenuTests: XCTestCase {
 
         wait(for: [didRouteSearch], timeout: 5)
         XCTAssertEqual(routedQuery, "Anker Prime 160W")
+    }
+
+    @MainActor
+    func testTranslateActionReadsTheCurrentDocumentSelection() {
+        let didLoad = expectation(description: "The test page loaded")
+        let didSelectText = expectation(description: "The page selected text")
+        let didRouteTranslation = expectation(description: "The selected text was routed")
+        let observer = NavigationObserver(didFinish: didLoad)
+        let webView = SystemMediaWebView(
+            frame: NSRect(x: 0, y: 0, width: 400, height: 300),
+            configuration: WKWebViewConfiguration()
+        )
+        webView.navigationDelegate = observer
+
+        var routedSelection: String?
+        webView.onTranslateSelectedText = { selection in
+            routedSelection = selection
+            didRouteTranslation.fulfill()
+        }
+        webView.loadHTMLString(
+            "<p id='selection'>Translate this passage now.</p>",
+            baseURL: nil
+        )
+        wait(for: [didLoad], timeout: 5)
+
+        webView.evaluateJavaScript(
+            """
+            const range = document.createRange();
+            range.selectNodeContents(document.getElementById('selection'));
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            """
+        ) { _, error in
+            XCTAssertNil(error)
+            didSelectText.fulfill()
+        }
+        wait(for: [didSelectText], timeout: 5)
+
+        webView.translateSelectedText(NSMenuItem())
+
+        wait(for: [didRouteTranslation], timeout: 5)
+        XCTAssertEqual(routedSelection, "Translate this passage now.")
     }
 }

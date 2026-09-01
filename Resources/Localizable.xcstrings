@@ -69078,6 +69078,13 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "翻譯完成前網頁已經變化，請重試。" } }
       }
     },
+    "translation.error.selectionTooLong" : {
+      "comment" : "Selection translation - Error shown when selected webpage text exceeds the supported length",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "The selection is too long. Select a shorter passage or translate the full page instead." } }
+      }
+    },
     "translation.error.unsupportedPage" : {
       "comment" : "Immersive translation - Unsupported page error",
       "extractionState" : "extracted_with_value",
@@ -69157,6 +69164,34 @@
         "en" : { "stringUnit" : { "state" : "new", "value" : "ZenMux enhanced" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "ZenMux 增强" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "ZenMux 增強" } }
+      }
+    },
+    "translation.selection.contextMenuAction" : {
+      "comment" : "Webpage context menu - Action that translates the currently selected text",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Translate Selection" } }
+      }
+    },
+    "translation.selection.failedTitle" : {
+      "comment" : "Selection translation - Toast title shown when selected text could not be translated",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Selection translation failed" } }
+      }
+    },
+    "translation.selection.progressTitle" : {
+      "comment" : "Selection translation - Brief toast shown while selected webpage text is being translated",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Translating selection…" } }
+      }
+    },
+    "translation.selection.resultTitle" : {
+      "comment" : "Selection translation - Result toast title; placeholder is the target language name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Translated to %@" } }
       }
     },
     "sidebar.feedbackButton.tooltip" : {

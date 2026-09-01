@@ -30,7 +30,7 @@
     "features.immersiveTranslation.body": "在保留原文的同时，将网页可读内容逐段翻译并显示在原文下方。用户可选择目标语种，并在受支持系统上使用本地翻译，或选择 ZenMux 增强翻译；一键即可恢复原页面。",
     "features.youtubeDigest.title": "重证据的 YouTube 视频摘要",
     "features.youtubeDigest.body": "YouTube 视频页会显示上下文侧边栏入口，使用可用字幕或视听分析生成覆盖完整视频的结构化摘要，包括时间章节、可核对引语、核心论证和明确标注的不确定性。",
-    "download.summary": "Build 71 提升原生双语沉浸式翻译在动态网页上的可靠性，优先翻译页面标题，并覆盖文章、导航、链接和控件中的安全可见文本，同时保持翻译期间的页面交互。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 72 支持译文分批完成后立即回填，在动态页面重绘后保留已完成内容，并可从网页右键菜单翻译划选文本。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {
