@@ -1,0 +1,163 @@
+diff --git a/Sources/CefKit/CefBrowser.swift b/Sources/CefKit/CefBrowser.swift
+--- a/Sources/CefKit/CefBrowser.swift
++++ b/Sources/CefKit/CefBrowser.swift
+@@ -181,1 +181,23 @@
++    /// Evaluates JavaScript in the main page context through the DevTools
++    /// protocol and returns the result by value. This avoids relying on page
++    /// console output or page-installed bridge functions for the response.
++    public func evaluateJavaScriptResult(
++        _ expression: String,
++        timeout: TimeInterval = 5
++    ) async -> String? {
++        await withCheckedContinuation { continuation in
++            let request = CefDevToolsEvaluationRequest(
++                expression: expression,
++                continuation: continuation,
++                timeout: timeout
++            )
++            guard withHost({ host in
++                request.start(host: host)
++            }) != nil else {
++                continuation.resume(returning: nil)
++                return
++            }
++        }
++    }
++
+     /// Searches the page for `text`.
+@@ -702,1 +724,135 @@
++@MainActor
++private final class CefDevToolsEvaluationRequest {
++    private let expression: String
++    private var continuation: CheckedContinuation<String?, Never>?
++    private var registration: UnsafeMutablePointer<cef_registration_t>?
++    private var timeoutItem: DispatchWorkItem?
++    private var messageID = 0
++
++    init(
++        expression: String,
++        continuation: CheckedContinuation<String?, Never>,
++        timeout: TimeInterval
++    ) {
++        self.expression = expression
++        self.continuation = continuation
++        let timeoutItem = DispatchWorkItem { [weak self] in
++            self?.finish(with: nil)
++        }
++        self.timeoutItem = timeoutItem
++        DispatchQueue.main.asyncAfter(
++            deadline: .now() + max(0.5, timeout),
++            execute: timeoutItem
++        )
++    }
++
++    func start(host: UnsafeMutablePointer<cef_browser_host_t>) -> Bool {
++        let observer = cefAllocate(
++            cef_dev_tools_message_observer_t.self,
++            owner: self
++        )
++        observer.pointee.on_dev_tools_method_result = {
++            observerSelf, browser, messageID, success, result, resultSize in
++            defer { cefRelease(browser.map(UnsafeMutableRawPointer.init)) }
++            guard let owner = cefOwner(
++                CefDevToolsEvaluationRequest.self,
++                observerSelf.map(UnsafeMutableRawPointer.init)
++            ) else { return }
++            let payload = result.map { Data(bytes: $0, count: resultSize) }
++            MainActor.assumeIsolated {
++                owner.receive(
++                    messageID: messageID,
++                    succeeded: success != 0,
++                    payload: payload
++                )
++            }
++        }
++        observer.pointee.on_dev_tools_agent_detached = { observerSelf, browser in
++            defer { cefRelease(browser.map(UnsafeMutableRawPointer.init)) }
++            guard let owner = cefOwner(
++                CefDevToolsEvaluationRequest.self,
++                observerSelf.map(UnsafeMutableRawPointer.init)
++            ) else { return }
++            MainActor.assumeIsolated {
++                owner.finish(with: nil)
++            }
++        }
++
++        guard let registration = host.pointee.add_dev_tools_message_observer?(
++            host,
++            observer
++        ) else {
++            cefRelease(UnsafeMutableRawPointer(observer))
++            finish(with: nil)
++            return false
++        }
++        self.registration = registration
++
++        guard let parameters = cef_dictionary_value_create() else {
++            finish(with: nil)
++            return false
++        }
++        CefStringUtil.withCefString("expression") { key in
++            CefStringUtil.withCefString(expression) { value in
++                _ = parameters.pointee.set_string?(parameters, key, value)
++            }
++        }
++        for keyName in ["awaitPromise", "returnByValue", "userGesture"] {
++            CefStringUtil.withCefString(keyName) { key in
++                _ = parameters.pointee.set_bool?(parameters, key, 1)
++            }
++        }
++
++        let submittedID = CefStringUtil.withCefString("Runtime.evaluate") { method in
++            host.pointee.execute_dev_tools_method?(host, 0, method, parameters) ?? 0
++        }
++        guard submittedID != 0 else {
++            finish(with: nil)
++            return false
++        }
++        messageID = Int(submittedID)
++        return true
++    }
++
++    private func receive(
++        messageID: Int32,
++        succeeded: Bool,
++        payload: Data?
++    ) {
++        guard Int(messageID) == self.messageID else { return }
++        guard succeeded,
++              let payload,
++              let object = try? JSONSerialization.jsonObject(with: payload) as? [String: Any],
++              object["exceptionDetails"] == nil,
++              let remoteObject = object["result"] as? [String: Any] else {
++            finish(with: nil)
++            return
++        }
++        if let value = remoteObject["value"] as? String {
++            finish(with: value)
++            return
++        }
++        if let value = remoteObject["value"],
++           JSONSerialization.isValidJSONObject(value),
++           let data = try? JSONSerialization.data(withJSONObject: value),
++           let result = String(data: data, encoding: .utf8) {
++            finish(with: result)
++            return
++        }
++        finish(with: remoteObject["description"] as? String)
++    }
++
++    private func finish(with result: String?) {
++        guard let continuation else { return }
++        self.continuation = nil
++        timeoutItem?.cancel()
++        timeoutItem = nil
++        continuation.resume(returning: result)
++        if let registration {
++            self.registration = nil
++            cefRelease(UnsafeMutableRawPointer(registration))
++        }
++    }
++}
++
+ // MARK: - Editing

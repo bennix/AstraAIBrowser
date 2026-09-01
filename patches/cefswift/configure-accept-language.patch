@@ -15,19 +15,17 @@ diff --git a/Sources/CefKit/CefConfiguration.swift b/Sources/CefKit/CefConfigura
 diff --git a/Sources/CefKit/CefRuntime.swift b/Sources/CefKit/CefRuntime.swift
 --- a/Sources/CefKit/CefRuntime.swift
 +++ b/Sources/CefKit/CefRuntime.swift
-@@ -51,6 +51,7 @@ final class MappedCefSettings {
-         }
+@@ -40,5 +40,6 @@ final class MappedCefSettings {
+         CefStringUtil.set((configuration.cachePath ?? rootCache).path, into: &raw.cache_path)
 
          CefStringUtil.set(configuration.locale, into: &raw.locale)
 +        CefStringUtil.set(configuration.acceptLanguageList, into: &raw.accept_language_list)
          CefStringUtil.set(configuration.userAgentProduct, into: &raw.user_agent_product)
          CefStringUtil.set(configuration.logFile?.path, into: &raw.log_file)
-         CefStringUtil.set(frameworkDirectory?.path, into: &raw.framework_dir_path)
-@@ -72,6 +73,7 @@ final class MappedCefSettings {
+@@ -62,5 +63,6 @@ final class MappedCefSettings {
          ccef_string_clear(&raw.root_cache_path)
          ccef_string_clear(&raw.cache_path)
          ccef_string_clear(&raw.locale)
 +        ccef_string_clear(&raw.accept_language_list)
          ccef_string_clear(&raw.user_agent_product)
          ccef_string_clear(&raw.log_file)
-         ccef_string_clear(&raw.framework_dir_path)

@@ -8,13 +8,13 @@ import XCTest
 
 final class ImmersiveTranslationTests: XCTestCase {
     func testBatchPlannerEmitsCompletedTranslationSizedSteps() {
-        let segments = (0..<19).map {
+        let segments = (0..<53).map {
             ImmersiveTranslationSegment(id: "segment-\($0)", text: "Text \($0)")
         }
 
         let batches = ImmersiveTranslationBatchPlanner.batches(for: segments)
 
-        XCTAssertEqual(batches.map(\.count), [8, 8, 3])
+        XCTAssertEqual(batches.map(\.count), [24, 24, 5])
         XCTAssertEqual(batches.flatMap { $0 }, segments)
     }
 
@@ -33,6 +33,34 @@ final class ImmersiveTranslationTests: XCTestCase {
 
         XCTAssertEqual(batches.map { $0.map(\.id) }, [["one"], ["two", "three"]])
         XCTAssertEqual(batches.flatMap { $0 }, segments)
+    }
+
+    func testWritebackProgressReturnsOnlyTheCurrentBatch() {
+        let first = [
+            ImmersiveTranslationSegment(id: "one", text: "First"),
+            ImmersiveTranslationSegment(id: "two", text: "Second"),
+        ]
+        let second = [
+            ImmersiveTranslationSegment(id: "three", text: "Third"),
+        ]
+        var progress = ImmersiveTranslationWritebackProgress()
+
+        XCTAssertEqual(progress.record(first), first)
+        XCTAssertEqual(progress.record(second), second)
+        XCTAssertEqual(progress.completedTranslations, first + second)
+    }
+
+    func testRemovedOnDevicePreferenceFallsBackToZenMux() throws {
+        let suiteName = "ImmersiveTranslationTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set("on_device", forKey: "immersiveTranslation.provider")
+
+        XCTAssertEqual(
+            ImmersiveTranslationPreferences.loadProvider(from: defaults),
+            .zenMux
+        )
+        XCTAssertEqual(ImmersiveTranslationProvider.allCases, [.zenMux])
     }
 
     func testSelectionNormalizationOnlyTrimsOuterWhitespace() {

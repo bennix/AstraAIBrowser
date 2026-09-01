@@ -7,26 +7,32 @@ repository_root="$(cd "$script_dir/.." && pwd)"
 cef_swift_root="${1:-$repository_root/Vendor/CefSwift}"
 patches=(
   "$repository_root/patches/cefswift/capture-visible-page-screenshot.patch"
+  "$repository_root/patches/cefswift/evaluate-javascript-result.patch"
+  "$repository_root/patches/cefswift/configure-accept-language.patch"
   "$repository_root/patches/cefswift/integrate-unmanaged-browser-windows.patch"
   "$repository_root/patches/cefswift/install-document-start-script.patch"
-  "$repository_root/patches/cefswift/configure-accept-language.patch"
   "$repository_root/patches/cefswift/export-session-cookies.patch"
+  "$repository_root/patches/cefswift/support-embedded-profile-and-popovers.patch"
   "$repository_root/patches/cefswift/forward-mouse-release-flags.patch"
 )
 targets=(
   "$cef_swift_root/Sources/CefKit/CefBrowser.swift"
+  "$cef_swift_root/Sources/CefKit/CefBrowser.swift"
+  "$cef_swift_root/Sources/CefKit/CefConfiguration.swift"
   "$cef_swift_root/Sources/CefKit/CefRuntime.swift"
   "$cef_swift_root/Sources/CefKit/CefConfiguration.swift"
-  "$cef_swift_root/Sources/CefKit/CefConfiguration.swift"
   "$cef_swift_root/Sources/CefKit/CefBrowser.swift"
+  "$cef_swift_root/Sources/CefKit/CefChromeBrowser.swift"
   "$cef_swift_root/Sources/CefSwiftUI/CefMetalHostView+Input.swift"
 )
 markers=(
   "public func captureVisiblePageScreenshot"
+  "public func evaluateJavaScriptResult"
+  "public var acceptLanguageList"
   "public func closeUnmanagedBrowserWindow"
   "public var documentStartJavaScript"
-  "public var acceptLanguageList"
   "public func cookies(for url: URL"
+  "public func activate()"
   "eventType: NSEvent.EventType? = nil"
 )
 
@@ -44,8 +50,8 @@ for index in "${!patches[@]}"; do
     continue
   fi
 
-  git apply --check --unsafe-paths --directory="$cef_swift_root" "$patch_file"
-  git apply --unsafe-paths --directory="$cef_swift_root" "$patch_file"
+  git -C "$cef_swift_root" apply --check "$patch_file"
+  git -C "$cef_swift_root" apply "$patch_file"
   applied_any=true
 done
 

@@ -290,21 +290,7 @@ struct ImmersiveTranslationPopover: View {
             }
             .disabled(isBusy || isActive)
 
-            Picker(
-                NSLocalizedString(
-                    "translation.popover.provider",
-                    value: "Translation engine",
-                    comment: "Immersive translation - Provider picker label"
-                ),
-                selection: $provider
-            ) {
-                ForEach(ImmersiveTranslationProvider.allCases) { provider in
-                    Text(provider.displayName).tag(provider)
-                }
-            }
-            .disabled(isBusy || isActive)
-
-            if provider == .zenMux && !isActive {
+            if !isActive {
                 Text(NSLocalizedString(
                     "translation.popover.zenMuxPrivacyNotice",
                     value: "ZenMux enhanced translation sends the selected page text to your configured model.",

@@ -1,0 +1,78 @@
+diff --git a/Sources/CefKit/CefChromeBrowser.swift b/Sources/CefKit/CefChromeBrowser.swift
+index cce60bd..869d042 100644
+--- a/Sources/CefKit/CefChromeBrowser.swift
++++ b/Sources/CefKit/CefChromeBrowser.swift
+@@ -6,6 +6,10 @@ import Foundation
+ /// ``CefChromeBrowser/create(url:options:delegate:)``.
+ @MainActor
+ public struct CefChromeBrowserOptions {
++    /// Browsing profile used by the Chrome-style browser. `nil` uses CEF's
++    /// global default request context.
++    public var profile: CefProfile?
++
+     /// Shows Chrome's own toolbar (back/forward/omnibox) inside the window.
+     /// `false` (the default) hides Chrome's UI entirely — the window shows
+     /// only web content while the full Chrome runtime remains available.
+@@ -141,8 +145,9 @@ public final class CefChromeBrowser {
+         chrome.viewDelegate = viewDelegate
+         // cef_browser_view_create consumes our +1 client and +1 delegate refs
+         // and returns a +1 browser view that `chrome` owns.
++        let requestContext = options.profile?.makeRequestContext()
+         chrome.rawBrowserView = CefStringUtil.withCefString(url.absoluteString) { cefURL in
+-            cef_browser_view_create(clientPointer, cefURL, &settings, nil, nil, viewDelegate.makeStruct())
++            cef_browser_view_create(clientPointer, cefURL, &settings, nil, requestContext, viewDelegate.makeStruct())
+         }
+
+         let windowDelegate = ChromeWindowDelegate(chrome: chrome, options: options)
+@@ -169,6 +174,16 @@ public final class CefChromeBrowser {
+         rawWindow.pointee.hide?(rawWindow)
+     }
+
++    /// Activates the CEF Views window through CEF's own window lifecycle.
++    ///
++    /// AppKit's `makeKey()` changes the native child window, but it does not
++    /// necessarily update the Views widget activation state that owns Chrome
++    /// UI such as password and autofill popovers.
++    public func activate() {
++        guard let rawWindow else { return }
++        rawWindow.pointee.activate?(rawWindow)
++    }
++
+     /// Closes the window (and its browser). JavaScript `onbeforeunload`
+     /// handlers may prompt first; ``onWindowDestroyed`` fires when done.
+     public func close() {
+@@ -457,6 +472,19 @@ final class ChromeWindowDelegate {
+             return MainActor.assumeIsolated { me.options.isFrameless ? 0 : 1 }
+         }
+
++        d.pointee.accepts_first_mouse = { delegateSelf, window in
++            cefRelease(window.map(UnsafeMutableRawPointer.init))
++            guard let me = ChromeWindowDelegate.owner(delegateSelf.map(UnsafeMutableRawPointer.init)) else {
++                return STATE_DEFAULT
++            }
++            return MainActor.assumeIsolated {
++                // Embedded Chrome windows are separate native child windows.
++                // Deliver the activating click so Chrome UI popovers can be
++                // selected without the first click being consumed by AppKit.
++                me.options.isFrameless ? STATE_ENABLED : STATE_DEFAULT
++            }
++        }
++
+         d.pointee.get_initial_bounds = { delegateSelf, window in
+             cefRelease(window.map(UnsafeMutableRawPointer.init))
+             guard let me = ChromeWindowDelegate.owner(delegateSelf.map(UnsafeMutableRawPointer.init)) else {
+diff --git a/Tests/CefKitTests/ChromeBrowserTests.swift b/Tests/CefKitTests/ChromeBrowserTests.swift
+index 6b84095..989c2bb 100644
+--- a/Tests/CefKitTests/ChromeBrowserTests.swift
++++ b/Tests/CefKitTests/ChromeBrowserTests.swift
+@@ -81,6 +81,10 @@ import Testing
+             #expect(d.pointee.is_frameless?(d, nil) == (frameless ? 1 : 0))
+             // Frameless (embedding) windows hide the traffic lights.
+             #expect(d.pointee.with_standard_window_buttons?(d, nil) == (frameless ? 0 : 1))
++            #expect(
++                d.pointee.accepts_first_mouse?(d, nil)
++                    == (frameless ? STATE_ENABLED : STATE_DEFAULT)
++            )
+             #expect(d.pointee.get_initial_show_state?(d, nil) == CEF_SHOW_STATE_NORMAL)
+             #expect(d.pointee.get_window_runtime_style?(d) == CEF_RUNTIME_STYLE_CHROME)
+             // No chrome browser attached → closing is always allowed.

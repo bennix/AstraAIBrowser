@@ -255,7 +255,7 @@ final class ZenMuxTests: XCTestCase {
         )
         XCTAssertEqual(
             ImmersiveTranslationPreferences.loadProvider(from: defaults),
-            .onDevice
+            .zenMux
         )
 
         ImmersiveTranslationPreferences.saveLanguage(.japanese, to: defaults)

@@ -1084,17 +1084,6 @@ final class SystemMediaWebView: WKWebView {
 
 @MainActor
 final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, CefBrowserDelegate, PageContentProviding, BrowserAutomationProviding, ImmersiveTranslationProviding, MediaSessionCookieProviding, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
-    private final class PendingConsoleEvaluation {
-        let continuation: CheckedContinuation<String?, Never>
-        var chunks: [Int: String] = [:]
-        var expectedChunkCount: Int?
-        var timeoutWork: DispatchWorkItem?
-
-        init(continuation: CheckedContinuation<String?, Never>) {
-            self.continuation = continuation
-        }
-    }
-
     private final class SystemMediaPopupHost: NSObject, WKUIDelegate, NSWindowDelegate {
         let webView: SystemMediaWebView
         let window: NSWindow
@@ -1141,7 +1130,6 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         }
     }
 
-    private static let consoleResultPrefix = "__ASTRA_NATIVE_RESULT__"
     private static let mediaFallbackPrefix = "__ASTRA_SYSTEM_MEDIA_FALLBACK__"
     private final class HostView: NSView {
         weak var owner: CefWebContentWrapper?
@@ -1202,7 +1190,6 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     private var windowObservers: [NSObjectProtocol] = []
     private var nativePopupObservers: [NSObjectProtocol] = []
     private var nativePopupTimeout: DispatchWorkItem?
-    private var pendingConsoleEvaluations: [String: PendingConsoleEvaluation] = [:]
     private var systemMediaPopupHosts: [ObjectIdentifier: SystemMediaPopupHost] = [:]
 
     var onActivate: (() -> Void)?
@@ -2513,6 +2500,58 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             return
         }
 
+        if arguments.contains("--cef-immersive-translation-page-smoke") {
+            guard !isLoading,
+                  browser != nil,
+                  let urlString,
+                  urlString.hasPrefix("http://") || urlString.hasPrefix("https://") else { return }
+            didStartSmokeCheck = true
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                try? await Task.sleep(for: .seconds(2))
+                let start = ProcessInfo.processInfo.systemUptime
+                let probe = await evaluateJavaScriptResult(
+                    operation: "return JSON.stringify({ ok: true, state: document.readyState });",
+                    timeout: 10
+                )
+                FileHandle.standardOutput.write(
+                    Data(
+                        "[cef-smoke] immersive translation page probe: "
+                            .appending(probe ?? "unavailable")
+                            .appending("\n")
+                            .utf8
+                    )
+                )
+                do {
+                    let snapshot = try await immersiveTranslationSnapshot()
+                    let elapsed = ProcessInfo.processInfo.systemUptime - start
+                    let elapsedText = String(format: "%.2f", elapsed)
+                    let status = snapshot.segments.isEmpty ? "failed" : "passed"
+                    FileHandle.standardOutput.write(
+                        Data(
+                            "[cef-smoke] immersive translation page \(status): "
+                                .appending("segments=\(snapshot.segments.count) ")
+                                .appending("elapsed=\(elapsedText)s\n")
+                                .utf8
+                        )
+                    )
+                } catch {
+                    let elapsed = ProcessInfo.processInfo.systemUptime - start
+                    let elapsedText = String(format: "%.2f", elapsed)
+                    FileHandle.standardOutput.write(
+                        Data(
+                            "[cef-smoke] immersive translation page failed: "
+                                .appending("elapsed=\(elapsedText)s ")
+                                .appending("error=\(String(describing: error))\n")
+                                .utf8
+                        )
+                    )
+                }
+                NSApp.terminate(nil)
+            }
+            return
+        }
+
         if arguments.contains("--cef-immersive-translation-smoke") {
             guard !isLoading,
                   browser != nil,
@@ -2548,6 +2587,16 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
 
                 do {
                     let snapshot = try await immersiveTranslationSnapshot()
+                    let snapshotMutationCount = await evaluateJavaScriptResult(
+                        operation: """
+                        return String(document.querySelectorAll(
+                          '[data-phi-translation-source-id],'
+                            + '[data-phi-translation-source-wrapper],'
+                            + '[data-phi-immersive-translation]'
+                        ).length);
+                        """,
+                        timeout: 5
+                    )
                     let translations = snapshot.segments.enumerated().map { index, segment in
                         ImmersiveTranslationSegment(
                             id: segment.id,
@@ -2613,6 +2662,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                     ) ?? "unavailable"
                     let expected = snapshot.segments.count
                     let succeeded = setup == "ready"
+                        && snapshotMutationCount == "0"
                         && firstApplied
                         && firstVerification == "3"
                         && redraw == "redrawn"
@@ -2626,6 +2676,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                     let status = succeeded ? "passed" : "failed"
                     let detail = [
                         "setup=\(setup ?? "unavailable")",
+                        "snapshotMutations=\(snapshotMutationCount ?? "unavailable")",
                         "firstApplied=\(firstApplied)",
                         "firstCount=\(firstVerification ?? "unavailable")",
                         "redraw=\(redraw ?? "unavailable")",
@@ -3144,33 +3195,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                   ) == .orderedSame else { return }
             SystemMediaCompatibilityPolicy.rememberDetectedMediaIncompatibility(for: detectedURL)
             switchCurrentPageToSystemMediaEngine(detectedURL)
-            return
         }
-        let prefix = Self.consoleResultPrefix
-        guard message.hasPrefix(prefix) else { return }
-        let encodedMessage = String(message.dropFirst(prefix.count))
-        let parts = encodedMessage.split(
-            separator: ":",
-            maxSplits: 3,
-            omittingEmptySubsequences: false
-        )
-        guard parts.count == 4,
-              let chunkIndex = Int(parts[1]),
-              let chunkCount = Int(parts[2]),
-              chunkIndex >= 0,
-              chunkCount > 0,
-              chunkIndex < chunkCount,
-              let pending = pendingConsoleEvaluations[String(parts[0])] else { return }
-
-        pending.expectedChunkCount = chunkCount
-        pending.chunks[chunkIndex] = String(parts[3])
-        guard pending.chunks.count == chunkCount else { return }
-        let base64 = (0..<chunkCount).compactMap { pending.chunks[$0] }.joined()
-        guard let data = Data(base64Encoded: base64),
-              let result = String(data: data, encoding: .utf8) else { return }
-        pendingConsoleEvaluations[String(parts[0])] = nil
-        pending.timeoutWork?.cancel()
-        pending.continuation.resume(returning: result)
     }
 
     private func evaluateJavaScriptResult(
@@ -3200,42 +3225,21 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             }
         }
         guard let browser else { return nil }
-        let requestID = UUID().uuidString
-        let script = """
+        let expression = """
         (async function () {
           let result;
           try {
             result = await (async function () { \(operation) })();
           } catch (error) {
-            result = JSON.stringify({ ok: false, message: String(error && error.message ? error.message : error) });
+            result = JSON.stringify({
+              ok: false,
+              message: String(error && error.message ? error.message : error)
+            });
           }
-          if (typeof result !== 'string') result = JSON.stringify(result);
-          const bytes = new TextEncoder().encode(result.slice(0, 50000));
-          let binary = '';
-          for (let offset = 0; offset < bytes.length; offset += 4096) {
-            binary += String.fromCharCode(...bytes.subarray(offset, offset + 4096));
-          }
-          const encoded = btoa(binary);
-          const chunkSize = 6000;
-          const chunkCount = Math.max(1, Math.ceil(encoded.length / chunkSize));
-          for (let index = 0; index < chunkCount; index += 1) {
-            console.info('\(Self.consoleResultPrefix)\(requestID):' + index + ':' + chunkCount + ':' + encoded.slice(index * chunkSize, (index + 1) * chunkSize));
-          }
-        })();
+          return typeof result === 'string' ? result : JSON.stringify(result);
+        })()
         """
-        return await withCheckedContinuation { continuation in
-            let pending = PendingConsoleEvaluation(continuation: continuation)
-            let timeoutWork = DispatchWorkItem { [weak self, weak pending] in
-                guard let self,
-                      let pending,
-                      self.pendingConsoleEvaluations.removeValue(forKey: requestID) != nil else { return }
-                pending.continuation.resume(returning: nil)
-            }
-            pending.timeoutWork = timeoutWork
-            pendingConsoleEvaluations[requestID] = pending
-            DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: timeoutWork)
-            browser.executeJavaScript(script)
-        }
+        return await browser.evaluateJavaScriptResult(expression, timeout: timeout)
     }
 
     func mediaSessionCookies(for url: URL) async -> [HTTPCookie] {
@@ -3406,7 +3410,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         let allowsSmokeTestPage = CommandLine.arguments.contains(
             "--cef-immersive-translation-smoke"
         )
-        let operation = #"""
+        let prepareOperation = #"""
         const allowsSmokeTestPage = \#(allowsSmokeTestPage ? "true" : "false");
         const canonical = (value) => {
           try {
@@ -3422,41 +3426,28 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
           return JSON.stringify({ ok: false, sessionID: '', segments: [] });
         }
 
-        document.querySelectorAll('[data-phi-immersive-translation]').forEach((node) => node.remove());
-        document.querySelectorAll('[data-phi-translation-source-wrapper]').forEach((wrapper) => {
-          wrapper.replaceWith(...wrapper.childNodes);
-        });
-        document.querySelectorAll('[data-phi-translation-source-id]').forEach((node) => {
-          node.removeAttribute('data-phi-translation-source-id');
-        });
+        if (globalThis.__phiImmersiveTranslationSession ||
+            document.querySelector('[data-phi-immersive-translation]')) {
+          document.querySelectorAll('[data-phi-immersive-translation]').forEach((node) => node.remove());
+          document.querySelectorAll('[data-phi-translation-source-wrapper]').forEach((wrapper) => {
+            wrapper.replaceWith(...wrapper.childNodes);
+          });
+          document.querySelectorAll('[data-phi-translation-source-id]').forEach((node) => {
+            node.removeAttribute('data-phi-translation-source-id');
+          });
+        }
 
         const headingSelector = 'h1,h2,h3,h4,h5,h6,[role="heading"]';
-        const selector = [
+        const readableSelector = [
           headingSelector,
           'p,li,blockquote,figcaption,dt,dd,td,th,caption,legend,summary'
         ].join(',');
-        const primaryHeadingSelector = [
-          'main h1',
-          'article h1',
-          'main [role="heading"][aria-level="1"]',
-          'article [role="heading"][aria-level="1"]',
-          'h1',
-          '[role="heading"][aria-level="1"]'
+        const excludedSelector = [
+          'script', 'style', 'noscript', 'template', 'pre', 'code', 'textarea',
+          'select', 'option', '[contenteditable="true"]', '[aria-hidden="true"]',
+          '[data-phi-immersive-translation]'
         ].join(',');
         const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
-        const isVisible = (element) => {
-          const style = getComputedStyle(element);
-          const rect = element.getBoundingClientRect();
-          return style.display !== 'none' && style.visibility !== 'hidden' &&
-            rect.width > 0 && rect.height > 0;
-        };
-        const containsReadableChild = (element) => Array.from(element.children).some((child) =>
-          child.matches && child.matches(selector) && normalize(child.innerText).length >= 2
-        );
-        const isExcluded = (element) => Boolean(element.closest(
-          'script,style,noscript,template,pre,code,textarea,select,option,' +
-          '[contenteditable="true"],[aria-hidden="true"],[data-phi-immersive-translation]'
-        ));
         let sessionID = '';
         try {
           sessionID = globalThis.crypto?.randomUUID?.() || '';
@@ -3466,101 +3457,202 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         if (!sessionID) {
           sessionID = `phi-${Date.now()}-${Math.random().toString(16).slice(2)}`;
         }
-        const sources = new Map();
-        const occurrences = new Map();
-        const textOccurrences = new Map();
-        const segments = [];
-        let totalCharacters = 0;
-        const primaryHeading = document.querySelector(primaryHeadingSelector);
-        const remainingElements = Array.from(document.querySelectorAll(selector)).filter(
-          (element) => element !== primaryHeading
-        );
-        const orderedElements = primaryHeading
-          ? [primaryHeading, ...remainingElements]
-          : remainingElements;
-        for (const element of orderedElements) {
-          if (segments.length >= 500 || totalCharacters >= 100000) break;
-          if (!isVisible(element) || containsReadableChild(element) ||
-              isExcluded(element)) {
-            continue;
-          }
-          const text = normalize(element.innerText);
-          if (text.length < 2 || text.length > 1800 || !/[\p{L}\p{N}]/u.test(text)) continue;
-          const id = `phi-translation-${sessionID}-${segments.length}`;
-          const occurrence = occurrences.get(text) || 0;
-          occurrences.set(text, occurrence + 1);
-          element.setAttribute('data-phi-translation-source-id', id);
-          sources.set(id, {
-            node: element,
-            text,
-            occurrence,
-            isHeading: element.matches(headingSelector)
-          });
-          segments.push({ id, text });
-          totalCharacters += text.length;
-        }
-        if (segments.length < 500 && totalCharacters < 100000 && document.body) {
-          const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-          const textNodes = [];
-          while (walker.nextNode()) textNodes.push(walker.currentNode);
-          for (const textNode of textNodes) {
-            if (segments.length >= 500 || totalCharacters >= 100000) break;
-            const parent = textNode.parentElement;
-            if (!parent || !isVisible(parent) || isExcluded(parent) ||
-                parent.closest('[data-phi-translation-source-id]')) {
-              continue;
-            }
-            const text = normalize(textNode.nodeValue);
-            if (text.length < 2 || text.length > 1800 || !/[\p{L}\p{N}]/u.test(text)) continue;
-            const id = `phi-translation-${sessionID}-${segments.length}`;
-            const occurrence = textOccurrences.get(text) || 0;
-            textOccurrences.set(text, occurrence + 1);
-            const wrapper = document.createElement('span');
-            wrapper.setAttribute('data-phi-translation-source-id', id);
-            wrapper.setAttribute('data-phi-translation-source-wrapper', 'true');
-            wrapper.style.display = 'contents';
-            textNode.parentNode.insertBefore(wrapper, textNode);
-            wrapper.appendChild(textNode);
-            sources.set(id, {
-              node: wrapper,
-              text,
-              occurrence,
-              isHeading: false,
-              isTextNode: true
-            });
-            segments.push({ id, text });
-            totalCharacters += text.length;
-          }
-        }
-        globalThis.__phiImmersiveTranslationSession = {
+        const session = {
           id: sessionID,
           pageURL: canonical(location.href),
-          sources
+          sources: new Map(),
+          segments: [],
+          walker: document.body
+            ? document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+            : null,
+          semanticRecords: new Map(),
+          standaloneRecords: [],
+          visibilityCache: new WeakMap(),
+          visitedTextNodes: 0,
+          candidateOrder: 0,
+          completed: false
         };
-        return JSON.stringify({ ok: true, sessionID, segments });
+        const isVisible = (element) => {
+          if (session.visibilityCache.has(element)) {
+            return session.visibilityCache.get(element);
+          }
+          const style = getComputedStyle(element);
+          const visible = style.display !== 'none' && style.visibility !== 'hidden' &&
+            style.contentVisibility !== 'hidden' && element.getClientRects().length > 0;
+          session.visibilityCache.set(element, visible);
+          return visible;
+        };
+        const finalize = () => {
+          if (session.completed) return;
+          const records = [
+            ...session.semanticRecords.values(),
+            ...session.standaloneRecords
+          ].sort((left, right) => left.order - right.order);
+          const elementOccurrences = new Map();
+          const textOccurrences = new Map();
+          let totalCharacters = 0;
+          for (const record of records) {
+            if (session.segments.length >= 500 || totalCharacters >= 100000) break;
+            const text = normalize(record.parts ? record.parts.join(' ') : record.text);
+            const visibilityElement = record.isTextNode
+              ? record.node.parentElement
+              : record.node;
+            if (!visibilityElement || !record.node.isConnected || text.length < 2 ||
+                text.length > 1800 || !/[\p{L}\p{N}]/u.test(text) ||
+                !isVisible(visibilityElement)) continue;
+            const id = `phi-translation-${sessionID}-${session.segments.length}`;
+            const occurrenceMap = record.isTextNode ? textOccurrences : elementOccurrences;
+            const occurrence = occurrenceMap.get(text) || 0;
+            occurrenceMap.set(text, occurrence + 1);
+            session.sources.set(id, {
+              node: record.node,
+              text,
+              occurrence,
+              isHeading: record.isHeading === true,
+              isTextNode: record.isTextNode === true
+            });
+            session.segments.push({ id, text });
+            totalCharacters += text.length;
+          }
+          session.semanticRecords.clear();
+          session.standaloneRecords = [];
+          session.walker = null;
+          session.completed = true;
+        };
+        session.collect = () => {
+          if (session.completed) {
+            return { ok: true, done: true, count: session.segments.length };
+          }
+          if (!session.walker) {
+            finalize();
+            return { ok: true, done: true, count: session.segments.length };
+          }
+          const startedAt = performance.now();
+          let processed = 0;
+          let reachedEnd = false;
+          while (processed < 3000 && performance.now() - startedAt < 30) {
+            const textNode = session.walker.nextNode();
+            if (!textNode) {
+              reachedEnd = true;
+              break;
+            }
+            processed += 1;
+            session.visitedTextNodes += 1;
+            const parent = textNode.parentElement;
+            if (!parent || parent.closest(excludedSelector)) continue;
+            const text = normalize(textNode.nodeValue);
+            if (!text || text.length > 1800 || !/[\p{L}\p{N}]/u.test(text)) continue;
+            const owner = parent.closest(readableSelector);
+            if (owner) {
+              let record = session.semanticRecords.get(owner);
+              if (!record) {
+                record = {
+                  node: owner,
+                  parts: [],
+                  order: session.candidateOrder,
+                  isHeading: owner.matches(headingSelector),
+                  isTextNode: false
+                };
+                session.candidateOrder += 1;
+                session.semanticRecords.set(owner, record);
+              }
+              record.parts.push(text);
+            } else {
+              session.standaloneRecords.push({
+                node: textNode,
+                text,
+                order: session.candidateOrder,
+                isHeading: false,
+                isTextNode: true
+              });
+              session.candidateOrder += 1;
+            }
+            if (session.semanticRecords.size + session.standaloneRecords.length >= 3000) {
+              reachedEnd = true;
+              break;
+            }
+          }
+          if (reachedEnd || session.visitedTextNodes >= 50000) finalize();
+          return {
+            ok: true,
+            done: session.completed,
+            count: session.segments.length,
+            visited: session.visitedTextNodes
+          };
+        };
+        globalThis.__phiImmersiveTranslationSession = session;
+        return JSON.stringify({ ok: true, sessionID });
         """#
-        let result = await evaluateJavaScriptResult(operation: operation, timeout: 8)
-        if allowsSmokeTestPage {
-            FileHandle.standardOutput.write(
-                Data("[cef-smoke] immersive translation snapshot: \(result ?? "unavailable")\n".utf8)
-            )
+        let decodeObject: (String?) -> [String: Any]? = { result in
+            guard let result,
+                  let data = result.data(using: .utf8) else { return nil }
+            return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         }
-        guard let result,
-              let data = result.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              object["ok"] as? Bool == true,
-              let sessionID = object["sessionID"] as? String,
-              !sessionID.isEmpty,
-              let values = object["segments"] as? [[String: Any]] else {
+        guard let prepareObject = decodeObject(
+            await evaluateJavaScriptResult(operation: prepareOperation, timeout: 5)
+        ), prepareObject["ok"] as? Bool == true,
+           let sessionID = prepareObject["sessionID"] as? String,
+           !sessionID.isEmpty,
+           let sessionData = try? JSONEncoder().encode(sessionID),
+           let sessionLiteral = String(data: sessionData, encoding: .utf8) else {
+            AppLogInfo("[ImmersiveTranslation] snapshot preparation unavailable")
             throw ImmersiveTranslationError.pageChanged
         }
-        let segments = values.compactMap { (value: [String: Any]) -> ImmersiveTranslationSegment? in
-            guard let id = value["id"] as? String,
-                  let text = value["text"] as? String,
-                  !id.isEmpty,
-                  !text.isEmpty else { return nil }
-            return ImmersiveTranslationSegment(id: id, text: text)
+
+        var segmentCount: Int?
+        for _ in 0..<80 {
+            let collectOperation = #"""
+            const session = globalThis.__phiImmersiveTranslationSession;
+            if (!session || session.id !== \#(sessionLiteral) ||
+                typeof session.collect !== 'function') {
+              return JSON.stringify({ ok: false, done: false, count: 0 });
+            }
+            return JSON.stringify(session.collect());
+            """#
+            guard let collectObject = decodeObject(
+                await evaluateJavaScriptResult(operation: collectOperation, timeout: 5)
+            ), collectObject["ok"] as? Bool == true else {
+                AppLogInfo("[ImmersiveTranslation] snapshot collection unavailable")
+                throw ImmersiveTranslationError.pageChanged
+            }
+            if collectObject["done"] as? Bool == true {
+                segmentCount = collectObject["count"] as? Int ?? 0
+                break
+            }
         }
+        guard let segmentCount else {
+            AppLogInfo("[ImmersiveTranslation] snapshot collection did not finish")
+            throw ImmersiveTranslationError.pageChanged
+        }
+
+        var segments: [ImmersiveTranslationSegment] = []
+        for offset in stride(from: 0, to: segmentCount, by: 40) {
+            let readOperation = #"""
+            const session = globalThis.__phiImmersiveTranslationSession;
+            if (!session || session.id !== \#(sessionLiteral) || !session.completed) {
+              return JSON.stringify({ ok: false, segments: [] });
+            }
+            return JSON.stringify({
+              ok: true,
+              segments: session.segments.slice(\#(offset), \#(min(offset + 40, segmentCount)))
+            });
+            """#
+            guard let readObject = decodeObject(
+                await evaluateJavaScriptResult(operation: readOperation, timeout: 5)
+            ), readObject["ok"] as? Bool == true,
+               let values = readObject["segments"] as? [[String: Any]] else {
+                AppLogInfo("[ImmersiveTranslation] snapshot read unavailable offset=\(offset)")
+                throw ImmersiveTranslationError.pageChanged
+            }
+            segments.append(contentsOf: values.compactMap { value in
+                guard let id = value["id"] as? String,
+                      let text = value["text"] as? String,
+                      !id.isEmpty,
+                      !text.isEmpty else { return nil }
+                return ImmersiveTranslationSegment(id: id, text: text)
+            })
+        }
+        AppLogInfo("[ImmersiveTranslation] snapshot segments=\(segments.count)")
         return ImmersiveTranslationPageSnapshot(sessionID: sessionID, segments: segments)
     }
 
@@ -3604,6 +3696,22 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
           'p,li,blockquote,figcaption,dt,dd,td,th,caption,legend,summary'
         ].join(',');
         const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+        const wrapTextSource = (textNode, id) => {
+          if (!(textNode instanceof Text) || !textNode.isConnected || !textNode.parentNode) {
+            return null;
+          }
+          const existingWrapper = textNode.parentElement;
+          if (existingWrapper?.getAttribute('data-phi-translation-source-id') === id) {
+            return existingWrapper;
+          }
+          const wrapper = document.createElement('span');
+          wrapper.setAttribute('data-phi-translation-source-id', id);
+          wrapper.setAttribute('data-phi-translation-source-wrapper', 'true');
+          wrapper.style.display = 'contents';
+          textNode.parentNode.insertBefore(wrapper, textNode);
+          wrapper.appendChild(textNode);
+          return wrapper;
+        };
         const findTextSource = (record, id) => {
           if (!document.body) return null;
           const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -3621,13 +3729,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
               occurrence += 1;
               continue;
             }
-            const wrapper = document.createElement('span');
-            wrapper.setAttribute('data-phi-translation-source-id', id);
-            wrapper.setAttribute('data-phi-translation-source-wrapper', 'true');
-            wrapper.style.display = 'contents';
-            textNode.parentNode.insertBefore(wrapper, textNode);
-            wrapper.appendChild(textNode);
-            return wrapper;
+            return wrapTextSource(textNode, id);
           }
           return null;
         };
@@ -3656,9 +3758,15 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
           }
           if (existing) existing.remove();
           let source = record.node;
-          if (source instanceof Element && source.isConnected) {
+          if (record.isTextNode === true && source instanceof Text && source.isConnected) {
+            source = wrapTextSource(source, translation.id);
+            if (source) connectedMatches += 1;
+          } else if (source instanceof Element && source.isConnected) {
             connectedMatches += 1;
           } else {
+            source = null;
+          }
+          if (!source) {
             source = document.querySelector(
               `[data-phi-translation-source-id="${CSS.escape(translation.id)}"]`
             );

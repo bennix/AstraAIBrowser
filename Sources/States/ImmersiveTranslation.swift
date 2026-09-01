@@ -5,8 +5,6 @@
 
 import AppKit
 import Foundation
-import NaturalLanguage
-import Translation
 
 struct ImmersiveTranslationSegment: Codable, Equatable, Sendable {
     let id: String
@@ -19,8 +17,8 @@ struct ImmersiveTranslationPageSnapshot: Equatable, Sendable {
 }
 
 enum ImmersiveTranslationBatchPlanner {
-    static let maximumSegmentCount = 8
-    static let maximumCharacterCount = 4_000
+    static let maximumSegmentCount = 24
+    static let maximumCharacterCount = 12_000
 
     static func batches(
         for segments: [ImmersiveTranslationSegment],
@@ -47,6 +45,17 @@ enum ImmersiveTranslationBatchPlanner {
             result.append(batch)
         }
         return result
+    }
+}
+
+struct ImmersiveTranslationWritebackProgress {
+    private(set) var completedTranslations: [ImmersiveTranslationSegment] = []
+
+    mutating func record(
+        _ translations: [ImmersiveTranslationSegment]
+    ) -> [ImmersiveTranslationSegment] {
+        completedTranslations.append(contentsOf: translations)
+        return translations
     }
 }
 
@@ -88,26 +97,16 @@ enum ImmersiveTranslationLanguage: String, CaseIterable, Identifiable {
 }
 
 enum ImmersiveTranslationProvider: String, CaseIterable, Identifiable {
-    case onDevice = "on_device"
     case zenMux = "zenmux"
 
     var id: String { rawValue }
 
     var displayName: String {
-        switch self {
-        case .onDevice:
-            return NSLocalizedString(
-                "translation.provider.onDevice",
-                value: "On-device",
-                comment: "Immersive translation - On-device provider name"
-            )
-        case .zenMux:
-            return NSLocalizedString(
-                "translation.provider.zenMux",
-                value: "ZenMux enhanced",
-                comment: "Immersive translation - ZenMux provider name"
-            )
-        }
+        NSLocalizedString(
+            "translation.provider.zenMux",
+            value: "ZenMux enhanced",
+            comment: "Immersive translation - ZenMux provider name"
+        )
     }
 }
 
@@ -138,7 +137,7 @@ enum ImmersiveTranslationPreferences {
     static func loadProvider(from defaults: UserDefaults = .standard) -> ImmersiveTranslationProvider {
         defaults.string(forKey: providerKey)
             .flatMap(ImmersiveTranslationProvider.init(rawValue:))
-            ?? .onDevice
+            ?? .zenMux
     }
 
     static func saveProvider(
@@ -152,7 +151,6 @@ enum ImmersiveTranslationPreferences {
 enum ImmersiveTranslationError: LocalizedError {
     case unsupportedPage
     case emptyPage
-    case onDeviceUnavailable
     case missingZenMuxCredential
     case pageChanged
     case selectionTooLong
@@ -170,12 +168,6 @@ enum ImmersiveTranslationError: LocalizedError {
                 "translation.error.emptyPage",
                 value: "No readable text was found on this page.",
                 comment: "Immersive translation - Empty page error"
-            )
-        case .onDeviceUnavailable:
-            return NSLocalizedString(
-                "translation.error.onDeviceUnavailable",
-                value: "On-device translation is unavailable for this language pair. Choose ZenMux enhanced translation instead.",
-                comment: "Immersive translation - On-device language pair unavailable error"
             )
         case .missingZenMuxCredential:
             return NSLocalizedString(
@@ -195,46 +187,6 @@ enum ImmersiveTranslationError: LocalizedError {
                 value: "The selection is too long. Select a shorter passage or translate the full page instead.",
                 comment: "Selection translation - Error shown when selected webpage text exceeds the supported length"
             )
-        }
-    }
-}
-
-@available(macOS 26.0, *)
-private enum OnDeviceImmersiveTranslator {
-    static func translate(
-        _ segments: [ImmersiveTranslationSegment],
-        to targetLanguage: ImmersiveTranslationLanguage
-    ) async throws -> [ImmersiveTranslationSegment] {
-        let recognizer = NLLanguageRecognizer()
-        recognizer.processString(segments.prefix(20).map(\.text).joined(separator: "\n"))
-        guard let source = recognizer.dominantLanguage,
-              source != .undetermined else {
-            throw ImmersiveTranslationError.onDeviceUnavailable
-        }
-        if source.rawValue == targetLanguage.rawValue {
-            return segments
-        }
-
-        let session = TranslationSession(
-            installedSource: Locale.Language(identifier: source.rawValue),
-            target: Locale.Language(identifier: targetLanguage.rawValue)
-        )
-        let requests = segments.map {
-            TranslationSession.Request(sourceText: $0.text, clientIdentifier: $0.id)
-        }
-        let responses: [TranslationSession.Response]
-        do {
-            responses = try await session.translations(from: requests)
-        } catch {
-            throw ImmersiveTranslationError.onDeviceUnavailable
-        }
-        let translatedByID = Dictionary(uniqueKeysWithValues: responses.compactMap { response in
-            response.clientIdentifier.map { ($0, response.targetText) }
-        })
-        return segments.compactMap { segment in
-            translatedByID[segment.id].map {
-                ImmersiveTranslationSegment(id: segment.id, text: $0)
-            }
         }
     }
 }
@@ -261,14 +213,6 @@ extension BrowserState {
         provider: ImmersiveTranslationProvider
     ) async throws -> [ImmersiveTranslationSegment] {
         switch provider {
-        case .onDevice:
-            guard #available(macOS 26.0, *) else {
-                throw ImmersiveTranslationError.onDeviceUnavailable
-            }
-            return try await OnDeviceImmersiveTranslator.translate(
-                segments,
-                to: language
-            )
         case .zenMux:
             guard let apiKey = try ZenMuxCredentialStore.shared.loadAPIKey(),
                   !apiKey.isEmpty else {
@@ -326,32 +270,41 @@ extension BrowserState {
                 }
             }
             do {
+                AppLogInfo("[ImmersiveTranslation] operation started")
                 let snapshot = try await content.immersiveTranslationSnapshot()
                 try Task.checkCancellation()
                 let segments = snapshot.segments
                 guard !segments.isEmpty else { throw ImmersiveTranslationError.emptyPage }
                 let batches = ImmersiveTranslationBatchPlanner.batches(for: segments)
-                var completedTranslations: [ImmersiveTranslationSegment] = []
-                completedTranslations.reserveCapacity(segments.count)
+                AppLogInfo(
+                    "[ImmersiveTranslation] planned segments=\(segments.count) batches=\(batches.count)"
+                )
+                var writebackProgress = ImmersiveTranslationWritebackProgress()
 
-                for batch in batches {
+                for (batchIndex, batch) in batches.enumerated() {
                     try Task.checkCancellation()
+                    AppLogInfo(
+                        "[ImmersiveTranslation] batch started index=\(batchIndex + 1) requested=\(batch.count)"
+                    )
                     let translations = try await self.translateImmersiveBatch(
                         batch,
                         language: language,
                         provider: provider
                     )
+                    AppLogInfo(
+                        "[ImmersiveTranslation] batch translated index=\(batchIndex + 1) returned=\(translations.count)"
+                    )
                     guard translations.map(\.id) == batch.map(\.id) else {
                         throw ImmersiveTranslationError.pageChanged
                     }
-                    completedTranslations.append(contentsOf: translations)
+                    let writebackTranslations = writebackProgress.record(translations)
 
                     try Task.checkCancellation()
                     guard tab.immersiveTranslationOperationID == operationID,
                           tab.webContentWrapper === content,
                           tab.immersiveTranslationState == .translating else { return }
                     let applied = await content.applyImmersiveTranslations(
-                        completedTranslations,
+                        writebackTranslations,
                         targetLanguage: language.rawValue,
                         sessionID: snapshot.sessionID
                     )
@@ -360,8 +313,21 @@ extension BrowserState {
                     guard applied else { throw ImmersiveTranslationError.pageChanged }
                 }
 
+                try Task.checkCancellation()
+                guard tab.immersiveTranslationOperationID == operationID,
+                      tab.webContentWrapper === content else { return }
+                _ = await content.applyImmersiveTranslations(
+                    writebackProgress.completedTranslations,
+                    targetLanguage: language.rawValue,
+                    sessionID: snapshot.sessionID
+                )
+
                 tab.immersiveTranslationState = .active(language: language, provider: provider)
+                AppLogInfo("[ImmersiveTranslation] operation completed")
             } catch {
+                AppLogInfo(
+                    "[ImmersiveTranslation] operation failed error=\(String(describing: error))"
+                )
                 guard !Task.isCancelled,
                       tab.immersiveTranslationOperationID == operationID,
                       tab.url == pageURL else { return }

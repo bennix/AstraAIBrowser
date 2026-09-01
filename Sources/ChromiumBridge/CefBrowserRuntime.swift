@@ -1955,11 +1955,17 @@ private final class CefBrowserWindow: NSWindow {
             result = JSON.stringify({ ok: false, message: String(error && error.message ? error.message : error) });
           }
           if (typeof result !== 'string') result = JSON.stringify(result);
+          const payload = {
+            requestID: '\(requestID)',
+            token: '\(token)',
+            result: result.slice(0, 400000)
+          };
           if (window.cefSwift && window.cefSwift.invoke) {
-            await window.cefSwift.invoke('astraBrowserAutomation', {
-              requestID: '\(requestID)',
-              token: '\(token)',
-              result: result.slice(0, 50000)
+            await window.cefSwift.invoke('astraBrowserAutomation', payload);
+          } else {
+            await fetch('cefswift://bridge/astraBrowserAutomation', {
+              method: 'POST',
+              body: JSON.stringify(payload)
             });
           }
         })();
