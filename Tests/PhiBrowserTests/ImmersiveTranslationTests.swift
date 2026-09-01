@@ -14,7 +14,7 @@ final class ImmersiveTranslationTests: XCTestCase {
 
         let batches = ImmersiveTranslationBatchPlanner.batches(for: segments)
 
-        XCTAssertEqual(batches.map(\.count), [24, 24, 5])
+        XCTAssertEqual(batches.map(\.count), [16, 16, 16, 5])
         XCTAssertEqual(batches.flatMap { $0 }, segments)
     }
 

@@ -17,8 +17,9 @@ struct ImmersiveTranslationPageSnapshot: Equatable, Sendable {
 }
 
 enum ImmersiveTranslationBatchPlanner {
-    static let maximumSegmentCount = 24
-    static let maximumCharacterCount = 12_000
+    static let maximumSegmentCount = 16
+    static let maximumCharacterCount = 6_000
+    static let maximumConcurrentBatchCount = 4
 
     static func batches(
         for segments: [ImmersiveTranslationSegment],
@@ -281,36 +282,64 @@ extension BrowserState {
                 )
                 var writebackProgress = ImmersiveTranslationWritebackProgress()
 
-                for (batchIndex, batch) in batches.enumerated() {
-                    try Task.checkCancellation()
-                    AppLogInfo(
-                        "[ImmersiveTranslation] batch started index=\(batchIndex + 1) requested=\(batch.count)"
-                    )
-                    let translations = try await self.translateImmersiveBatch(
-                        batch,
-                        language: language,
-                        provider: provider
-                    )
-                    AppLogInfo(
-                        "[ImmersiveTranslation] batch translated index=\(batchIndex + 1) returned=\(translations.count)"
-                    )
-                    guard translations.map(\.id) == batch.map(\.id) else {
-                        throw ImmersiveTranslationError.pageChanged
-                    }
-                    let writebackTranslations = writebackProgress.record(translations)
+                try await withThrowingTaskGroup(
+                    of: (Int, [ImmersiveTranslationSegment]).self
+                ) { group in
+                    var nextBatchIndex = 0
 
-                    try Task.checkCancellation()
-                    guard tab.immersiveTranslationOperationID == operationID,
-                          tab.webContentWrapper === content,
-                          tab.immersiveTranslationState == .translating else { return }
-                    let applied = await content.applyImmersiveTranslations(
-                        writebackTranslations,
-                        targetLanguage: language.rawValue,
-                        sessionID: snapshot.sessionID
-                    )
-                    try Task.checkCancellation()
-                    guard tab.immersiveTranslationOperationID == operationID else { return }
-                    guard applied else { throw ImmersiveTranslationError.pageChanged }
+                    func enqueueNextBatch(
+                        _ group: inout ThrowingTaskGroup<(Int, [ImmersiveTranslationSegment]), Error>
+                    ) {
+                        guard nextBatchIndex < batches.count else { return }
+                        let batchIndex = nextBatchIndex
+                        let batch = batches[batchIndex]
+                        nextBatchIndex += 1
+                        AppLogInfo(
+                            "[ImmersiveTranslation] batch started index=\(batchIndex + 1) requested=\(batch.count)"
+                        )
+                        group.addTask { @MainActor in
+                            let translations = try await self.translateImmersiveBatch(
+                                batch,
+                                language: language,
+                                provider: provider
+                            )
+                            return (batchIndex, translations)
+                        }
+                    }
+
+                    for _ in 0..<ImmersiveTranslationBatchPlanner.maximumConcurrentBatchCount {
+                        enqueueNextBatch(&group)
+                    }
+
+                    while let (batchIndex, translations) = try await group.next() {
+                        enqueueNextBatch(&group)
+                        AppLogInfo(
+                            "[ImmersiveTranslation] batch translated index=\(batchIndex + 1) returned=\(translations.count)"
+                        )
+                        guard translations.map(\.id) == batches[batchIndex].map(\.id) else {
+                            throw ImmersiveTranslationError.pageChanged
+                        }
+                        let writebackTranslations = writebackProgress.record(translations)
+
+                        try Task.checkCancellation()
+                        guard tab.immersiveTranslationOperationID == operationID,
+                              tab.webContentWrapper === content,
+                              tab.immersiveTranslationState == .translating else {
+                            group.cancelAll()
+                            return
+                        }
+                        let applied = await content.applyImmersiveTranslations(
+                            writebackTranslations,
+                            targetLanguage: language.rawValue,
+                            sessionID: snapshot.sessionID
+                        )
+                        try Task.checkCancellation()
+                        guard tab.immersiveTranslationOperationID == operationID else {
+                            group.cancelAll()
+                            return
+                        }
+                        guard applied else { throw ImmersiveTranslationError.pageChanged }
+                    }
                 }
 
                 try Task.checkCancellation()
