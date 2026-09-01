@@ -13,6 +13,11 @@ struct ImmersiveTranslationSegment: Codable, Equatable, Sendable {
     let text: String
 }
 
+struct ImmersiveTranslationPageSnapshot: Equatable, Sendable {
+    let sessionID: String
+    let segments: [ImmersiveTranslationSegment]
+}
+
 enum ImmersiveTranslationLanguage: String, CaseIterable, Identifiable {
     case simplifiedChinese = "zh-Hans"
     case traditionalChinese = "zh-Hant"
@@ -221,7 +226,7 @@ extension BrowserState {
 
         if case .active = tab.immersiveTranslationState {
             Task { @MainActor in
-                await content.removeImmersiveTranslations(expectedPageURL: pageURL)
+                await content.removeImmersiveTranslations()
                 guard tab.url == pageURL else { return }
                 tab.immersiveTranslationState = .inactive
             }
@@ -231,14 +236,23 @@ extension BrowserState {
 
         ImmersiveTranslationPreferences.saveLanguage(language)
         ImmersiveTranslationPreferences.saveProvider(provider)
+        tab.immersiveTranslationTask?.cancel()
+        let operationID = UUID()
+        tab.immersiveTranslationOperationID = operationID
         tab.immersiveTranslationState = .translating
 
-        Task { @MainActor [weak tab] in
+        tab.immersiveTranslationTask = Task { @MainActor [weak tab] in
             guard let tab else { return }
+            defer {
+                if tab.immersiveTranslationOperationID == operationID {
+                    tab.immersiveTranslationTask = nil
+                    tab.immersiveTranslationOperationID = nil
+                }
+            }
             do {
-                let segments = try await content.immersiveTranslationSegments(
-                    expectedPageURL: pageURL
-                )
+                let snapshot = try await content.immersiveTranslationSnapshot()
+                try Task.checkCancellation()
+                let segments = snapshot.segments
                 guard !segments.isEmpty else { throw ImmersiveTranslationError.emptyPage }
 
                 let translations: [ImmersiveTranslationSegment]
@@ -264,16 +278,23 @@ extension BrowserState {
                     )
                 }
 
-                guard tab.url == pageURL else { throw ImmersiveTranslationError.pageChanged }
+                try Task.checkCancellation()
+                guard tab.immersiveTranslationOperationID == operationID,
+                      tab.webContentWrapper === content,
+                      tab.immersiveTranslationState == .translating else { return }
                 let applied = await content.applyImmersiveTranslations(
                     translations,
                     targetLanguage: language.rawValue,
-                    expectedPageURL: pageURL
+                    sessionID: snapshot.sessionID
                 )
+                try Task.checkCancellation()
+                guard tab.immersiveTranslationOperationID == operationID else { return }
                 guard applied else { throw ImmersiveTranslationError.pageChanged }
                 tab.immersiveTranslationState = .active(language: language, provider: provider)
             } catch {
-                guard tab.url == pageURL else { return }
+                guard !Task.isCancelled,
+                      tab.immersiveTranslationOperationID == operationID,
+                      tab.url == pageURL else { return }
                 tab.immersiveTranslationState = .failed(error.localizedDescription)
             }
         }

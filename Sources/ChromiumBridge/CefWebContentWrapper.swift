@@ -20,19 +20,17 @@ protocol BrowserAutomationProviding: AnyObject {
 
 protocol ImmersiveTranslationProviding: AnyObject {
     @MainActor
-    func immersiveTranslationSegments(
-        expectedPageURL: String
-    ) async throws -> [ImmersiveTranslationSegment]
+    func immersiveTranslationSnapshot() async throws -> ImmersiveTranslationPageSnapshot
 
     @MainActor
     func applyImmersiveTranslations(
         _ translations: [ImmersiveTranslationSegment],
         targetLanguage: String,
-        expectedPageURL: String
+        sessionID: String
     ) async -> Bool
 
     @MainActor
-    func removeImmersiveTranslations(expectedPageURL: String) async
+    func removeImmersiveTranslations() async
 }
 
 struct MediaDownloadCandidate: Codable, Hashable, Sendable {
@@ -1741,7 +1739,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         if let systemMediaWebView {
             hostView.window?.makeFirstResponder(systemMediaWebView)
         } else {
-            chromeBrowser?.nsWindow?.makeKey()
+            chromeBrowser?.activate()
         }
         isFocused = true
     }
@@ -2435,6 +2433,118 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                 FileHandle.standardOutput.write(
                     Data("[cef-smoke] rich editor automation \(status): \(typed.message)\n".utf8)
                 )
+                NSApp.terminate(nil)
+            }
+            return
+        }
+
+        if arguments.contains("--cef-immersive-translation-smoke") {
+            guard !isLoading,
+                  browser != nil,
+                  urlString?.contains("astra-immersive-translation-smoke=1") == true else { return }
+            didStartSmokeCheck = true
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                try? await Task.sleep(for: .seconds(1))
+                let setup = await evaluateJavaScriptResult(
+                    operation: """
+                    document.body.innerHTML = `
+                      <main>
+                        <h1>Dynamic translation test</h1>
+                        <div role="heading" aria-level="1">ARIA headline test</div>
+                        <nav><a href="#test">Navigation link</a></nav>
+                        <button type="button">Translate action</button>
+                        <div>Standalone visible text</div>
+                        <p>Original paragraph survives a page redraw.</p>
+                        <p>Repeated sentence.</p>
+                        <p>Repeated sentence.</p>
+                      </main>`;
+                    return 'ready';
+                    """,
+                    timeout: 5
+                )
+                guard setup == "ready" else {
+                    FileHandle.standardOutput.write(
+                        Data("[cef-smoke] immersive translation setup failed: \(setup ?? "unavailable")\n".utf8)
+                    )
+                    NSApp.terminate(nil)
+                    return
+                }
+
+                do {
+                    let snapshot = try await immersiveTranslationSnapshot()
+                    let redraw = await evaluateJavaScriptResult(
+                        operation: """
+                        const original = document.querySelector('main');
+                        const replacement = original.cloneNode(true);
+                        replacement.querySelectorAll('[data-phi-translation-source-id]').forEach((node) => {
+                          node.removeAttribute('data-phi-translation-source-id');
+                        });
+                        replacement.querySelectorAll('[data-phi-translation-source-wrapper]').forEach(
+                          (wrapper) => wrapper.replaceWith(...wrapper.childNodes)
+                        );
+                        original.replaceWith(replacement);
+                        return 'redrawn';
+                        """,
+                        timeout: 5
+                    )
+                    let translations = snapshot.segments.enumerated().map { index, segment in
+                        ImmersiveTranslationSegment(
+                            id: segment.id,
+                            text: "Translated segment \(index + 1)"
+                        )
+                    }
+                    let applied = await applyImmersiveTranslations(
+                        translations,
+                        targetLanguage: "en",
+                        sessionID: snapshot.sessionID
+                    )
+                    let verification = await evaluateJavaScriptResult(
+                        operation: """
+                        const translations = Array.from(
+                          document.querySelectorAll('[data-phi-immersive-translation]')
+                        );
+                        const sources = document.querySelectorAll('[data-phi-translation-source-id]');
+                        return JSON.stringify({
+                          translated: translations.length,
+                          sources: sources.length,
+                          uniqueText: new Set(translations.map((node) => node.textContent)).size,
+                          headings: document.querySelectorAll(
+                            '[data-phi-translation-kind="heading"]'
+                          ).length,
+                          wrappers: document.querySelectorAll(
+                            '[data-phi-translation-source-wrapper]'
+                          ).length
+                        });
+                        """,
+                        timeout: 5
+                    ) ?? "unavailable"
+                    let expected = snapshot.segments.count
+                    let succeeded = setup == "ready"
+                        && redraw == "redrawn"
+                        && expected == 8
+                        && applied
+                        && verification.contains("\"translated\":\(expected)")
+                        && verification.contains("\"sources\":\(expected)")
+                        && verification.contains("\"uniqueText\":\(expected)")
+                        && verification.contains("\"headings\":2")
+                        && verification.contains("\"wrappers\":3")
+                    let status = succeeded ? "passed" : "failed"
+                    let detail = [
+                        "setup=\(setup ?? "unavailable")",
+                        "redraw=\(redraw ?? "unavailable")",
+                        "expected=\(expected)",
+                        "applied=\(applied)",
+                        "verification=\(verification)",
+                    ].joined(separator: " | ")
+                    FileHandle.standardOutput.write(
+                        Data("[cef-smoke] immersive translation \(status): \(detail)\n".utf8)
+                    )
+                } catch {
+                    FileHandle.standardOutput.write(
+                        Data("[cef-smoke] immersive translation failed after setup: \(error)\n".utf8)
+                    )
+                }
                 NSApp.terminate(nil)
             }
             return
@@ -3196,15 +3306,12 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         return await evaluateJavaScriptResult(operation: operation, timeout: 5)
     }
 
-    func immersiveTranslationSegments(
-        expectedPageURL: String
-    ) async throws -> [ImmersiveTranslationSegment] {
-        guard let expectedURLJSON = try? JSONEncoder().encode(expectedPageURL),
-              let expectedURLLiteral = String(data: expectedURLJSON, encoding: .utf8) else {
-            throw ImmersiveTranslationError.unsupportedPage
-        }
+    func immersiveTranslationSnapshot() async throws -> ImmersiveTranslationPageSnapshot {
+        let allowsSmokeTestPage = CommandLine.arguments.contains(
+            "--cef-immersive-translation-smoke"
+        )
         let operation = #"""
-        const expectedURL = #(expectedURLLiteral);
+        const allowsSmokeTestPage = \#(allowsSmokeTestPage ? "true" : "false");
         const canonical = (value) => {
           try {
             const url = new URL(value);
@@ -3214,17 +3321,32 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             return '';
           }
         };
-        if (!['http:', 'https:'].includes(location.protocol) ||
-            canonical(location.href) !== canonical(expectedURL)) {
-          return JSON.stringify({ ok: false, segments: [] });
+        if (!['http:', 'https:'].includes(location.protocol) &&
+            !(allowsSmokeTestPage && location.protocol === 'data:')) {
+          return JSON.stringify({ ok: false, sessionID: '', segments: [] });
         }
 
         document.querySelectorAll('[data-phi-immersive-translation]').forEach((node) => node.remove());
+        document.querySelectorAll('[data-phi-translation-source-wrapper]').forEach((wrapper) => {
+          wrapper.replaceWith(...wrapper.childNodes);
+        });
         document.querySelectorAll('[data-phi-translation-source-id]').forEach((node) => {
           node.removeAttribute('data-phi-translation-source-id');
         });
 
-        const selector = 'h1,h2,h3,h4,h5,h6,p,li,blockquote,figcaption,dt,dd,td,th';
+        const headingSelector = 'h1,h2,h3,h4,h5,h6,[role="heading"]';
+        const selector = [
+          headingSelector,
+          'p,li,blockquote,figcaption,dt,dd,td,th,caption,legend,summary'
+        ].join(',');
+        const primaryHeadingSelector = [
+          'main h1',
+          'article h1',
+          'main [role="heading"][aria-level="1"]',
+          'article [role="heading"][aria-level="1"]',
+          'h1',
+          '[role="heading"][aria-level="1"]'
+        ].join(',');
         const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
         const isVisible = (element) => {
           const style = getComputedStyle(element);
@@ -3235,123 +3357,306 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         const containsReadableChild = (element) => Array.from(element.children).some((child) =>
           child.matches && child.matches(selector) && normalize(child.innerText).length >= 2
         );
+        const isExcluded = (element) => Boolean(element.closest(
+          'script,style,noscript,template,pre,code,textarea,select,option,' +
+          '[contenteditable="true"],[aria-hidden="true"],[data-phi-immersive-translation]'
+        ));
+        let sessionID = '';
+        try {
+          sessionID = globalThis.crypto?.randomUUID?.() || '';
+        } catch (_) {
+          sessionID = '';
+        }
+        if (!sessionID) {
+          sessionID = `phi-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        }
+        const sources = new Map();
+        const occurrences = new Map();
+        const textOccurrences = new Map();
         const segments = [];
         let totalCharacters = 0;
-        for (const element of document.querySelectorAll(selector)) {
-          if (segments.length >= 120 || totalCharacters >= 30000) break;
+        const primaryHeading = document.querySelector(primaryHeadingSelector);
+        const remainingElements = Array.from(document.querySelectorAll(selector)).filter(
+          (element) => element !== primaryHeading
+        );
+        const orderedElements = primaryHeading
+          ? [primaryHeading, ...remainingElements]
+          : remainingElements;
+        for (const element of orderedElements) {
+          if (segments.length >= 500 || totalCharacters >= 100000) break;
           if (!isVisible(element) || containsReadableChild(element) ||
-              element.closest('script,style,noscript,template,pre,code,textarea,[contenteditable="true"],nav')) {
+              isExcluded(element)) {
             continue;
           }
           const text = normalize(element.innerText);
           if (text.length < 2 || text.length > 1800 || !/[\p{L}\p{N}]/u.test(text)) continue;
-          const id = `phi-translation-${segments.length}`;
+          const id = `phi-translation-${sessionID}-${segments.length}`;
+          const occurrence = occurrences.get(text) || 0;
+          occurrences.set(text, occurrence + 1);
           element.setAttribute('data-phi-translation-source-id', id);
+          sources.set(id, {
+            node: element,
+            text,
+            occurrence,
+            isHeading: element.matches(headingSelector)
+          });
           segments.push({ id, text });
           totalCharacters += text.length;
         }
-        return JSON.stringify({ ok: true, segments });
+        if (segments.length < 500 && totalCharacters < 100000 && document.body) {
+          const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+          const textNodes = [];
+          while (walker.nextNode()) textNodes.push(walker.currentNode);
+          for (const textNode of textNodes) {
+            if (segments.length >= 500 || totalCharacters >= 100000) break;
+            const parent = textNode.parentElement;
+            if (!parent || !isVisible(parent) || isExcluded(parent) ||
+                parent.closest('[data-phi-translation-source-id]')) {
+              continue;
+            }
+            const text = normalize(textNode.nodeValue);
+            if (text.length < 2 || text.length > 1800 || !/[\p{L}\p{N}]/u.test(text)) continue;
+            const id = `phi-translation-${sessionID}-${segments.length}`;
+            const occurrence = textOccurrences.get(text) || 0;
+            textOccurrences.set(text, occurrence + 1);
+            const wrapper = document.createElement('span');
+            wrapper.setAttribute('data-phi-translation-source-id', id);
+            wrapper.setAttribute('data-phi-translation-source-wrapper', 'true');
+            wrapper.style.display = 'contents';
+            textNode.parentNode.insertBefore(wrapper, textNode);
+            wrapper.appendChild(textNode);
+            sources.set(id, {
+              node: wrapper,
+              text,
+              occurrence,
+              isHeading: false,
+              isTextNode: true
+            });
+            segments.push({ id, text });
+            totalCharacters += text.length;
+          }
+        }
+        globalThis.__phiImmersiveTranslationSession = {
+          id: sessionID,
+          pageURL: canonical(location.href),
+          sources
+        };
+        return JSON.stringify({ ok: true, sessionID, segments });
         """#
-        guard let result = await evaluateJavaScriptResult(operation: operation, timeout: 8),
+        let result = await evaluateJavaScriptResult(operation: operation, timeout: 8)
+        if allowsSmokeTestPage {
+            FileHandle.standardOutput.write(
+                Data("[cef-smoke] immersive translation snapshot: \(result ?? "unavailable")\n".utf8)
+            )
+        }
+        guard let result,
               let data = result.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               object["ok"] as? Bool == true,
+              let sessionID = object["sessionID"] as? String,
+              !sessionID.isEmpty,
               let values = object["segments"] as? [[String: Any]] else {
             throw ImmersiveTranslationError.pageChanged
         }
-        return values.compactMap { value in
+        let segments = values.compactMap { (value: [String: Any]) -> ImmersiveTranslationSegment? in
             guard let id = value["id"] as? String,
                   let text = value["text"] as? String,
                   !id.isEmpty,
                   !text.isEmpty else { return nil }
             return ImmersiveTranslationSegment(id: id, text: text)
         }
+        return ImmersiveTranslationPageSnapshot(sessionID: sessionID, segments: segments)
     }
 
     func applyImmersiveTranslations(
         _ translations: [ImmersiveTranslationSegment],
         targetLanguage: String,
-        expectedPageURL: String
+        sessionID: String
     ) async -> Bool {
         guard let translationsData = try? JSONEncoder().encode(translations),
               let translationsLiteral = String(data: translationsData, encoding: .utf8),
               let languageData = try? JSONEncoder().encode(targetLanguage),
               let languageLiteral = String(data: languageData, encoding: .utf8),
-              let expectedURLData = try? JSONEncoder().encode(expectedPageURL),
-              let expectedURLLiteral = String(data: expectedURLData, encoding: .utf8) else {
+              let sessionData = try? JSONEncoder().encode(sessionID),
+              let sessionLiteral = String(data: sessionData, encoding: .utf8) else {
             return false
         }
         let operation = #"""
-        const expectedURL = #(expectedURLLiteral);
-        const canonical = (value) => {
-          try {
-            const url = new URL(value);
-            url.hash = '';
-            return url.href;
-          } catch (_) {
-            return '';
+        const expectedSessionID = \#(sessionLiteral);
+        const translations = \#(translationsLiteral);
+        const targetLanguage = \#(languageLiteral);
+        const session = globalThis.__phiImmersiveTranslationSession;
+        if (!session) {
+          return JSON.stringify({
+            ok: false,
+            reason: 'missing-session',
+            requested: translations.length,
+            applied: 0
+          });
+        }
+        if (session.id !== expectedSessionID) {
+          return JSON.stringify({
+            ok: false,
+            reason: 'session-mismatch',
+            requested: translations.length,
+            applied: 0
+          });
+        }
+        const headingSelector = 'h1,h2,h3,h4,h5,h6,[role="heading"]';
+        const selector = [
+          headingSelector,
+          'p,li,blockquote,figcaption,dt,dd,td,th,caption,legend,summary'
+        ].join(',');
+        const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+        const findTextSource = (record, id) => {
+          if (!document.body) return null;
+          const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+          let occurrence = 0;
+          while (walker.nextNode()) {
+            const textNode = walker.currentNode;
+            const parent = textNode.parentElement;
+            if (!parent || parent.closest(
+              'script,style,noscript,template,pre,code,textarea,select,option,' +
+              '[contenteditable="true"],[aria-hidden="true"],' +
+              '[data-phi-immersive-translation]'
+            )) continue;
+            if (normalize(textNode.nodeValue) !== record.text) continue;
+            if (occurrence !== record.occurrence) {
+              occurrence += 1;
+              continue;
+            }
+            const wrapper = document.createElement('span');
+            wrapper.setAttribute('data-phi-translation-source-id', id);
+            wrapper.setAttribute('data-phi-translation-source-wrapper', 'true');
+            wrapper.style.display = 'contents';
+            textNode.parentNode.insertBefore(wrapper, textNode);
+            wrapper.appendChild(textNode);
+            return wrapper;
           }
+          return null;
         };
-        if (canonical(location.href) !== canonical(expectedURL)) {
-          return JSON.stringify({ ok: false, applied: 0 });
-        }
-        const translations = #(translationsLiteral);
-        const targetLanguage = #(languageLiteral);
         document.querySelectorAll('[data-phi-immersive-translation]').forEach((node) => node.remove());
+        const candidates = Array.from(document.querySelectorAll(selector));
+        const usedSources = new Set();
         let applied = 0;
+        let missingRecords = 0;
+        let connectedMatches = 0;
+        let markerMatches = 0;
+        let textMatches = 0;
+        let insertionErrors = 0;
         for (const translation of translations) {
-          const source = document.querySelector(
-            `[data-phi-translation-source-id="${CSS.escape(translation.id)}"]`
-          );
+          const record = session.sources.get(translation.id);
+          if (!record) {
+            missingRecords += 1;
+            continue;
+          }
+          let source = record.node;
+          if (source instanceof Element && source.isConnected) {
+            connectedMatches += 1;
+          } else {
+            source = document.querySelector(
+              `[data-phi-translation-source-id="${CSS.escape(translation.id)}"]`
+            );
+            if (source) markerMatches += 1;
+          }
+          if (!source) {
+            if (record.isTextNode === true) {
+              source = findTextSource(record, translation.id);
+            } else {
+              const matches = candidates.filter((candidate) =>
+                !usedSources.has(candidate) && normalize(candidate.innerText) === record.text
+              );
+              source = matches[record.occurrence] || matches[0] || null;
+            }
+            if (source) textMatches += 1;
+          }
           if (!source || !translation.text) continue;
-          const translated = document.createElement('div');
-          translated.setAttribute('data-phi-immersive-translation', translation.id);
-          translated.setAttribute('lang', targetLanguage);
-          translated.textContent = translation.text;
-          translated.style.cssText = [
-            'box-sizing:border-box',
-            'display:block',
-            'margin:0.35em 0 0.75em',
-            'padding:0.15em 0 0.15em 0.7em',
-            'border-left:2px solid rgb(59,130,246)',
-            'color:inherit',
-            'opacity:0.82',
-            'font:inherit',
-            'line-height:inherit',
-            'white-space:pre-wrap'
-          ].join(';');
-          source.insertAdjacentElement('afterend', translated);
-          applied += 1;
+          try {
+            const isHeading = record.isHeading === true || source.matches(headingSelector);
+            const isInline = record.isTextNode === true;
+            const styleSource = isInline ? source.parentElement : source;
+            const sourceStyle = getComputedStyle(styleSource || source);
+            usedSources.add(source);
+            record.node = source;
+            source.setAttribute('data-phi-translation-source-id', translation.id);
+            const translated = document.createElement(isInline ? 'span' : 'div');
+            translated.setAttribute('data-phi-immersive-translation', translation.id);
+            translated.setAttribute(
+              'data-phi-translation-kind',
+              isHeading ? 'heading' : 'body'
+            );
+            translated.setAttribute('lang', targetLanguage);
+            translated.textContent = translation.text;
+            translated.style.cssText = [
+              'box-sizing:border-box',
+              isInline ? 'display:inline-block' : 'display:block',
+              isInline ? 'margin:0 0.25em' : 'margin:0.35em 0 0.75em',
+              isInline ? 'padding:0 0 0 0.35em' : 'padding:0.15em 0 0.15em 0.7em',
+              'border-left:2px solid rgb(59,130,246)',
+              'color:inherit',
+              'opacity:0.82',
+              'font:inherit',
+              'line-height:inherit',
+              'white-space:pre-wrap'
+            ].join(';');
+            translated.style.fontFamily = sourceStyle.fontFamily;
+            translated.style.fontSize = sourceStyle.fontSize;
+            translated.style.fontWeight = sourceStyle.fontWeight;
+            translated.style.lineHeight = sourceStyle.lineHeight;
+            translated.style.letterSpacing = sourceStyle.letterSpacing;
+            source.insertAdjacentElement('afterend', translated);
+            applied += 1;
+          } catch (_) {
+            insertionErrors += 1;
+          }
         }
-        return JSON.stringify({ ok: applied > 0, applied });
+        return JSON.stringify({
+          ok: applied > 0,
+          reason: applied > 0 ? 'applied' : 'no-matches',
+          requested: translations.length,
+          applied,
+          missingRecords,
+          connectedMatches,
+          markerMatches,
+          textMatches,
+          insertionErrors
+        });
         """#
         guard let result = await evaluateJavaScriptResult(operation: operation, timeout: 8),
               let data = result.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            AppLogInfo(
+                "[ImmersiveTranslation] apply result unavailable requested=\(translations.count)"
+            )
             return false
         }
-        return object["ok"] as? Bool == true
+        let succeeded = object["ok"] as? Bool == true
+        let reason = object["reason"] as? String ?? "unknown"
+        let applied = object["applied"] as? Int ?? 0
+        let missingRecords = object["missingRecords"] as? Int ?? 0
+        let connectedMatches = object["connectedMatches"] as? Int ?? 0
+        let markerMatches = object["markerMatches"] as? Int ?? 0
+        let textMatches = object["textMatches"] as? Int ?? 0
+        let insertionErrors = object["insertionErrors"] as? Int ?? 0
+        AppLogInfo(
+            "[ImmersiveTranslation] apply reason=\(reason) requested=\(translations.count) "
+                + "applied=\(applied) recordsMissing=\(missingRecords) "
+                + "matches=\(connectedMatches)/\(markerMatches)/\(textMatches) "
+                + "insertionErrors=\(insertionErrors)"
+        )
+        return succeeded
     }
 
-    func removeImmersiveTranslations(expectedPageURL: String) async {
-        guard let expectedURLData = try? JSONEncoder().encode(expectedPageURL),
-              let expectedURLLiteral = String(data: expectedURLData, encoding: .utf8) else { return }
+    func removeImmersiveTranslations() async {
         let operation = #"""
-        const expectedURL = #(expectedURLLiteral);
-        const canonical = (value) => {
-          try {
-            const url = new URL(value);
-            url.hash = '';
-            return url.href;
-          } catch (_) {
-            return '';
-          }
-        };
-        if (canonical(location.href) !== canonical(expectedURL)) return 'ignored';
         document.querySelectorAll('[data-phi-immersive-translation]').forEach((node) => node.remove());
+        document.querySelectorAll('[data-phi-translation-source-wrapper]').forEach((wrapper) => {
+          wrapper.replaceWith(...wrapper.childNodes);
+        });
         document.querySelectorAll('[data-phi-translation-source-id]').forEach((node) => {
           node.removeAttribute('data-phi-translation-source-id');
         });
+        delete globalThis.__phiImmersiveTranslationSession;
         return 'removed';
         """#
         _ = await evaluateJavaScriptResult(operation: operation, timeout: 5)

@@ -21,6 +21,11 @@ struct WebContentHeaderView: View {
     let onFeedbackTap: () -> Void
     let onMemoryTap: () -> Void
     let onDownloadTap: () -> Void
+    let onYouTubeDigestTap: () -> Void
+    let onImmersiveTranslationTap: (
+        ImmersiveTranslationLanguage,
+        ImmersiveTranslationProvider
+    ) -> Void
     let onOpenLocationBar: (NSView?) -> Void
     var onAnchorResolved: ((NSView?) -> Void)?
     var onSidebarAnchorResolved: ((NSView?) -> Void)?
@@ -44,6 +49,11 @@ struct WebContentHeaderView: View {
         onFeedbackTap: @escaping () -> Void,
         onMemoryTap: @escaping () -> Void = {},
         onDownloadTap: @escaping () -> Void = {},
+        onYouTubeDigestTap: @escaping () -> Void = {},
+        onImmersiveTranslationTap: @escaping (
+            ImmersiveTranslationLanguage,
+            ImmersiveTranslationProvider
+        ) -> Void = { _, _ in },
         onOpenLocationBar: @escaping (NSView?) -> Void,
         onAnchorResolved: ((NSView?) -> Void)? = nil,
         onSidebarAnchorResolved: ((NSView?) -> Void)? = nil,
@@ -62,6 +72,8 @@ struct WebContentHeaderView: View {
         self.onFeedbackTap = onFeedbackTap
         self.onMemoryTap = onMemoryTap
         self.onDownloadTap = onDownloadTap
+        self.onYouTubeDigestTap = onYouTubeDigestTap
+        self.onImmersiveTranslationTap = onImmersiveTranslationTap
         self.onOpenLocationBar = onOpenLocationBar
         self.onAnchorResolved = onAnchorResolved
         self.onSidebarAnchorResolved = onSidebarAnchorResolved
@@ -100,6 +112,12 @@ struct WebContentHeaderView: View {
                     pinnedExtensions: extensionsModel.visiblePinnedExtensions,
                     showDownload: state.showDownloadButton,
                     showMemory: state.showMemoryButton,
+                    showYouTubeDigest: state.showYouTubeDigestButton,
+                    showImmersiveTranslation: state.showImmersiveTranslationButton,
+                    immersiveTranslationState: $state.immersiveTranslationState,
+                    immersiveTranslationLanguage: $state.immersiveTranslationLanguage,
+                    immersiveTranslationProvider: $state.immersiveTranslationProvider,
+                    isImmersiveTranslationPopoverShown: $state.isImmersiveTranslationPopoverShown,
                     showFeedback: state.showFeedbackButton,
                     feedbackIconOnly: state.isFeedbackIconOnly,
                     showChat: state.showChatButton,
@@ -113,6 +131,8 @@ struct WebContentHeaderView: View {
                     onChatTap: onChatTap,
                     onMemoryTap: onMemoryTap,
                     onDownloadTap: onDownloadTap,
+                    onYouTubeDigestTap: onYouTubeDigestTap,
+                    onImmersiveTranslationTap: onImmersiveTranslationTap,
                     onChatAnchorResolved: onChatAnchorResolved
                 )
                 .frame(height: HeaderTrailingLayout.rowHeight)

@@ -91,6 +91,9 @@ class Tab: WebContentRepresentable {
     @Published var url: String? {
         didSet {
             if oldValue != url {
+                immersiveTranslationTask?.cancel()
+                immersiveTranslationTask = nil
+                immersiveTranslationOperationID = nil
                 immersiveTranslationState = .inactive
             }
         }
@@ -103,6 +106,8 @@ class Tab: WebContentRepresentable {
 
     /// Per-tab state for the native bilingual webpage translation overlay.
     @Published var immersiveTranslationState: ImmersiveTranslationState = .inactive
+    var immersiveTranslationTask: Task<Void, Never>?
+    var immersiveTranslationOperationID: UUID?
 
     /// Native renderer crash-page state, set by `PhiChromiumCoordinator` from
     /// the `showCrashPage` bridge event and cleared on teardown. Non-nil drives
@@ -746,6 +751,9 @@ class Tab: WebContentRepresentable {
     }
     
     func tearDown() {
+        immersiveTranslationTask?.cancel()
+        immersiveTranslationTask = nil
+        immersiveTranslationOperationID = nil
         cancellables.forEach { $0.cancel() }
         cancellables.removeAll()
     }

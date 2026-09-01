@@ -85,6 +85,12 @@ struct HeaderTrailingArea: View {
     let pinnedExtensions: [Extension]
     let showDownload: Bool
     let showMemory: Bool
+    let showYouTubeDigest: Bool
+    let showImmersiveTranslation: Bool
+    @Binding var immersiveTranslationState: ImmersiveTranslationState
+    @Binding var immersiveTranslationLanguage: ImmersiveTranslationLanguage
+    @Binding var immersiveTranslationProvider: ImmersiveTranslationProvider
+    @Binding var isImmersiveTranslationPopoverShown: Bool
     let showFeedback: Bool
     let feedbackIconOnly: Bool
     let showChat: Bool
@@ -101,6 +107,11 @@ struct HeaderTrailingArea: View {
     let onChatTap: () -> Void
     let onMemoryTap: () -> Void
     let onDownloadTap: () -> Void
+    let onYouTubeDigestTap: () -> Void
+    let onImmersiveTranslationTap: (
+        ImmersiveTranslationLanguage,
+        ImmersiveTranslationProvider
+    ) -> Void
     var onChatAnchorResolved: ((NSView?) -> Void)? = nil
 
     private enum Metrics {
@@ -114,6 +125,7 @@ struct HeaderTrailingArea: View {
         static let pinnedExtensionSlot = buttonSize + extensionSpacing
         static let downloadSlot = slotPadding + buttonSize
         static let memorySlot = slotPadding + buttonSize
+        static let contextualActionSlot = slotPadding + buttonSize
         static let moreButtonSlot = slotPadding + buttonSize
         static let feedbackButtonWidth: CGFloat = 100
         static let feedbackIconWidth: CGFloat = 32
@@ -164,6 +176,8 @@ struct HeaderTrailingArea: View {
 
         var budget = width - Metrics.trailingPadding - Metrics.extensionMenuWidth
         if showChat { budget -= Metrics.chatSlot }
+        if showImmersiveTranslation { budget -= Metrics.contextualActionSlot }
+        if showYouTubeDigest { budget -= Metrics.contextualActionSlot }
 
         let allPinnedCost = CGFloat(pinnedExtensions.count) * Metrics.pinnedExtensionSlot
         let dlCost = showDownload ? Metrics.downloadSlot : 0
@@ -235,6 +249,16 @@ struct HeaderTrailingArea: View {
         moreItems: [MoreMenuItem]
     ) -> some View {
         HStack(alignment: .center, spacing: 0) {
+            if showImmersiveTranslation {
+                immersiveTranslationButton
+                    .padding(.leading, 6)
+            }
+
+            if showYouTubeDigest {
+                YouTubeDigestButton(action: onYouTubeDigestTap)
+                    .padding(.leading, 6)
+            }
+
             if !isInPlaceholderMode {
                 extensionArea(pinned: pinned)
             }
@@ -307,6 +331,44 @@ struct HeaderTrailingArea: View {
             onMemoryTap()
         default:
             break
+        }
+    }
+
+    private var immersiveTranslationButtonColor: Color {
+        if case .active = immersiveTranslationState {
+            return .accentColor
+        }
+        return .primary
+    }
+
+    private var immersiveTranslationButton: some View {
+        Button {
+            isImmersiveTranslationPopoverShown.toggle()
+        } label: {
+            Group {
+                if immersiveTranslationState == .translating {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "character.book.closed")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(immersiveTranslationButtonColor)
+                }
+            }
+            .frame(width: Metrics.buttonSize, height: Metrics.buttonSize)
+        }
+        .buttonStyle(.plain)
+        .help(NSLocalizedString(
+            "sidebar.immersiveTranslationButton.tooltip",
+            value: "Immersive translation",
+            comment: "Sidebar - Tooltip for the immersive translation button"
+        ))
+        .popover(isPresented: $isImmersiveTranslationPopoverShown, arrowEdge: .bottom) {
+            ImmersiveTranslationPopover(
+                translationState: $immersiveTranslationState,
+                language: $immersiveTranslationLanguage,
+                provider: $immersiveTranslationProvider,
+                onTranslate: onImmersiveTranslationTap
+            )
         }
     }
 

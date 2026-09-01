@@ -171,7 +171,9 @@ struct SidebarBottomBarSwiftUI: View {
             ))
             .popover(isPresented: $state.isImmersiveTranslationPopoverShown, arrowEdge: .top) {
                 ImmersiveTranslationPopover(
-                    state: state,
+                    translationState: $state.immersiveTranslationState,
+                    language: $state.immersiveTranslationLanguage,
+                    provider: $state.immersiveTranslationProvider,
                     onTranslate: onImmersiveTranslationTap
                 )
             }
@@ -251,14 +253,17 @@ struct SidebarBottomBarSwiftUI: View {
     }
 }
 
-private struct ImmersiveTranslationPopover: View {
-    @ObservedObject var state: SidebarBottomBarState
+struct ImmersiveTranslationPopover: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var translationState: ImmersiveTranslationState
+    @Binding var language: ImmersiveTranslationLanguage
+    @Binding var provider: ImmersiveTranslationProvider
     let onTranslate: (ImmersiveTranslationLanguage, ImmersiveTranslationProvider) -> Void
 
-    private var isBusy: Bool { state.immersiveTranslationState == .translating }
+    private var isBusy: Bool { translationState == .translating }
 
     private var isActive: Bool {
-        if case .active = state.immersiveTranslationState { return true }
+        if case .active = translationState { return true }
         return false
     }
 
@@ -277,7 +282,7 @@ private struct ImmersiveTranslationPopover: View {
                     value: "Translate to",
                     comment: "Immersive translation - Target language picker label"
                 ),
-                selection: $state.immersiveTranslationLanguage
+                selection: $language
             ) {
                 ForEach(ImmersiveTranslationLanguage.allCases) { language in
                     Text(language.displayName).tag(language)
@@ -291,7 +296,7 @@ private struct ImmersiveTranslationPopover: View {
                     value: "Translation engine",
                     comment: "Immersive translation - Provider picker label"
                 ),
-                selection: $state.immersiveTranslationProvider
+                selection: $provider
             ) {
                 ForEach(ImmersiveTranslationProvider.allCases) { provider in
                     Text(provider.displayName).tag(provider)
@@ -299,7 +304,7 @@ private struct ImmersiveTranslationPopover: View {
             }
             .disabled(isBusy || isActive)
 
-            if state.immersiveTranslationProvider == .zenMux && !isActive {
+            if provider == .zenMux && !isActive {
                 Text(NSLocalizedString(
                     "translation.popover.zenMuxPrivacyNotice",
                     value: "ZenMux enhanced translation sends the selected page text to your configured model.",
@@ -310,7 +315,7 @@ private struct ImmersiveTranslationPopover: View {
                 .fixedSize(horizontal: false, vertical: true)
             }
 
-            if case .failed(let message) = state.immersiveTranslationState {
+            if case .failed(let message) = translationState {
                 Text(message)
                     .font(.caption)
                     .foregroundStyle(.red)
@@ -318,9 +323,10 @@ private struct ImmersiveTranslationPopover: View {
             }
 
             Button {
+                dismiss()
                 onTranslate(
-                    state.immersiveTranslationLanguage,
-                    state.immersiveTranslationProvider
+                    language,
+                    provider
                 )
             } label: {
                 HStack {

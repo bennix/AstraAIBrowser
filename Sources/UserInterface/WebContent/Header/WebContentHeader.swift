@@ -16,6 +16,8 @@ class WebContentHeaderState: ObservableObject {
     @Published var isFeedbackIconOnly: Bool = false
     @Published var showDownloadButton: Bool = false
     @Published var showMemoryButton: Bool = false
+    @Published var showYouTubeDigestButton: Bool = false
+    @Published var showImmersiveTranslationButton: Bool = false
     @Published var showSidebarButton: Bool = false
     @Published var canGoBack: Bool = false
     @Published var canGoForward: Bool = false
@@ -25,6 +27,14 @@ class WebContentHeaderState: ObservableObject {
     @Published var isDownloadPopoverShown: Bool = false
     @Published var isIncognito: Bool = false
     @Published var isInPlaceholderMode: Bool = false
+    @Published var isImmersiveTranslationPopoverShown: Bool = false
+    @Published var immersiveTranslationState: ImmersiveTranslationState = .inactive
+    @Published var immersiveTranslationLanguage = ImmersiveTranslationPreferences.loadLanguage() {
+        didSet { ImmersiveTranslationPreferences.saveLanguage(immersiveTranslationLanguage) }
+    }
+    @Published var immersiveTranslationProvider = ImmersiveTranslationPreferences.loadProvider() {
+        didSet { ImmersiveTranslationPreferences.saveProvider(immersiveTranslationProvider) }
+    }
 
     init() {
         let layoutMode = PhiPreferences.GeneralSettings.loadLayoutMode()
@@ -195,6 +205,12 @@ class WebContentHeader: NSView {
             onDownloadTap: { [weak self] in
                 self?.downloadButtonClicked()
             },
+            onYouTubeDigestTap: { [weak self] in
+                self?.youTubeDigestButtonClicked()
+            },
+            onImmersiveTranslationTap: { [weak self] language, provider in
+                self?.immersiveTranslationButtonClicked(language: language, provider: provider)
+            },
             onOpenLocationBar: { [weak self] anchorView in
                 self?.unsafeBrowserWindowController?.openLocationBar(anchorView)
             },
@@ -319,10 +335,19 @@ class WebContentHeader: NSView {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] url in
                 self?.onCurrentTabUrlChanged?(url)
+                self?.updateLayoutVisibility()
             }
             .store(in: &cancellables)
 
         currentTab.$aiChatEnabled
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateLayoutVisibility()
+            }
+            .store(in: &cancellables)
+
+        currentTab.$immersiveTranslationState
+            .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.updateLayoutVisibility()
@@ -372,6 +397,22 @@ class WebContentHeader: NSView {
         let isInPlaceholder = unsafeBrowserState?.isInPlaceholderMode ?? false
         let phiAIEnabled = UserDefaults.standard.bool(forKey: PhiPreferences.AISettings.phiAIEnabled.rawValue)
         let isGuest = ApplicationState.shared.isGuest
+        let showHeaderContextualEntries = traditionalLayout || (navigationAtTop && isCollapsed)
+        let showYouTubeDigest = showHeaderContextualEntries && BrowserState.shouldOfferYouTubeDigest(
+            pageURL: currentTab?.url,
+            isAIEnabled: phiAIEnabled,
+            isIncognito: isIncognito,
+            isOverviewActive: overviewActive,
+            isChatAvailable: currentTab?.aiChatEnabled ?? false
+        ) && !isInPlaceholder
+        let showImmersiveTranslation = showHeaderContextualEntries && BrowserState.shouldOfferImmersiveTranslation(
+            pageURL: currentTab?.url,
+            isIncognito: isIncognito,
+            isOverviewActive: overviewActive
+        ) && !isInPlaceholder
+        let translationState = showImmersiveTranslation
+            ? (currentTab?.immersiveTranslationState ?? .inactive)
+            : .inactive
 
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
@@ -385,6 +426,12 @@ class WebContentHeader: NSView {
             self.state.isFeedbackIconOnly = traditionalLayout
             self.state.showDownloadButton = (traditionalLayout || (navigationAtTop && isCollapsed)) && !isInPlaceholder
             self.state.showMemoryButton = (traditionalLayout || (navigationAtTop && isCollapsed)) && phiAIEnabled && !isIncognito && !isInPlaceholder
+            self.state.showYouTubeDigestButton = showYouTubeDigest
+            self.state.showImmersiveTranslationButton = showImmersiveTranslation
+            self.state.immersiveTranslationState = translationState
+            if !showImmersiveTranslation {
+                self.state.isImmersiveTranslationPopoverShown = false
+            }
             self.state.showSidebarButton = !traditionalLayout && navigationAtTop && isCollapsed
             self.state.isIncognito = isIncognito
             self.state.isInPlaceholderMode = isInPlaceholder
@@ -445,6 +492,18 @@ class WebContentHeader: NSView {
 
     private func downloadButtonClicked() {
         FeatureEntryAnalytics.capture(.download, surface: .webContentHeader)
+    }
+
+    private func youTubeDigestButtonClicked() {
+        FeatureEntryAnalytics.capture(.youtubeDigest, surface: .webContentHeader)
+        unsafeBrowserState?.startYouTubeDigest()
+    }
+
+    private func immersiveTranslationButtonClicked(
+        language: ImmersiveTranslationLanguage,
+        provider: ImmersiveTranslationProvider
+    ) {
+        unsafeBrowserState?.toggleImmersiveTranslation(language: language, provider: provider)
     }
 
     // MARK: - Public Methods
