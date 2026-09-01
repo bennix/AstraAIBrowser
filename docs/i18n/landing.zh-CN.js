@@ -27,10 +27,12 @@
     "features.recentResearch.title": "口径安全的循证研究",
     "features.recentResearch.body": "ZenMux 在检索前先确定问题、对象清单、统计口径、时间规则、范围、排除项与目的。它优先使用主管机构和一手来源，保留官方原词及报告时点，禁止重叠账户加总，并输出可审计的对象对照表。",
     "features.immersiveTranslation.title": "双语沉浸式网页翻译",
-    "features.immersiveTranslation.body": "在保留原文的同时，将网页可读内容逐段翻译并显示在原文下方。Build 74 最多并发处理四个更小的 ZenMux 批次，每批完成后立即回填；一键即可恢复原页面。",
+    "features.immersiveTranslation.body": "在保留原文的同时，将网页可读内容逐段翻译并显示在原文下方。Astra 最多并发处理四个更小的 ZenMux 批次，每批完成后立即回填；一键即可恢复原页面。",
     "features.youtubeDigest.title": "重证据的 YouTube 视频摘要",
     "features.youtubeDigest.body": "YouTube 视频页会显示上下文侧边栏入口，使用可用字幕或视听分析生成覆盖完整视频的结构化摘要，包括时间章节、可核对引语、核心论证和明确标注的不确定性。",
-    "download.summary": "Build 74 将大型网页切分为更小的翻译请求，最多同时处理四个 ZenMux 批次，并在每批完成后立即回填，加快渐进式双语显示。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "features.vocabularyBook.title": "划词查询与持久词汇本",
+    "features.vocabularyBook.body": "在网页上选中单词或短语后，可从右键菜单查看词性与 ZenMux 翻译，再保存到可搜索的持久词汇本，并支持复制或导出 Markdown。",
+    "download.summary": "Build 75 增加划词查询、ZenMux 词典卡片以及支持搜索和 Markdown 导出的持久词汇本。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

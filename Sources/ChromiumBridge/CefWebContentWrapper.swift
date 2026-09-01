@@ -1002,12 +1002,23 @@ final class SystemMediaWebView: WKWebView {
     static let searchWebMenuItemIdentifier = NSUserInterfaceItemIdentifier(
         "WKMenuItemIdentifierSearchWeb"
     )
-    static let translateSelectionMenuItemIdentifier = NSUserInterfaceItemIdentifier(
-        "AstraMenuItemIdentifierTranslateSelection"
-    )
+    static let translateSelectionMenuItemIdentifier = menuItemIdentifier(for: .translate)
+    static let lookUpWordMenuItemIdentifier = menuItemIdentifier(for: .lookUpWord)
+    static let addToVocabularyMenuItemIdentifier = menuItemIdentifier(for: .addToVocabulary)
+
+    static func menuItemIdentifier(for action: WebSelectionAction) -> NSUserInterfaceItemIdentifier {
+        switch action {
+        case .translate:
+            return NSUserInterfaceItemIdentifier("AstraMenuItemIdentifierTranslateSelection")
+        case .lookUpWord:
+            return NSUserInterfaceItemIdentifier("AstraMenuItemIdentifierLookUpWord")
+        case .addToVocabulary:
+            return NSUserInterfaceItemIdentifier("AstraMenuItemIdentifierAddToVocabulary")
+        }
+    }
 
     var onSearchSelectedText: ((String) -> Void)?
-    var onTranslateSelectedText: ((String) -> Void)?
+    var onSelectionAction: ((WebSelectionAction, String) -> Void)?
 
     override func menu(for event: NSEvent) -> NSMenu? {
         let menu = super.menu(for: event)
@@ -1022,27 +1033,33 @@ final class SystemMediaWebView: WKWebView {
             if item.identifier == Self.searchWebMenuItemIdentifier {
                 item.target = self
                 item.action = #selector(searchSelectedTextInNewTab(_:))
-                if onTranslateSelectedText != nil,
-                   !menu.items.contains(where: {
-                    $0.identifier == Self.translateSelectionMenuItemIdentifier
-                }) {
-                    let translateItem = NSMenuItem(
-                        title: NSLocalizedString(
-                            "translation.selection.contextMenuAction",
-                            value: "Translate Selection",
-                            comment: "Webpage context menu - Action that translates the currently selected text"
-                        ),
-                        action: #selector(translateSelectedText(_:)),
+                guard onSelectionAction != nil else { continue }
+                var insertionIndex = index
+                for action in WebSelectionAction.allCases {
+                    let identifier = Self.menuItemIdentifier(for: action)
+                    guard !menu.items.contains(where: { $0.identifier == identifier }) else { continue }
+                    let actionItem = NSMenuItem(
+                        title: action.contextMenuTitle,
+                        action: Self.selector(for: action),
                         keyEquivalent: ""
                     )
-                    translateItem.identifier = Self.translateSelectionMenuItemIdentifier
-                    translateItem.target = self
-                    menu.insertItem(translateItem, at: index)
+                    actionItem.identifier = identifier
+                    actionItem.target = self
+                    menu.insertItem(actionItem, at: insertionIndex)
+                    insertionIndex += 1
                 }
             }
             if let submenu = item.submenu {
                 routeSearchWebMenuItems(in: submenu)
             }
+        }
+    }
+
+    private static func selector(for action: WebSelectionAction) -> Selector {
+        switch action {
+        case .translate: return #selector(SystemMediaWebView.translateSelectedText(_:))
+        case .lookUpWord: return #selector(SystemMediaWebView.lookUpSelectedWord(_:))
+        case .addToVocabulary: return #selector(SystemMediaWebView.addSelectedWordToVocabulary(_:))
         }
     }
 
@@ -1054,7 +1071,19 @@ final class SystemMediaWebView: WKWebView {
 
     @objc func translateSelectedText(_ sender: NSMenuItem) {
         readSelectedText { [weak self] selection in
-            self?.onTranslateSelectedText?(selection)
+            self?.onSelectionAction?(.translate, selection)
+        }
+    }
+
+    @objc func lookUpSelectedWord(_ sender: NSMenuItem) {
+        readSelectedText { [weak self] selection in
+            self?.onSelectionAction?(.lookUpWord, selection)
+        }
+    }
+
+    @objc func addSelectedWordToVocabulary(_ sender: NSMenuItem) {
+        readSelectedText { [weak self] selection in
+            self?.onSelectionAction?(.addToVocabulary, selection)
         }
     }
 
@@ -1092,7 +1121,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         init(
             configuration: WKWebViewConfiguration,
             onSearchSelectedText: @escaping (String) -> Void,
-            onTranslateSelectedText: ((String) -> Void)?
+            onSelectionAction: ((WebSelectionAction, String) -> Void)?
         ) {
             webView = SystemMediaWebView(frame: .zero, configuration: configuration)
             window = NSWindow(
@@ -1103,7 +1132,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             )
             super.init()
             webView.onSearchSelectedText = onSearchSelectedText
-            webView.onTranslateSelectedText = onTranslateSelectedText
+            webView.onSelectionAction = onSelectionAction
             webView.customUserAgent = SupportedBrowserUserAgent.safariCompatibleUserAgent
             webView.uiDelegate = self
             window.delegate = self
@@ -1169,8 +1198,16 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     private var customGuid = ""
     private var didRequestClose = false
     private static var closingChromeBrowsers: [ObjectIdentifier: CefChromeBrowser] = [:]
-    private static let translateSelectionContextMenuCommandID =
+    private static let selectionContextMenuCommandIDBase =
         CefMenuModel.userCommandIDFirst + 71
+
+    static func contextMenuCommandID(for action: WebSelectionAction) -> Int {
+        selectionContextMenuCommandIDBase + action.rawValue
+    }
+
+    static func selectionAction(forContextMenuCommandID commandID: Int) -> WebSelectionAction? {
+        WebSelectionAction(rawValue: commandID - selectionContextMenuCommandIDBase)
+    }
 
     private static func retainClosingChromeBrowser(_ browser: CefChromeBrowser) {
         closingChromeBrowsers[ObjectIdentifier(browser)] = browser
@@ -1196,7 +1233,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     var onClose: (() -> Void)?
     var onMove: ((Int, Bool) -> Void)?
     var onOpenURLInNewTab: ((URL, Bool) -> Void)?
-    var onTranslateSelectedText: ((String) -> Void)?
+    var onSelectionAction: ((WebSelectionAction, String) -> Void)?
 
     @objc dynamic var nativeView: NSView? { hostView }
     @objc dynamic private(set) var isLoading = false
@@ -1268,14 +1305,12 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         if menu.count > 0 {
             menu.addSeparator()
         }
-        menu.addItem(
-            commandID: Self.translateSelectionContextMenuCommandID,
-            title: NSLocalizedString(
-                "translation.selection.contextMenuAction",
-                value: "Translate Selection",
-                comment: "Webpage context menu - Action that translates the currently selected text"
+        for action in WebSelectionAction.allCases {
+            menu.addItem(
+                commandID: Self.contextMenuCommandID(for: action),
+                title: action.contextMenuTitle
             )
-        )
+        }
     }
 
     func browser(
@@ -1283,10 +1318,10 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         contextMenuCommand commandID: Int,
         params: CefContextMenuParams
     ) -> Bool {
-        guard commandID == Self.translateSelectionContextMenuCommandID else { return false }
+        guard let action = Self.selectionAction(forContextMenuCommandID: commandID) else { return false }
         let selection = SelectionTranslationPolicy.normalizedText(params.selectionText)
         guard !selection.isEmpty else { return true }
-        onTranslateSelectedText?(selection)
+        onSelectionAction?(action, selection)
         return true
     }
 
@@ -1473,8 +1508,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             self?.openSystemMediaSearchInNewTab(query)
         }
         if allowsCredentialStorage {
-            webView.onTranslateSelectedText = { [weak self] selection in
-                self?.onTranslateSelectedText?(selection)
+            webView.onSelectionAction = { [weak self] action, selection in
+                self?.onSelectionAction?(action, selection)
             }
         }
         webView.customUserAgent = SupportedBrowserUserAgent.safariCompatibleUserAgent
@@ -4774,8 +4809,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                 onSearchSelectedText: { [weak self] query in
                     self?.openSystemMediaSearchInNewTab(query)
                 },
-                onTranslateSelectedText: allowsCredentialStorage ? { [weak self] selection in
-                    self?.onTranslateSelectedText?(selection)
+                onSelectionAction: allowsCredentialStorage ? { [weak self] action, selection in
+                    self?.onSelectionAction?(action, selection)
                 } : nil
             )
             let identifier = ObjectIdentifier(popupHost)

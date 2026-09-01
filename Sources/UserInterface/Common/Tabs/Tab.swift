@@ -98,6 +98,9 @@ class Tab: WebContentRepresentable {
                 selectionTranslationTask?.cancel()
                 selectionTranslationTask = nil
                 selectionTranslationOperationID = nil
+                wordLookupTask?.cancel()
+                wordLookupTask = nil
+                wordLookupOperationID = nil
             }
         }
     }
@@ -113,6 +116,8 @@ class Tab: WebContentRepresentable {
     var immersiveTranslationOperationID: UUID?
     var selectionTranslationTask: Task<Void, Never>?
     var selectionTranslationOperationID: UUID?
+    var wordLookupTask: Task<Void, Never>?
+    var wordLookupOperationID: UUID?
 
     /// Native renderer crash-page state, set by `PhiChromiumCoordinator` from
     /// the `showCrashPage` bridge event and cleared on teardown. Non-nil drives
@@ -762,6 +767,9 @@ class Tab: WebContentRepresentable {
         selectionTranslationTask?.cancel()
         selectionTranslationTask = nil
         selectionTranslationOperationID = nil
+        wordLookupTask?.cancel()
+        wordLookupTask = nil
+        wordLookupOperationID = nil
         cancellables.forEach { $0.cancel() }
         cancellables.removeAll()
     }

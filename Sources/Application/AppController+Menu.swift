@@ -272,6 +272,7 @@ extension AppController {
     static let historyShowAllItemTag = 500038
     static let historyClearBrowsingDataItemTag = 500039
     static let historyAstraSectionSeparatorTag = 500040
+    static let vocabularyBookItemTag = 500041
     static let spacesNewProfileItemTag = 500015
     static let spacesDeleteProfileParentItemTag = 500016
     static let viewMenuPhiSectionSeparatorTag = 500023
@@ -342,6 +343,7 @@ extension AppController {
                     item.tag == CommandWrapper.PHI_TOGGLE_CHATBAR.rawValue ||
                     item.tag == CommandWrapper.PHI_NEW_CONVERSATION.rawValue ||
                     item.tag == CommandWrapper.PHI_TOGGLE_READER.rawValue ||
+                    item.tag == AppController.vocabularyBookItemTag ||
                     item.tag == AppController.viewMenuPhiSectionSeparatorTag ||
                     item.tag == AppController.toggleBookmarkBarItemTag ||
                     item.tag == AppController.toggleBookmarkBarOnNewTabItemTag ||
@@ -367,6 +369,13 @@ extension AppController {
                 Shortcuts.updateShortcut(for: toggleReaderItem)
                 toggleReaderItem.target = self
                 submenu.addItem(toggleReaderItem)
+
+                let vocabularyBookItem = NSMenuItem(title: NSLocalizedString("app.viewMenu.vocabularyBook", value: "Vocabulary Book\u{2026}", comment: "View menu - Menu item that opens the window listing words saved from webpages"),
+                                                    action: #selector(openVocabularyBook(_:)),
+                                                    keyEquivalent: "")
+                vocabularyBookItem.tag = AppController.vocabularyBookItemTag
+                vocabularyBookItem.target = self
+                submenu.addItem(vocabularyBookItem)
 
                 let readerSeparator = NSMenuItem.separator()
                 readerSeparator.tag = AppController.viewMenuPhiSectionSeparatorTag
@@ -1204,6 +1213,11 @@ extension AppController {
             return
         }
         state.toggleReaderView(for: tab, from: .viewMenu)
+    }
+
+    @MainActor
+    @objc func openVocabularyBook(_ sender: Any?) {
+        VocabularyBookWindowController.shared.show()
     }
 
     @MainActor

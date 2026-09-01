@@ -35,7 +35,7 @@ final class SystemMediaContextMenuTests: XCTestCase {
         let searchItem = NSMenuItem(title: "Search", action: nil, keyEquivalent: "")
         searchItem.identifier = SystemMediaWebView.searchWebMenuItemIdentifier
         menu.addItem(searchItem)
-        webView.onTranslateSelectedText = { _ in }
+        webView.onSelectionAction = { _, _ in }
 
         webView.routeSearchWebMenuItems(in: menu)
 
@@ -44,20 +44,20 @@ final class SystemMediaContextMenuTests: XCTestCase {
             searchItem.action.map(NSStringFromSelector),
             "searchSelectedTextInNewTab:"
         )
-        let translateItem = menu.items.first {
-            $0.identifier == SystemMediaWebView.translateSelectionMenuItemIdentifier
+        let expectedActions: [(NSUserInterfaceItemIdentifier, String)] = [
+            (SystemMediaWebView.translateSelectionMenuItemIdentifier, "translateSelectedText:"),
+            (SystemMediaWebView.lookUpWordMenuItemIdentifier, "lookUpSelectedWord:"),
+            (SystemMediaWebView.addToVocabularyMenuItemIdentifier, "addSelectedWordToVocabulary:"),
+        ]
+        for (expectedIndex, expectedAction) in expectedActions.enumerated() {
+            let actionItem = menu.items.first { $0.identifier == expectedAction.0 }
+            XCTAssertTrue(actionItem?.target === webView)
+            XCTAssertEqual(actionItem?.action.map(NSStringFromSelector), expectedAction.1)
+            XCTAssertEqual(
+                menu.items.firstIndex { $0.identifier == expectedAction.0 },
+                expectedIndex
+            )
         }
-        XCTAssertTrue(translateItem?.target === webView)
-        XCTAssertEqual(
-            translateItem?.action.map(NSStringFromSelector),
-            "translateSelectedText:"
-        )
-        XCTAssertEqual(
-            menu.items.firstIndex {
-                $0.identifier == SystemMediaWebView.translateSelectionMenuItemIdentifier
-            },
-            0
-        )
     }
 
     @MainActor
@@ -140,7 +140,9 @@ final class SystemMediaContextMenuTests: XCTestCase {
         webView.navigationDelegate = observer
 
         var routedSelection: String?
-        webView.onTranslateSelectedText = { selection in
+        var routedAction: WebSelectionAction?
+        webView.onSelectionAction = { action, selection in
+            routedAction = action
             routedSelection = selection
             didRouteTranslation.fulfill()
         }
@@ -167,6 +169,7 @@ final class SystemMediaContextMenuTests: XCTestCase {
         webView.translateSelectedText(NSMenuItem())
 
         wait(for: [didRouteTranslation], timeout: 5)
+        XCTAssertEqual(routedAction, .translate)
         XCTAssertEqual(routedSelection, "Translate this passage now.")
     }
 }

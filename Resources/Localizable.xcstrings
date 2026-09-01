@@ -4,6 +4,13 @@
     "" : {
 
     },
+    "app.viewMenu.vocabularyBook" : {
+      "comment" : "View menu - Menu item that opens the window listing words saved from webpages",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Vocabulary Book…" } }
+      }
+    },
     "settings.general.xSpamShield.databaseTitle" : {
       "comment" : "General settings - Row title for the X junk-account public-list database",
       "extractionState" : "extracted_with_value",
@@ -960,6 +967,209 @@
             "value" : "Connection successful"
           }
         }
+      }
+    },
+    "translation.popover.openVocabularyBookAction" : {
+      "comment" : "Immersive translation - Button in the translation popover that opens the saved words window",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Vocabulary Book" } }
+      }
+    },
+    "vocabulary.error.selectionTooLong" : {
+      "comment" : "Word lookup - Error shown when the selected text is too long to be treated as a dictionary entry",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Select a single word or a short phrase to look it up." } }
+      }
+    },
+    "vocabulary.lookupCard.addAction" : {
+      "comment" : "Word lookup card - Button that saves the looked-up word",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Add to Vocabulary Book" } }
+      }
+    },
+    "vocabulary.lookupCard.loading" : {
+      "comment" : "Word lookup card - Status shown while the dictionary meaning is being fetched",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Looking up…" } }
+      }
+    },
+    "vocabulary.lookupCard.savedLabel" : {
+      "comment" : "Word lookup card - Label shown when the word is already saved",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "In Vocabulary Book" } }
+      }
+    },
+    "vocabulary.selection.addContextMenuAction" : {
+      "comment" : "Webpage context menu - Action that looks up the selected word and saves it to the vocabulary book",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Add to Vocabulary Book" } }
+      }
+    },
+    "vocabulary.selection.addProgressTitle" : {
+      "comment" : "Vocabulary book - Brief toast shown while the selected word is being looked up before saving",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Adding to Vocabulary Book…" } }
+      }
+    },
+    "vocabulary.selection.addedTitle" : {
+      "comment" : "Vocabulary book - Toast title shown after a word was saved",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Added to Vocabulary Book" } }
+      }
+    },
+    "vocabulary.selection.alreadySavedTitle" : {
+      "comment" : "Vocabulary book - Toast title shown when the word had been saved earlier",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Already in Vocabulary Book" } }
+      }
+    },
+    "vocabulary.selection.lookUpContextMenuAction" : {
+      "comment" : "Webpage context menu - Action that shows the dictionary meaning of the selected word",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Look Up Word" } }
+      }
+    },
+    "vocabulary.selection.lookUpFailedTitle" : {
+      "comment" : "Word lookup - Toast title shown when the selected word could not be looked up",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Word lookup failed" } }
+      }
+    },
+    "vocabulary.window.clearAllAction" : {
+      "comment" : "Vocabulary book - Button that removes every saved word after confirmation",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Clear All" } }
+      }
+    },
+    "vocabulary.window.clearConfirmation.confirmAction" : {
+      "comment" : "Vocabulary book - Destructive button that deletes every saved word",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Remove All" } }
+      }
+    },
+    "vocabulary.window.clearConfirmation.title" : {
+      "comment" : "Vocabulary book - Confirmation title before deleting every saved word",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Remove all saved words?" } }
+      }
+    },
+    "vocabulary.window.column.added" : {
+      "comment" : "Vocabulary book - Table column header for the date the word was saved",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Added" } }
+      }
+    },
+    "vocabulary.window.column.partOfSpeech" : {
+      "comment" : "Vocabulary book - Table column header for the word class such as noun or verb",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Part of Speech" } }
+      }
+    },
+    "vocabulary.window.column.translation" : {
+      "comment" : "Vocabulary book - Table column header for the translated meaning",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Translation" } }
+      }
+    },
+    "vocabulary.window.column.word" : {
+      "comment" : "Vocabulary book - Table column header for the saved word",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Word" } }
+      }
+    },
+    "vocabulary.window.copiedLabel" : {
+      "comment" : "Vocabulary book - Short confirmation replacing the copy button title right after the list was copied",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Copied" } }
+      }
+    },
+    "vocabulary.window.copyMarkdownAction" : {
+      "comment" : "Vocabulary book - Button that copies the whole list as a Markdown table",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Copy Markdown" } }
+      }
+    },
+    "vocabulary.window.countLabel" : {
+      "comment" : "Vocabulary book - Count of saved words; placeholder is the number",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "%d words" } }
+      }
+    },
+    "vocabulary.window.deleteContextAction" : {
+      "comment" : "Vocabulary book - Context menu action removing the right-clicked words",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Delete" } }
+      }
+    },
+    "vocabulary.window.deleteSelectedAction" : {
+      "comment" : "Vocabulary book - Button that removes the selected words",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Delete" } }
+      }
+    },
+    "vocabulary.window.emptyMessage" : {
+      "comment" : "Vocabulary book - Hint shown when the list is empty explaining how to add words",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Select a word on any page, right-click, and choose “Add to Vocabulary Book”." } }
+      }
+    },
+    "vocabulary.window.emptyTitle" : {
+      "comment" : "Vocabulary book - Title shown when the list is empty",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "No saved words yet" } }
+      }
+    },
+    "vocabulary.window.exportMarkdownAction" : {
+      "comment" : "Vocabulary book - Button that saves the list as a Markdown file",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Export Markdown…" } }
+      }
+    },
+    "vocabulary.window.exportPanel.title" : {
+      "comment" : "Vocabulary book - Save panel title when exporting the list as Markdown",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Export Vocabulary Book" } }
+      }
+    },
+    "vocabulary.window.searchPlaceholder" : {
+      "comment" : "Vocabulary book - Placeholder of the search field filtering saved words",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Search words" } }
+      }
+    },
+    "vocabulary.window.title" : {
+      "comment" : "Vocabulary book - Window title of the saved words list",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Vocabulary Book" } }
       }
     },
     "・" : {

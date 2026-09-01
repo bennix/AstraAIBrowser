@@ -325,6 +325,21 @@ struct ImmersiveTranslationPopover: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(isBusy)
+
+            Button {
+                dismiss()
+                VocabularyBookWindowController.shared.show()
+            } label: {
+                Label(
+                    NSLocalizedString(
+                        "translation.popover.openVocabularyBookAction",
+                        value: "Vocabulary Book",
+                        comment: "Immersive translation - Button in the translation popover that opens the saved words window"
+                    ),
+                    systemImage: "character.book.closed"
+                )
+                .frame(maxWidth: .infinity)
+            }
         }
         .padding(16)
         .frame(width: 300)
