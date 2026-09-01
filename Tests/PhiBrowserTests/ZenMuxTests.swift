@@ -7,6 +7,7 @@ import AppKit
 import CryptoKit
 import CefKit
 import JavaScriptCore
+import LocalAuthentication
 import Security
 import XCTest
 @testable import Phi
@@ -157,6 +158,111 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertFalse(APIClient.isYouTubeVideoURL("https://www.youtube.com/shorts/invalid"))
         XCTAssertFalse(APIClient.isYouTubeVideoURL("https://example.com/watch?v=dQw4w9WgXcQ"))
         XCTAssertFalse(APIClient.isYouTubeVideoURL(nil))
+    }
+
+    func testYouTubeDigestAvailabilityRequiresVideoAndAIChat() {
+        let videoURL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+
+        XCTAssertTrue(BrowserState.shouldOfferYouTubeDigest(
+            pageURL: videoURL,
+            isAIEnabled: true,
+            isIncognito: false,
+            isOverviewActive: false,
+            isChatAvailable: true
+        ))
+        XCTAssertFalse(BrowserState.shouldOfferYouTubeDigest(
+            pageURL: "https://www.youtube.com/",
+            isAIEnabled: true,
+            isIncognito: false,
+            isOverviewActive: false,
+            isChatAvailable: true
+        ))
+        XCTAssertFalse(BrowserState.shouldOfferYouTubeDigest(
+            pageURL: videoURL,
+            isAIEnabled: false,
+            isIncognito: false,
+            isOverviewActive: false,
+            isChatAvailable: true
+        ))
+        XCTAssertFalse(BrowserState.shouldOfferYouTubeDigest(
+            pageURL: videoURL,
+            isAIEnabled: true,
+            isIncognito: true,
+            isOverviewActive: false,
+            isChatAvailable: true
+        ))
+        XCTAssertFalse(BrowserState.shouldOfferYouTubeDigest(
+            pageURL: videoURL,
+            isAIEnabled: true,
+            isIncognito: false,
+            isOverviewActive: true,
+            isChatAvailable: true
+        ))
+        XCTAssertFalse(BrowserState.shouldOfferYouTubeDigest(
+            pageURL: videoURL,
+            isAIEnabled: true,
+            isIncognito: false,
+            isOverviewActive: false,
+            isChatAvailable: false
+        ))
+    }
+
+    func testYouTubeDigestPromptRequiresEvidenceAndFullVideoCoverage() {
+        let prompt = ZenMuxChatSession.youtubeDigestDraft()
+
+        XCTAssertTrue(prompt.contains("timestamped chapters"))
+        XCTAssertTrue(prompt.contains("cover the full video"))
+        XCTAssertTrue(prompt.contains("Never invent missing content"))
+        XCTAssertTrue(prompt.contains("verified facts"))
+    }
+
+    func testImmersiveTranslationAvailabilityOnlyAllowsPublicWebPages() {
+        XCTAssertTrue(BrowserState.shouldOfferImmersiveTranslation(
+            pageURL: "https://example.com/article",
+            isIncognito: false,
+            isOverviewActive: false
+        ))
+        XCTAssertTrue(BrowserState.shouldOfferImmersiveTranslation(
+            pageURL: "http://example.com/article",
+            isIncognito: false,
+            isOverviewActive: false
+        ))
+        XCTAssertFalse(BrowserState.shouldOfferImmersiveTranslation(
+            pageURL: "phi://newtab",
+            isIncognito: false,
+            isOverviewActive: false
+        ))
+        XCTAssertFalse(BrowserState.shouldOfferImmersiveTranslation(
+            pageURL: "https://example.com/article",
+            isIncognito: true,
+            isOverviewActive: false
+        ))
+        XCTAssertFalse(BrowserState.shouldOfferImmersiveTranslation(
+            pageURL: "https://example.com/article",
+            isIncognito: false,
+            isOverviewActive: true
+        ))
+    }
+
+    func testImmersiveTranslationPreferencesRoundTrip() {
+        let suiteName = "ImmersiveTranslationTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertEqual(
+            ImmersiveTranslationPreferences.loadLanguage(from: defaults),
+            .simplifiedChinese
+        )
+        XCTAssertEqual(
+            ImmersiveTranslationPreferences.loadProvider(from: defaults),
+            .onDevice
+        )
+
+        ImmersiveTranslationPreferences.saveLanguage(.japanese, to: defaults)
+        ImmersiveTranslationPreferences.saveProvider(.zenMux, to: defaults)
+
+        XCTAssertEqual(ImmersiveTranslationPreferences.loadLanguage(from: defaults), .japanese)
+        XCTAssertEqual(ImmersiveTranslationPreferences.loadProvider(from: defaults), .zenMux)
     }
 
     func testYouTubeWithoutTranscriptCannotBePresentedAsKnownVideoContent() throws {
@@ -316,6 +422,21 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertEqual(inlineData["data"] as? String, "aW1hZ2U=")
         XCTAssertNil(parts[1]["fileData"])
         XCTAssertFalse(String(data: data, encoding: .utf8)?.contains("temp/chat-completions") == true)
+    }
+
+    func testVertexTranslationRequestDoesNotExposeBrowserTools() throws {
+        let data = try APIClient.makeZenMuxVertexChatRequestData(
+            model: .geminiFlash,
+            messages: [
+                ZenMuxChatRequestMessage(role: "system", content: "Translate to Japanese"),
+                ZenMuxChatRequestMessage(role: "user", content: "[]"),
+            ],
+            includeTools: false
+        )
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        XCTAssertEqual((object["tools"] as? [Any])?.count, 0)
     }
 
     func testVertexChatRequestPreservesFunctionCallsAndResponses() throws {
@@ -533,6 +654,30 @@ final class ZenMuxTests: XCTestCase {
         )
         XCTAssertNil(WebCredentialStore.secureOrigin(from: "http://accounts.google.com"))
         XCTAssertNil(WebCredentialStore.secureOrigin(from: "javascript:alert(1)"))
+    }
+
+    func testWebCredentialStoreRecognizesAuthenticationCancellation() {
+        XCTAssertTrue(
+            WebCredentialStore.isUserCancellation(
+                NSError(
+                    domain: LAError.errorDomain,
+                    code: LAError.Code.userCancel.rawValue
+                )
+            )
+        )
+        XCTAssertTrue(
+            WebCredentialStore.isUserCancellation(
+                WebCredentialStoreError.keychain(errSecUserCanceled)
+            )
+        )
+        XCTAssertFalse(
+            WebCredentialStore.isUserCancellation(
+                NSError(
+                    domain: LAError.errorDomain,
+                    code: LAError.Code.biometryNotAvailable.rawValue
+                )
+            )
+        )
     }
 
     func testBrowserAutomationToolNamesMatchProviderContract() {

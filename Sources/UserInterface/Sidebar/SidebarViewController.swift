@@ -225,6 +225,14 @@ class SidebarViewController: NSViewController {
         view.onDownloadTap = {
             FeatureEntryAnalytics.capture(.download, surface: .sidebar)
         }
+        view.onYouTubeDigestTap = { [weak self] in
+            guard let self else { return }
+            FeatureEntryAnalytics.capture(.youtubeDigest, surface: .sidebar)
+            self.state.startYouTubeDigest()
+        }
+        view.onImmersiveTranslationTap = { [weak self] language, provider in
+            self?.state.toggleImmersiveTranslation(language: language, provider: provider)
+        }
         return view
     }()
     
@@ -391,6 +399,8 @@ class SidebarViewController: NSViewController {
         updateHeaderHeight()
         updateChatButtonVisibility()
         updateMemoryButtonVisibility()
+        updateYouTubeDigestButtonVisibility()
+        updateImmersiveTranslationButton()
         updateSidebarContentActivation()
         updateSpaceTintGradient()
     }
@@ -480,6 +490,31 @@ class SidebarViewController: NSViewController {
         bottomBarSwiftUI.setMemoryHidden(shouldHideMemory)
     }
 
+    private func updateYouTubeDigestButtonVisibility() {
+        let tab = state.focusingTab
+        let shouldOffer = BrowserState.shouldOfferYouTubeDigest(
+            pageURL: tab?.url,
+            isAIEnabled: PhiPreferences.AISettings.phiAIEnabled.loadValue(),
+            isIncognito: state.isIncognito,
+            isOverviewActive: state.groupOverviewState != nil,
+            isChatAvailable: tab?.aiChatEnabled ?? false
+        )
+        bottomBarSwiftUI.setYouTubeDigestHidden(!shouldOffer)
+    }
+
+    private func updateImmersiveTranslationButton() {
+        let tab = state.focusingTab
+        let shouldOffer = BrowserState.shouldOfferImmersiveTranslation(
+            pageURL: tab?.url,
+            isIncognito: state.isIncognito,
+            isOverviewActive: state.groupOverviewState != nil
+        )
+        bottomBarSwiftUI.setImmersiveTranslationHidden(!shouldOffer)
+        bottomBarSwiftUI.setImmersiveTranslationState(
+            shouldOffer ? (tab?.immersiveTranslationState ?? .inactive) : .inactive
+        )
+    }
+
     /// Update header height based on configuration. The header now also hosts
     /// the Spaces switch (below the nav row, above the address bar), so both
     /// heights include room for that row — see `SidebarHeaderView.mountSpaceSwitch`.
@@ -515,6 +550,8 @@ class SidebarViewController: NSViewController {
             .sink { [weak self] _ in
                 self?.updateChatButtonVisibility()
                 self?.updateMemoryButtonVisibility()
+                self?.updateYouTubeDigestButtonVisibility()
+                self?.updateImmersiveTranslationButton()
                 self?.headerView.updateSpaceSwitchVisibility()
                 self?.updateHeaderHeight()
             }
@@ -690,6 +727,8 @@ class SidebarViewController: NSViewController {
             .sink { [weak self] tab in
                 self?.observeFocusingTabAIChatEnabled(tab)
                 self?.updateChatButtonVisibility()
+                self?.updateYouTubeDigestButtonVisibility()
+                self?.updateImmersiveTranslationButton()
             }
             .store(in: &cancellables)
 
@@ -710,6 +749,8 @@ class SidebarViewController: NSViewController {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.updateChatButtonVisibility()
+                self?.updateYouTubeDigestButtonVisibility()
+                self?.updateImmersiveTranslationButton()
             }
             .store(in: &cancellables)
 
@@ -932,6 +973,9 @@ class SidebarViewController: NSViewController {
     /// Subscription for the focused tab's split-partner `aiChatEnabled` state,
     /// rebuilt whenever the focused tab or split membership changes.
     private var focusingTabPartnerAIChatEnabledCancellable: AnyCancellable?
+    /// Subscription for the focused tab's URL, including YouTube SPA navigations.
+    private var focusingTabURLCancellable: AnyCancellable?
+    private var focusingTabTranslationCancellable: AnyCancellable?
 
     /// Observe `aiChatEnabled` on the current focusing tab.
     private func observeFocusingTabAIChatEnabled(_ tab: Tab?) {
@@ -939,13 +983,36 @@ class SidebarViewController: NSViewController {
         focusingTabAIChatEnabledCancellable = nil
         focusingTabPartnerAIChatEnabledCancellable?.cancel()
         focusingTabPartnerAIChatEnabledCancellable = nil
+        focusingTabURLCancellable?.cancel()
+        focusingTabURLCancellable = nil
+        focusingTabTranslationCancellable?.cancel()
+        focusingTabTranslationCancellable = nil
 
-        guard let tab else { return }
+        guard let tab else {
+            updateImmersiveTranslationButton()
+            return
+        }
 
         focusingTabAIChatEnabledCancellable = tab.$aiChatEnabled
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.updateChatButtonVisibility()
+                self?.updateYouTubeDigestButtonVisibility()
+            }
+
+        focusingTabURLCancellable = tab.$url
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateYouTubeDigestButtonVisibility()
+                self?.updateImmersiveTranslationButton()
+            }
+
+        focusingTabTranslationCancellable = tab.$immersiveTranslationState
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateImmersiveTranslationButton()
             }
 
         if let partner = focusingTabSplitPartner() {

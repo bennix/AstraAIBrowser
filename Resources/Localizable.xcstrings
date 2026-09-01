@@ -362,6 +362,30 @@
         }
       }
     },
+    "chat.zenMux.youtubeDigestDraft" : {
+      "comment" : "ZenMux chat - Prompt used by the native YouTube video digest action",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Create a rigorous digest of this YouTube video using only the supplied transcript or audiovisual analysis. Include: 1) a concise overview; 2) timestamped chapters that cover the full video; 3) the main claims, reasoning, and supporting evidence; 4) three to five important quotes with timestamps, quoting only when the transcript supports the exact wording and otherwise labeling them as paraphrases; and 5) uncertainties, caption errors, or claims that require external verification. Never invent missing content, and clearly distinguish the video's claims from verified facts."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅使用已提供的字幕或音视频分析，为这个 YouTube 视频生成严谨摘要。请包含：1）简明概览；2）覆盖完整视频的带时间戳章节；3）主要主张、推理与支持证据；4）三至五条带时间戳的重要引文——只有字幕支持准确原句时才直接引用，否则明确标为转述；5）不确定之处、字幕错误或仍需外部核验的主张。不得编造缺失内容，并明确区分视频中的主张与已核实事实。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "僅使用已提供的字幕或音訊／視訊分析，為這個 YouTube 影片產生嚴謹摘要。請包含：1）簡明概覽；2）涵蓋完整影片的時間戳章節；3）主要主張、推理與支持證據；4）三至五條帶時間戳的重要引文——只有字幕支持準確原句時才直接引用，否則明確標為轉述；5）不確定之處、字幕錯誤或仍需外部核驗的主張。不得編造缺失內容，並明確區分影片中的主張與已核實事實。"
+          }
+        }
+      }
+    },
     "chat.zenMux.youtubeTranscriptIncluded" : {
       "comment" : "ZenMux chat - Status confirming YouTube captions are included, with language code",
       "extractionState" : "extracted_with_value",
@@ -68989,6 +69013,150 @@
             "value" : "意見回饋"
           }
         }
+      }
+    },
+    "sidebar.youtubeDigestButton.accessibilityLabel" : {
+      "comment" : "Sidebar - Accessibility label for the contextual YouTube video digest button",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "YouTube video digest" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "YouTube 视频摘要" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "YouTube 影片摘要" } }
+      }
+    },
+    "sidebar.youtubeDigestButton.tooltip" : {
+      "comment" : "Sidebar - Tooltip for the contextual YouTube video digest button",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Summarize this YouTube video" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "总结这个 YouTube 视频" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "摘要這個 YouTube 影片" } }
+      }
+    },
+    "sidebar.immersiveTranslationButton.tooltip" : {
+      "comment" : "Sidebar - Tooltip for the immersive translation button",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Immersive translation" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "沉浸式翻译" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "沉浸式翻譯" } }
+      }
+    },
+    "translation.error.emptyPage" : {
+      "comment" : "Immersive translation - Empty page error",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "No readable text was found on this page." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这个网页中没有找到可翻译的正文。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這個網頁中沒有找到可翻譯的正文。" } }
+      }
+    },
+    "translation.error.missingZenMuxCredential" : {
+      "comment" : "Immersive translation - Missing ZenMux credential error",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Add a ZenMux API key in AI Settings before using enhanced translation." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用增强翻译前，请先在 AI 设置中添加 ZenMux API 密钥。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "使用增強翻譯前，請先在 AI 設定中加入 ZenMux API 金鑰。" } }
+      }
+    },
+    "translation.error.onDeviceUnavailable" : {
+      "comment" : "Immersive translation - On-device language pair unavailable error",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "On-device translation is unavailable for this language pair. Choose ZenMux enhanced translation instead." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设备端翻译不支持这个语言组合，请改用 ZenMux 增强翻译。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "裝置端翻譯不支援這個語言組合，請改用 ZenMux 增強翻譯。" } }
+      }
+    },
+    "translation.error.pageChanged" : {
+      "comment" : "Immersive translation - Navigation occurred during translation error",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "The page changed before translation finished. Try again." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "翻译完成前网页已经变化，请重试。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "翻譯完成前網頁已經變化，請重試。" } }
+      }
+    },
+    "translation.error.unsupportedPage" : {
+      "comment" : "Immersive translation - Unsupported page error",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "This page cannot be translated." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这个网页无法翻译。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這個網頁無法翻譯。" } }
+      }
+    },
+    "translation.popover.provider" : {
+      "comment" : "Immersive translation - Provider picker label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Translation engine" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "翻译引擎" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "翻譯引擎" } }
+      }
+    },
+    "translation.popover.showOriginalAction" : {
+      "comment" : "Immersive translation - Remove translations action",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Show original" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示原文" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "顯示原文" } }
+      }
+    },
+    "translation.popover.targetLanguage" : {
+      "comment" : "Immersive translation - Target language picker label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Translate to" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "翻译为" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "翻譯為" } }
+      }
+    },
+    "translation.popover.title" : {
+      "comment" : "Immersive translation - Popover title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Immersive Translation" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "沉浸式翻译" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "沉浸式翻譯" } }
+      }
+    },
+    "translation.popover.translateAction" : {
+      "comment" : "Immersive translation - Start translation action",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Translate page" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "翻译网页" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "翻譯網頁" } }
+      }
+    },
+    "translation.popover.zenMuxPrivacyNotice" : {
+      "comment" : "Immersive translation - Privacy notice for ZenMux translation",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "ZenMux enhanced translation sends the selected page text to your configured model." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "ZenMux 增强翻译会把所选网页文字发送给你配置的模型。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "ZenMux 增強翻譯會把所選網頁文字傳送給你設定的模型。" } }
+      }
+    },
+    "translation.provider.onDevice" : {
+      "comment" : "Immersive translation - On-device provider name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "On-device" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设备端" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "裝置端" } }
+      }
+    },
+    "translation.provider.zenMux" : {
+      "comment" : "Immersive translation - ZenMux provider name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "ZenMux enhanced" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "ZenMux 增强" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "ZenMux 增強" } }
       }
     },
     "sidebar.feedbackButton.tooltip" : {

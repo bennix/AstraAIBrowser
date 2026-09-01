@@ -1052,6 +1052,16 @@ final class ZenMuxChatSession: ObservableObject {
         )
     }
 
+    static func youtubeDigestDraft() -> String {
+        NSLocalizedString(
+            "chat.zenMux.youtubeDigestDraft",
+            value: """
+            Create a rigorous digest of this YouTube video using only the supplied transcript or audiovisual analysis. Include: 1) a concise overview; 2) timestamped chapters that cover the full video; 3) the main claims, reasoning, and supporting evidence; 4) three to five important quotes with timestamps, quoting only when the transcript supports the exact wording and otherwise labeling them as paraphrases; and 5) uncertainties, caption errors, or claims that require external verification. Never invent missing content, and clearly distinguish the video's claims from verified facts.
+            """,
+            comment: "ZenMux chat - Prompt used by the native YouTube video digest action"
+        )
+    }
+
     static func makeSystemPromptLines(
         model: ZenMuxModel,
         pageContext: ZenMuxPageContext,

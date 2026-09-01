@@ -13,6 +13,7 @@ enum FeatureEntryAnalytics {
         case chat
         case memory
         case download
+        case youtubeDigest = "youtube_digest"
         case organizeTabs = "organize_tabs"
     }
 
@@ -60,6 +61,25 @@ class SidebarBottomBarState: ObservableObject {
 
     /// Whether the downloads popover is visible.
     @Published var isDownloadPopoverShown: Bool = false
+
+    /// Whether the contextual YouTube digest entry is hidden.
+    @Published var isYouTubeDigestHidden: Bool = true
+
+    /// Whether immersive translation is unavailable for the focused page.
+    @Published var isImmersiveTranslationHidden: Bool = true
+
+    /// Whether the immersive translation controls are visible.
+    @Published var isImmersiveTranslationPopoverShown: Bool = false
+
+    @Published var immersiveTranslationState: ImmersiveTranslationState = .inactive
+
+    @Published var immersiveTranslationLanguage = ImmersiveTranslationPreferences.loadLanguage() {
+        didSet { ImmersiveTranslationPreferences.saveLanguage(immersiveTranslationLanguage) }
+    }
+
+    @Published var immersiveTranslationProvider = ImmersiveTranslationPreferences.loadProvider() {
+        didSet { ImmersiveTranslationPreferences.saveProvider(immersiveTranslationProvider) }
+    }
 }
 
 /// SwiftUI implementation of the sidebar bottom bar.
@@ -74,6 +94,11 @@ struct SidebarBottomBarSwiftUI: View {
     let onCardEntryTap: () -> Void
     let onMemoryTap: () -> Void
     let onDownloadTap: () -> Void
+    let onYouTubeDigestTap: () -> Void
+    let onImmersiveTranslationTap: (
+        ImmersiveTranslationLanguage,
+        ImmersiveTranslationProvider
+    ) -> Void
     
     var body: some View {
         regularLayout
@@ -89,6 +114,12 @@ struct SidebarBottomBarSwiftUI: View {
             memoryButton
 
             cardEntryButton
+
+            immersiveTranslationButton
+
+            if !state.isYouTubeDigestHidden {
+                YouTubeDigestButton(action: onYouTubeDigestTap)
+            }
 
             Spacer(minLength: 0)
 
@@ -113,6 +144,45 @@ struct SidebarBottomBarSwiftUI: View {
         if !state.isMemoryHidden {
             MemoryButton(action: onMemoryTap)
         }
+    }
+
+    @ViewBuilder
+    private var immersiveTranslationButton: some View {
+        if !state.isImmersiveTranslationHidden {
+            Button {
+                state.isImmersiveTranslationPopoverShown.toggle()
+            } label: {
+                Group {
+                    if state.immersiveTranslationState == .translating {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "character.book.closed")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(translationButtonColor)
+                    }
+                }
+                .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+            .help(NSLocalizedString(
+                "sidebar.immersiveTranslationButton.tooltip",
+                value: "Immersive translation",
+                comment: "Sidebar - Tooltip for the immersive translation button"
+            ))
+            .popover(isPresented: $state.isImmersiveTranslationPopoverShown, arrowEdge: .top) {
+                ImmersiveTranslationPopover(
+                    state: state,
+                    onTranslate: onImmersiveTranslationTap
+                )
+            }
+        }
+    }
+
+    private var translationButtonColor: Color {
+        if case .active = state.immersiveTranslationState {
+            return .accentColor
+        }
+        return .primary
     }
     
     // MARK: - Download Button
@@ -178,6 +248,109 @@ struct SidebarBottomBarSwiftUI: View {
                     )
                 )
         }
+    }
+}
+
+private struct ImmersiveTranslationPopover: View {
+    @ObservedObject var state: SidebarBottomBarState
+    let onTranslate: (ImmersiveTranslationLanguage, ImmersiveTranslationProvider) -> Void
+
+    private var isBusy: Bool { state.immersiveTranslationState == .translating }
+
+    private var isActive: Bool {
+        if case .active = state.immersiveTranslationState { return true }
+        return false
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(NSLocalizedString(
+                "translation.popover.title",
+                value: "Immersive Translation",
+                comment: "Immersive translation - Popover title"
+            ))
+            .font(.headline)
+
+            Picker(
+                NSLocalizedString(
+                    "translation.popover.targetLanguage",
+                    value: "Translate to",
+                    comment: "Immersive translation - Target language picker label"
+                ),
+                selection: $state.immersiveTranslationLanguage
+            ) {
+                ForEach(ImmersiveTranslationLanguage.allCases) { language in
+                    Text(language.displayName).tag(language)
+                }
+            }
+            .disabled(isBusy || isActive)
+
+            Picker(
+                NSLocalizedString(
+                    "translation.popover.provider",
+                    value: "Translation engine",
+                    comment: "Immersive translation - Provider picker label"
+                ),
+                selection: $state.immersiveTranslationProvider
+            ) {
+                ForEach(ImmersiveTranslationProvider.allCases) { provider in
+                    Text(provider.displayName).tag(provider)
+                }
+            }
+            .disabled(isBusy || isActive)
+
+            if state.immersiveTranslationProvider == .zenMux && !isActive {
+                Text(NSLocalizedString(
+                    "translation.popover.zenMuxPrivacyNotice",
+                    value: "ZenMux enhanced translation sends the selected page text to your configured model.",
+                    comment: "Immersive translation - Privacy notice for ZenMux translation"
+                ))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if case .failed(let message) = state.immersiveTranslationState {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button {
+                onTranslate(
+                    state.immersiveTranslationLanguage,
+                    state.immersiveTranslationProvider
+                )
+            } label: {
+                HStack {
+                    if isBusy {
+                        ProgressView().controlSize(.small)
+                    }
+                    Text(actionTitle)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isBusy)
+        }
+        .padding(16)
+        .frame(width: 300)
+    }
+
+    private var actionTitle: String {
+        if isActive {
+            return NSLocalizedString(
+                "translation.popover.showOriginalAction",
+                value: "Show original",
+                comment: "Immersive translation - Remove translations action"
+            )
+        }
+        return NSLocalizedString(
+            "translation.popover.translateAction",
+            value: "Translate page",
+            comment: "Immersive translation - Start translation action"
+        )
     }
 }
 
@@ -266,6 +439,41 @@ struct ToolbarIconButton: View {
     }
 }
 
+// MARK: - YouTube Digest Button
+
+struct YouTubeDigestButton: View {
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "play.rectangle.on.rectangle")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.primary)
+                .frame(width: 24, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(isHovering ? Color.sidebarTabHovered : Color.clear)
+                )
+        }
+        .buttonStyle(.plain)
+        .help(NSLocalizedString(
+            "sidebar.youtubeDigestButton.tooltip",
+            value: "Summarize this YouTube video",
+            comment: "Sidebar - Tooltip for the contextual YouTube video digest button"
+        ))
+        .accessibilityLabel(NSLocalizedString(
+            "sidebar.youtubeDigestButton.accessibilityLabel",
+            value: "YouTube video digest",
+            comment: "Sidebar - Accessibility label for the contextual YouTube video digest button"
+        ))
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
+
 // MARK: - Card Entry Button
 
 struct CardEntryButton: View {
@@ -336,6 +544,11 @@ class SidebarBottomBarSwiftUIView: NSView {
     var onCardEntryTap: (() -> Void)?
     var onMemoryTap: (() -> Void)?
     var onDownloadTap: (() -> Void)?
+    var onYouTubeDigestTap: (() -> Void)?
+    var onImmersiveTranslationTap: ((
+        ImmersiveTranslationLanguage,
+        ImmersiveTranslationProvider
+    ) -> Void)?
     
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -360,7 +573,11 @@ class SidebarBottomBarSwiftUIView: NSView {
                 onChatTap: { [weak self] in self?.onChatTap?() },
                 onCardEntryTap: { [weak self] in self?.onCardEntryTap?() },
                 onMemoryTap: { [weak self] in self?.onMemoryTap?() },
-                onDownloadTap: { [weak self] in self?.onDownloadTap?() }
+                onDownloadTap: { [weak self] in self?.onDownloadTap?() },
+                onYouTubeDigestTap: { [weak self] in self?.onYouTubeDigestTap?() },
+                onImmersiveTranslationTap: { [weak self] language, provider in
+                    self?.onImmersiveTranslationTap?(language, provider)
+                }
             )
         )
         hosting.translatesAutoresizingMaskIntoConstraints = false
@@ -402,6 +619,22 @@ class SidebarBottomBarSwiftUIView: NSView {
     /// Hides or shows the AI memory button. Should be hidden when Phi AI is disabled.
     func setMemoryHidden(_ hidden: Bool) {
         state.isMemoryHidden = hidden
+    }
+
+    /// Hides or shows the contextual YouTube video digest entry.
+    func setYouTubeDigestHidden(_ hidden: Bool) {
+        state.isYouTubeDigestHidden = hidden
+    }
+
+    func setImmersiveTranslationHidden(_ hidden: Bool) {
+        state.isImmersiveTranslationHidden = hidden
+        if hidden {
+            state.isImmersiveTranslationPopoverShown = false
+        }
+    }
+
+    func setImmersiveTranslationState(_ translationState: ImmersiveTranslationState) {
+        state.immersiveTranslationState = translationState
     }
     
     /// Binds the downloads manager for progress display.

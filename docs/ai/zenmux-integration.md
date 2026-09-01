@@ -7,9 +7,11 @@ fall back to the private Chromium AI extension or to a bundled model.
 
 All ZenMux operations are owned by `Sources/Networking/APIClient.swift`. Text
 chat and model discovery use the OpenAI-compatible endpoints under
-`https://zenmux.ai/api/v1`. Visual localization uses ZenMux's Vertex-compatible
-`generateContent` endpoint because that endpoint accepts screenshot bytes as
-`inlineData` without creating a provider-relative temporary `fileUri`.
+`https://zenmux.ai/api/v1`. Visual localization and Gemini-backed immersive
+translation use ZenMux's Vertex-compatible `generateContent` endpoint. The
+visual path accepts screenshot bytes as `inlineData` without creating a
+provider-relative temporary `fileUri`; translation sends bounded text segments
+and disables browser tools.
 
 The API key is stored in an AES-256-GCM encrypted JSON envelope under the
 user's Application Support directory. The random encryption key is stored in
@@ -41,6 +43,28 @@ YouTube's undocumented InnerTube interface. Failures are expected when YouTube
 changes that interface, disables captions, rate-limits the client, or requires
 additional verification. Caption failure never blocks ZenMux chat and never
 activates another AI provider.
+
+YouTube video pages expose a contextual digest action in the native sidebar.
+The action opens the existing chat session with an evidence-aware digest prompt
+and immediately sends when a ZenMux credential is available. It reuses the same
+caption context and audiovisual fallback as normal page-aware chat, so it does
+not add another video downloader, model provider, credential store, or network
+owner.
+
+## Immersive translation
+
+Public HTTP and HTTPS pages expose a native immersive-translation control in
+the sidebar. `CefWebContentWrapper` extracts a bounded set of visible readable
+segments, preserves the original DOM, and inserts removable translated blocks
+directly after their source elements. A page URL change invalidates the per-tab
+translation state so stale results cannot be applied to a different document.
+
+On macOS 26 or later, users can choose Apple's on-device Translation framework
+when the selected language pair is installed and supported. ZenMux-enhanced
+translation is available through the existing API credential and networking
+boundary. Text is batched with stable segment identifiers, treated as untrusted
+webpage data, and sent without browser tools; responses must preserve the exact
+identifier order before any translated text is applied.
 
 ## Answer rendering
 

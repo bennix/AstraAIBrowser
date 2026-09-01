@@ -18,6 +18,23 @@ protocol BrowserAutomationProviding: AnyObject {
     func performBrowserAutomation(_ action: BrowserAutomationAction) async -> BrowserAutomationResult
 }
 
+protocol ImmersiveTranslationProviding: AnyObject {
+    @MainActor
+    func immersiveTranslationSegments(
+        expectedPageURL: String
+    ) async throws -> [ImmersiveTranslationSegment]
+
+    @MainActor
+    func applyImmersiveTranslations(
+        _ translations: [ImmersiveTranslationSegment],
+        targetLanguage: String,
+        expectedPageURL: String
+    ) async -> Bool
+
+    @MainActor
+    func removeImmersiveTranslations(expectedPageURL: String) async
+}
+
 struct MediaDownloadCandidate: Codable, Hashable, Sendable {
     enum Kind: String, Codable, Sendable {
         case video
@@ -1035,7 +1052,7 @@ final class SystemMediaWebView: WKWebView {
 }
 
 @MainActor
-final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, CefBrowserDelegate, PageContentProviding, BrowserAutomationProviding, MediaSessionCookieProviding, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, CefBrowserDelegate, PageContentProviding, BrowserAutomationProviding, ImmersiveTranslationProviding, MediaSessionCookieProviding, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
     private final class PendingConsoleEvaluation {
         let continuation: CheckedContinuation<String?, Never>
         var chunks: [Int: String] = [:]
@@ -2206,14 +2223,20 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             descriptor.username,
             origin
         )
-        do {
-            let password = try WebCredentialStore.shared.password(for: descriptor, reason: reason)
-            fillCredential(username: descriptor.username, password: password, origin: origin)
-        } catch WebCredentialStoreError.keychain(let status)
-            where status == errSecUserCanceled || status == errSecAuthFailed {
-            return
-        } catch {
-            WebCredentialPrompt.showError(error, window: hostView.window)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let password = try await WebCredentialStore.shared.password(
+                    for: descriptor,
+                    reason: reason
+                )
+                guard currentSecureOrigin() == origin else { return }
+                fillCredential(username: descriptor.username, password: password, origin: origin)
+            } catch where WebCredentialStore.isUserCancellation(error) {
+                return
+            } catch {
+                WebCredentialPrompt.showError(error, window: hostView.window)
+            }
         }
     }
 
@@ -2225,17 +2248,19 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             origin: origin,
             window: hostView.window
         ) else { return }
-        do {
-            try WebCredentialStore.shared.save(
-                origin: origin,
-                username: trimmedUsername,
-                password: password
-            )
-        } catch WebCredentialStoreError.keychain(let status)
-            where status == errSecUserCanceled || status == errSecAuthFailed {
-            return
-        } catch {
-            WebCredentialPrompt.showError(error, window: hostView.window)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await WebCredentialStore.shared.save(
+                    origin: origin,
+                    username: trimmedUsername,
+                    password: password
+                )
+            } catch where WebCredentialStore.isUserCancellation(error) {
+                return
+            } catch {
+                WebCredentialPrompt.showError(error, window: hostView.window)
+            }
         }
     }
 
@@ -3169,6 +3194,167 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         return `${semantic.join('\\n')}\\n${raw}`.trim().slice(0, 30000);
         """
         return await evaluateJavaScriptResult(operation: operation, timeout: 5)
+    }
+
+    func immersiveTranslationSegments(
+        expectedPageURL: String
+    ) async throws -> [ImmersiveTranslationSegment] {
+        guard let expectedURLJSON = try? JSONEncoder().encode(expectedPageURL),
+              let expectedURLLiteral = String(data: expectedURLJSON, encoding: .utf8) else {
+            throw ImmersiveTranslationError.unsupportedPage
+        }
+        let operation = #"""
+        const expectedURL = #(expectedURLLiteral);
+        const canonical = (value) => {
+          try {
+            const url = new URL(value);
+            url.hash = '';
+            return url.href;
+          } catch (_) {
+            return '';
+          }
+        };
+        if (!['http:', 'https:'].includes(location.protocol) ||
+            canonical(location.href) !== canonical(expectedURL)) {
+          return JSON.stringify({ ok: false, segments: [] });
+        }
+
+        document.querySelectorAll('[data-phi-immersive-translation]').forEach((node) => node.remove());
+        document.querySelectorAll('[data-phi-translation-source-id]').forEach((node) => {
+          node.removeAttribute('data-phi-translation-source-id');
+        });
+
+        const selector = 'h1,h2,h3,h4,h5,h6,p,li,blockquote,figcaption,dt,dd,td,th';
+        const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+        const isVisible = (element) => {
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.display !== 'none' && style.visibility !== 'hidden' &&
+            rect.width > 0 && rect.height > 0;
+        };
+        const containsReadableChild = (element) => Array.from(element.children).some((child) =>
+          child.matches && child.matches(selector) && normalize(child.innerText).length >= 2
+        );
+        const segments = [];
+        let totalCharacters = 0;
+        for (const element of document.querySelectorAll(selector)) {
+          if (segments.length >= 120 || totalCharacters >= 30000) break;
+          if (!isVisible(element) || containsReadableChild(element) ||
+              element.closest('script,style,noscript,template,pre,code,textarea,[contenteditable="true"],nav')) {
+            continue;
+          }
+          const text = normalize(element.innerText);
+          if (text.length < 2 || text.length > 1800 || !/[\p{L}\p{N}]/u.test(text)) continue;
+          const id = `phi-translation-${segments.length}`;
+          element.setAttribute('data-phi-translation-source-id', id);
+          segments.push({ id, text });
+          totalCharacters += text.length;
+        }
+        return JSON.stringify({ ok: true, segments });
+        """#
+        guard let result = await evaluateJavaScriptResult(operation: operation, timeout: 8),
+              let data = result.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              object["ok"] as? Bool == true,
+              let values = object["segments"] as? [[String: Any]] else {
+            throw ImmersiveTranslationError.pageChanged
+        }
+        return values.compactMap { value in
+            guard let id = value["id"] as? String,
+                  let text = value["text"] as? String,
+                  !id.isEmpty,
+                  !text.isEmpty else { return nil }
+            return ImmersiveTranslationSegment(id: id, text: text)
+        }
+    }
+
+    func applyImmersiveTranslations(
+        _ translations: [ImmersiveTranslationSegment],
+        targetLanguage: String,
+        expectedPageURL: String
+    ) async -> Bool {
+        guard let translationsData = try? JSONEncoder().encode(translations),
+              let translationsLiteral = String(data: translationsData, encoding: .utf8),
+              let languageData = try? JSONEncoder().encode(targetLanguage),
+              let languageLiteral = String(data: languageData, encoding: .utf8),
+              let expectedURLData = try? JSONEncoder().encode(expectedPageURL),
+              let expectedURLLiteral = String(data: expectedURLData, encoding: .utf8) else {
+            return false
+        }
+        let operation = #"""
+        const expectedURL = #(expectedURLLiteral);
+        const canonical = (value) => {
+          try {
+            const url = new URL(value);
+            url.hash = '';
+            return url.href;
+          } catch (_) {
+            return '';
+          }
+        };
+        if (canonical(location.href) !== canonical(expectedURL)) {
+          return JSON.stringify({ ok: false, applied: 0 });
+        }
+        const translations = #(translationsLiteral);
+        const targetLanguage = #(languageLiteral);
+        document.querySelectorAll('[data-phi-immersive-translation]').forEach((node) => node.remove());
+        let applied = 0;
+        for (const translation of translations) {
+          const source = document.querySelector(
+            `[data-phi-translation-source-id="${CSS.escape(translation.id)}"]`
+          );
+          if (!source || !translation.text) continue;
+          const translated = document.createElement('div');
+          translated.setAttribute('data-phi-immersive-translation', translation.id);
+          translated.setAttribute('lang', targetLanguage);
+          translated.textContent = translation.text;
+          translated.style.cssText = [
+            'box-sizing:border-box',
+            'display:block',
+            'margin:0.35em 0 0.75em',
+            'padding:0.15em 0 0.15em 0.7em',
+            'border-left:2px solid rgb(59,130,246)',
+            'color:inherit',
+            'opacity:0.82',
+            'font:inherit',
+            'line-height:inherit',
+            'white-space:pre-wrap'
+          ].join(';');
+          source.insertAdjacentElement('afterend', translated);
+          applied += 1;
+        }
+        return JSON.stringify({ ok: applied > 0, applied });
+        """#
+        guard let result = await evaluateJavaScriptResult(operation: operation, timeout: 8),
+              let data = result.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return false
+        }
+        return object["ok"] as? Bool == true
+    }
+
+    func removeImmersiveTranslations(expectedPageURL: String) async {
+        guard let expectedURLData = try? JSONEncoder().encode(expectedPageURL),
+              let expectedURLLiteral = String(data: expectedURLData, encoding: .utf8) else { return }
+        let operation = #"""
+        const expectedURL = #(expectedURLLiteral);
+        const canonical = (value) => {
+          try {
+            const url = new URL(value);
+            url.hash = '';
+            return url.href;
+          } catch (_) {
+            return '';
+          }
+        };
+        if (canonical(location.href) !== canonical(expectedURL)) return 'ignored';
+        document.querySelectorAll('[data-phi-immersive-translation]').forEach((node) => node.remove());
+        document.querySelectorAll('[data-phi-translation-source-id]').forEach((node) => {
+          node.removeAttribute('data-phi-translation-source-id');
+        });
+        return 'removed';
+        """#
+        _ = await evaluateJavaScriptResult(operation: operation, timeout: 5)
     }
 
     func extractGoogleSearchResults() async -> [ZenMuxWebSearchResult] {

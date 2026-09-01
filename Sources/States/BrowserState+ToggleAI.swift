@@ -7,6 +7,75 @@ import Foundation
 import Cocoa
 
 extension BrowserState {
+    static func shouldOfferYouTubeDigest(
+        pageURL: String?,
+        isAIEnabled: Bool,
+        isIncognito: Bool,
+        isOverviewActive: Bool,
+        isChatAvailable: Bool
+    ) -> Bool {
+        isAIEnabled
+            && !isIncognito
+            && !isOverviewActive
+            && isChatAvailable
+            && APIClient.isYouTubeVideoURL(pageURL)
+    }
+
+    /// Opens the native AI sidebar and immediately creates a structured digest
+    /// for the focused YouTube video. The existing ZenMux page-context path
+    /// owns transcript retrieval and audiovisual fallback, so this entry does
+    /// not introduce a second video-processing or credential stack.
+    @MainActor
+    func startYouTubeDigest() {
+        let aiEnabled = PhiPreferences.AISettings.phiAIEnabled.loadValue()
+        guard let tab = focusingTab,
+              Self.shouldOfferYouTubeDigest(
+                pageURL: tab.url,
+                isAIEnabled: aiEnabled,
+                isIncognito: isIncognito,
+                isOverviewActive: groupOverviewState != nil,
+                isChatAvailable: tab.aiChatEnabled
+              ) else {
+            NSSound.beep()
+            return
+        }
+
+        let session = zenMuxChatSession(for: tab)
+        session.draft = ZenMuxChatSession.youtubeDigestDraft()
+        tab.updateFocusTarget(.aiChat)
+        prepareAIChatSidebarOpen(trigger: .button)
+        setAIChatCollapsed(for: tab, collapsed: false)
+        session.requestFocus()
+
+        guard !session.isSending,
+              ((try? ZenMuxCredentialStore.shared.loadAPIKey()) ?? nil) != nil else {
+            return
+        }
+
+        Task { @MainActor [weak self, weak tab] in
+            guard let self, let tab else { return }
+            var context = ZenMuxPageContext(title: tab.title, url: tab.url)
+            if let provider = tab.webContentWrapper as? PageContentProviding {
+                context.pageContent = await provider.pageContentContext()
+            }
+            await session.send(
+                pageContext: context,
+                browserAutomation: { [weak tab] action in
+                    guard let provider = tab?.webContentWrapper as? BrowserAutomationProviding else {
+                        return BrowserAutomationResult(
+                            succeeded: false,
+                            message: "This tab does not provide browser automation."
+                        )
+                    }
+                    return await provider.performBrowserAutomation(action)
+                },
+                googleSearch: { [weak self] query in
+                    await self?.collectZenMuxGoogleSearchResults(query: query) ?? []
+                }
+            )
+        }
+    }
+
     func onAIEnabledChanged(_ enabled: Bool, sentinelOnLogin: Bool) {
         _ = sentinelOnLogin
         Task {

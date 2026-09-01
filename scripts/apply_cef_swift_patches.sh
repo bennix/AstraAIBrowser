@@ -11,6 +11,7 @@ patches=(
   "$repository_root/patches/cefswift/install-document-start-script.patch"
   "$repository_root/patches/cefswift/configure-accept-language.patch"
   "$repository_root/patches/cefswift/export-session-cookies.patch"
+  "$repository_root/patches/cefswift/forward-mouse-release-flags.patch"
 )
 targets=(
   "$cef_swift_root/Sources/CefKit/CefBrowser.swift"
@@ -18,6 +19,7 @@ targets=(
   "$cef_swift_root/Sources/CefKit/CefConfiguration.swift"
   "$cef_swift_root/Sources/CefKit/CefConfiguration.swift"
   "$cef_swift_root/Sources/CefKit/CefBrowser.swift"
+  "$cef_swift_root/Sources/CefSwiftUI/CefMetalHostView+Input.swift"
 )
 markers=(
   "public func captureVisiblePageScreenshot"
@@ -25,6 +27,7 @@ markers=(
   "public var documentStartJavaScript"
   "public var acceptLanguageList"
   "public func cookies(for url: URL"
+  "eventType: NSEvent.EventType? = nil"
 )
 
 applied_any=false

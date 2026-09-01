@@ -88,12 +88,21 @@ class Tab: WebContentRepresentable {
     /// by `BrowserState.handleTabJoinedGroup` / `handleTabLeftGroup`.
     @Published var groupToken: String?
     @Published var title: String = ""
-    @Published var url: String?
+    @Published var url: String? {
+        didSet {
+            if oldValue != url {
+                immersiveTranslationState = .inactive
+            }
+        }
+    }
     @Published private(set) var securityInfo: TabSecurityInfo = .empty
     
     /// Per-tab AI Chat sidebar collapsed state.
     @Published var aiChatCollapsed: Bool = true
     @Published var aiChatEnabled: Bool = false
+
+    /// Per-tab state for the native bilingual webpage translation overlay.
+    @Published var immersiveTranslationState: ImmersiveTranslationState = .inactive
 
     /// Native renderer crash-page state, set by `PhiChromiumCoordinator` from
     /// the `showCrashPage` bridge event and cleared on teardown. Non-nil drives

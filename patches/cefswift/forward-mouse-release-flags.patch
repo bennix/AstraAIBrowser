@@ -1,0 +1,159 @@
+diff --git a/Sources/CefSwiftUI/CefMetalHostView+Input.swift b/Sources/CefSwiftUI/CefMetalHostView+Input.swift
+--- a/Sources/CefSwiftUI/CefMetalHostView+Input.swift
++++ b/Sources/CefSwiftUI/CefMetalHostView+Input.swift
+@@ -11,21 +11,40 @@ extension CefMetalHostView {
+
+     /// Translates `NSEvent.ModifierFlags` (+ pressed mouse buttons) into CEF's
+     /// `cef_event_flags_t` bitmask.
+-    static func cefModifiers(_ flags: NSEvent.ModifierFlags, pressedButtons: Int = 0) -> UInt32 {
++    static func cefModifiers(
++        _ flags: NSEvent.ModifierFlags,
++        pressedButtons: Int = 0,
++        eventType: NSEvent.EventType? = nil
++    ) -> UInt32 {
+         var m: UInt32 = 0
+         if flags.contains(.shift) { m |= UInt32(EVENTFLAG_SHIFT_DOWN.rawValue) }
+         if flags.contains(.control) { m |= UInt32(EVENTFLAG_CONTROL_DOWN.rawValue) }
+         if flags.contains(.option) { m |= UInt32(EVENTFLAG_ALT_DOWN.rawValue) }
+         if flags.contains(.command) { m |= UInt32(EVENTFLAG_COMMAND_DOWN.rawValue) }
+         if flags.contains(.capsLock) { m |= UInt32(EVENTFLAG_CAPS_LOCK_ON.rawValue) }
+-        if pressedButtons & (1 << 0) != 0 { m |= UInt32(EVENTFLAG_LEFT_MOUSE_BUTTON.rawValue) }
+-        if pressedButtons & (1 << 1) != 0 { m |= UInt32(EVENTFLAG_RIGHT_MOUSE_BUTTON.rawValue) }
+-        if pressedButtons & (1 << 2) != 0 { m |= UInt32(EVENTFLAG_MIDDLE_MOUSE_BUTTON.rawValue) }
++        var buttons = pressedButtons
++        switch eventType {
++        case .leftMouseDown, .leftMouseUp, .leftMouseDragged:
++            buttons |= 1 << 0
++        case .rightMouseDown, .rightMouseUp, .rightMouseDragged:
++            buttons |= 1 << 1
++        case .otherMouseDown, .otherMouseUp, .otherMouseDragged:
++            buttons |= 1 << 2
++        default:
++            break
++        }
++        if buttons & (1 << 0) != 0 { m |= UInt32(EVENTFLAG_LEFT_MOUSE_BUTTON.rawValue) }
++        if buttons & (1 << 1) != 0 { m |= UInt32(EVENTFLAG_RIGHT_MOUSE_BUTTON.rawValue) }
++        if buttons & (1 << 2) != 0 { m |= UInt32(EVENTFLAG_MIDDLE_MOUSE_BUTTON.rawValue) }
+         return m
+     }
+
+-    private var modifiers: UInt32 {
+-        CefMetalHostView.cefModifiers(NSEvent.modifierFlags, pressedButtons: NSEvent.pressedMouseButtons)
++    private func modifiers(for event: NSEvent) -> UInt32 {
++        CefMetalHostView.cefModifiers(
++            event.modifierFlags,
++            pressedButtons: NSEvent.pressedMouseButtons,
++            eventType: event.type
++        )
+     }
+
+     var osrBrowser: CefBrowser? { browser }
+@@ -33,22 +52,22 @@ extension CefMetalHostView {
+     // MARK: Mouse
+
+     public override func mouseMoved(with event: NSEvent) {
+-        osrBrowser?.sendMouseMove(to: dipPoint(for: event), modifiers: modifiers)
++        osrBrowser?.sendMouseMove(to: dipPoint(for: event), modifiers: modifiers(for: event))
+     }
+     public override func mouseDragged(with event: NSEvent) {
+-        osrBrowser?.sendMouseMove(to: dipPoint(for: event), modifiers: modifiers)
++        osrBrowser?.sendMouseMove(to: dipPoint(for: event), modifiers: modifiers(for: event))
+     }
+     public override func rightMouseDragged(with event: NSEvent) {
+-        osrBrowser?.sendMouseMove(to: dipPoint(for: event), modifiers: modifiers)
++        osrBrowser?.sendMouseMove(to: dipPoint(for: event), modifiers: modifiers(for: event))
+     }
+     public override func otherMouseDragged(with event: NSEvent) {
+-        osrBrowser?.sendMouseMove(to: dipPoint(for: event), modifiers: modifiers)
++        osrBrowser?.sendMouseMove(to: dipPoint(for: event), modifiers: modifiers(for: event))
+     }
+     public override func mouseExited(with event: NSEvent) {
+-        osrBrowser?.sendMouseMove(to: dipPoint(for: event), modifiers: modifiers, leaving: true)
++        osrBrowser?.sendMouseMove(to: dipPoint(for: event), modifiers: modifiers(for: event), leaving: true)
+     }
+     public override func mouseEntered(with event: NSEvent) {
+-        osrBrowser?.sendMouseMove(to: dipPoint(for: event), modifiers: modifiers)
++        osrBrowser?.sendMouseMove(to: dipPoint(for: event), modifiers: modifiers(for: event))
+     }
+
+     public override func mouseDown(with event: NSEvent) {
+@@ -57,16 +76,16 @@ extension CefMetalHostView {
+         // a window (you'd have to click another view first).
+         window?.makeFirstResponder(self)
+         osrBrowser?.setFocus(true)
+-        osrBrowser?.sendMouseDown(at: dipPoint(for: event), button: .left, clickCount: event.clickCount, modifiers: modifiers)
++        osrBrowser?.sendMouseDown(at: dipPoint(for: event), button: .left, clickCount: event.clickCount, modifiers: modifiers(for: event))
+     }
+     public override func mouseUp(with event: NSEvent) {
+-        osrBrowser?.sendMouseUp(at: dipPoint(for: event), button: .left, clickCount: event.clickCount, modifiers: modifiers)
++        osrBrowser?.sendMouseUp(at: dipPoint(for: event), button: .left, clickCount: event.clickCount, modifiers: modifiers(for: event))
+     }
+     public override func rightMouseDown(with event: NSEvent) {
+-        osrBrowser?.sendMouseDown(at: dipPoint(for: event), button: .right, clickCount: event.clickCount, modifiers: modifiers)
++        osrBrowser?.sendMouseDown(at: dipPoint(for: event), button: .right, clickCount: event.clickCount, modifiers: modifiers(for: event))
+     }
+     public override func rightMouseUp(with event: NSEvent) {
+-        osrBrowser?.sendMouseUp(at: dipPoint(for: event), button: .right, clickCount: event.clickCount, modifiers: modifiers)
++        osrBrowser?.sendMouseUp(at: dipPoint(for: event), button: .right, clickCount: event.clickCount, modifiers: modifiers(for: event))
+     }
+     /// What an `otherMouse*` button maps to. Buttons 3/4 are the standard
+     /// "back"/"forward" thumb buttons; anything else is treated as a middle
+@@ -86,14 +105,14 @@ extension CefMetalHostView {
+         case .back: osrBrowser?.goBack(); return
+         case .forward: osrBrowser?.goForward(); return
+         case .middle:
+-            osrBrowser?.sendMouseDown(at: dipPoint(for: event), button: .middle, clickCount: event.clickCount, modifiers: modifiers)
++            osrBrowser?.sendMouseDown(at: dipPoint(for: event), button: .middle, clickCount: event.clickCount, modifiers: modifiers(for: event))
+         }
+     }
+     public override func otherMouseUp(with event: NSEvent) {
+         // Swallow the release of the back/forward thumb buttons so they don't
+         // also reach the page as a middle click.
+         guard CefMetalHostView.otherMouseAction(forButtonNumber: event.buttonNumber) == .middle else { return }
+-        osrBrowser?.sendMouseUp(at: dipPoint(for: event), button: .middle, clickCount: event.clickCount, modifiers: modifiers)
++        osrBrowser?.sendMouseUp(at: dipPoint(for: event), button: .middle, clickCount: event.clickCount, modifiers: modifiers(for: event))
+     }
+
+     public override func scrollWheel(with event: NSEvent) {
+@@ -121,7 +140,7 @@ extension CefMetalHostView {
+         let sendY = totalY.rounded(.towardZero)
+         scrollResidual = CGPoint(x: totalX - sendX, y: totalY - sendY)
+         if sendX == 0 && sendY == 0 { return }
+-        osrBrowser?.sendMouseWheel(at: dipPoint(for: event), deltaX: sendX, deltaY: sendY, modifiers: modifiers)
++        osrBrowser?.sendMouseWheel(at: dipPoint(for: event), deltaX: sendX, deltaY: sendY, modifiers: modifiers(for: event))
+     }
+
+     // MARK: Keyboard
+diff --git a/Tests/CefKitTests/OSRInputConformanceTests.swift b/Tests/CefKitTests/OSRInputConformanceTests.swift
+--- a/Tests/CefKitTests/OSRInputConformanceTests.swift
++++ b/Tests/CefKitTests/OSRInputConformanceTests.swift
+@@ -77,6 +77,29 @@ struct OSRInputConformanceTests {
+         #expect(middle & UInt32(EVENTFLAG_MIDDLE_MOUSE_BUTTON.rawValue) != 0)
+     }
+
++    @Test func mouseReleaseKeepsTheReleasedButtonFlag() {
++        let left = CefMetalHostView.cefModifiers(
++            [],
++            pressedButtons: 0,
++            eventType: .leftMouseUp
++        )
++        #expect(left & UInt32(EVENTFLAG_LEFT_MOUSE_BUTTON.rawValue) != 0)
++
++        let right = CefMetalHostView.cefModifiers(
++            [],
++            pressedButtons: 0,
++            eventType: .rightMouseUp
++        )
++        #expect(right & UInt32(EVENTFLAG_RIGHT_MOUSE_BUTTON.rawValue) != 0)
++
++        let middle = CefMetalHostView.cefModifiers(
++            [],
++            pressedButtons: 0,
++            eventType: .otherMouseUp
++        )
++        #expect(middle & UInt32(EVENTFLAG_MIDDLE_MOUSE_BUTTON.rawValue) != 0)
++    }
++
+     // MARK: Mouse-button → navigation mapping
+
+     @Test func mouseButtonNavigationMapping() {

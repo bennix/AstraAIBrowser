@@ -64,12 +64,14 @@ final class WebCredentialStore {
 
     func descriptors(for origin: String) -> [WebCredentialDescriptor] {
         guard let origin = Self.secureOrigin(from: origin) else { return [] }
+        let context = LAContext()
+        context.interactionNotAllowed = true
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecReturnAttributes as String: true,
             kSecMatchLimit as String: kSecMatchLimitAll,
-            kSecUseAuthenticationUI as String: kSecUseAuthenticationUIFail,
+            kSecUseAuthenticationContext as String: context,
         ]
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
@@ -95,7 +97,7 @@ final class WebCredentialStore {
         .sorted { $0.modifiedAt > $1.modifiedAt }
     }
 
-    func save(origin rawOrigin: String, username rawUsername: String, password: String) throws {
+    func save(origin rawOrigin: String, username rawUsername: String, password: String) async throws {
         guard let origin = Self.secureOrigin(from: rawOrigin) else {
             throw WebCredentialStoreError.invalidInput
         }
@@ -110,8 +112,7 @@ final class WebCredentialStore {
         let data = Data(password.utf8)
         let existing = descriptors(for: origin).contains { $0.account == account }
         if existing {
-            let context = LAContext()
-            context.localizedReason = String(
+            let reason = String(
                 format: NSLocalizedString(
                     "passwords.webCredential.touchID.updateReason",
                     value: "Update the saved password for %@",
@@ -119,6 +120,7 @@ final class WebCredentialStore {
                 ),
                 username
             )
+            let context = try await authenticatedContext(reason: reason)
             let query: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
                 kSecAttrService as String: service,
@@ -161,9 +163,8 @@ final class WebCredentialStore {
     func password(
         for descriptor: WebCredentialDescriptor,
         reason: String
-    ) throws -> String {
-        let context = LAContext()
-        context.localizedReason = reason
+    ) async throws -> String {
+        let context = try await authenticatedContext(reason: reason)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -171,7 +172,6 @@ final class WebCredentialStore {
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
             kSecUseAuthenticationContext as String: context,
-            kSecUseOperationPrompt as String: reason,
         ]
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
@@ -181,6 +181,40 @@ final class WebCredentialStore {
             throw WebCredentialStoreError.keychain(status)
         }
         return password
+    }
+
+    static func isUserCancellation(_ error: Error) -> Bool {
+        if case WebCredentialStoreError.keychain(let status) = error {
+            return status == errSecUserCanceled || status == errSecAuthFailed
+        }
+        let nsError = error as NSError
+        guard nsError.domain == LAError.errorDomain,
+              let code = LAError.Code(rawValue: nsError.code) else {
+            return false
+        }
+        return code == .userCancel || code == .appCancel || code == .systemCancel
+    }
+
+    private func authenticatedContext(reason: String) async throws -> LAContext {
+        let context = LAContext()
+        var policyError: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &policyError) else {
+            throw policyError ?? NSError(
+                domain: LAError.errorDomain,
+                code: LAError.Code.authenticationFailed.rawValue
+            )
+        }
+        guard try await context.evaluatePolicy(
+            .deviceOwnerAuthentication,
+            localizedReason: reason
+        ) else {
+            throw NSError(
+                domain: LAError.errorDomain,
+                code: LAError.Code.authenticationFailed.rawValue
+            )
+        }
+        context.interactionNotAllowed = true
+        return context
     }
 
     private static func account(origin: String, username: String) -> String {

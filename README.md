@@ -3,9 +3,9 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 69)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.69/Astra-Browser-build69.dmg)
+[Download Astra 1.0 (build 70)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.70/Astra-Browser-build70.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.69)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.70)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
@@ -28,6 +28,8 @@ and accepted by Apple's notarization service.
 - Paste images directly into ZenMux, or add a removable capture of the exact visible browser viewport from the composer, including the current standard video frame.
 - ZenMux answers render GitHub-style Markdown tables and normalize common model-specific LaTeX wrappers before native math rendering.
 - YouTube ad playback acceleration: detected ads play at 8× and the previous content speed is restored afterward.
+- YouTube video pages expose a native sidebar digest action that uses available captions or audiovisual analysis to produce full-video chapters, evidence, timestamps, and explicit uncertainty through ZenMux.
+- Public web pages expose native bilingual immersive translation with a target-language picker, removable inline translations, an on-device option on supported systems, and an optional ZenMux-enhanced engine.
 - YouTube and other WebKit media pages support HTML element fullscreen.
 - Mainland and H.264/AAC-first video sites use an in-app system media engine when the bundled Chromium codec set is insufficient, while YouTube keeps its Chromium VP9/AV1 path. X uses a persistent system WebKit session for reliable macOS media playback.
 - Window close preserves tabs and live page state for the next Dock activation, while a fully closed final window now has a native fallback so Astra cannot remain running without a reopenable interface.
@@ -39,6 +41,7 @@ and accepted by Apple's notarization service.
 - Newly opened YouTube and other Chromium-heavy tabs stay attached to Astra, and close promptly even if the underlying Chromium window has already disappeared.
 - X and Twitter image viewers provide visible zoom-out, 100%–800% slider, zoom-in, percentage, and reset controls, alongside native trackpad pinch, wheel, double-click zoom, and drag-to-pan.
 - Selected-text Google searches on X and other WebKit-rendered pages open in a new Astra tab instead of Safari, including selections inside text fields.
+- Saved website credentials use an authenticated Keychain context so suggestion selection, Touch ID approval, and form filling complete as one coordinated flow.
 - Browser automation traverses accessible same-origin frames, recognizes contenteditable and design-mode rich-text editors, translates nested-frame coordinates, and verifies that entered text persists before reporting success.
 - X pages include a native local-first spam shield with whitelist precedence, reversible hiding, one-click Guard blocking with on-pill progress, a six-hour primary-source update check, GitHub mirror fallback, and manual database updates in General settings.
 - Astra's icon and installation identity remain stable across restarts; the legacy Phi updater cannot replace the installed app.
