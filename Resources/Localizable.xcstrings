@@ -976,6 +976,13 @@
         "en" : { "stringUnit" : { "state" : "new", "value" : "Vocabulary Book" } }
       }
     },
+    "translation.selection.copyAction" : {
+      "comment" : "Selection translation card - Button that copies the translated text",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Copy Translation" } }
+      }
+    },
     "vocabulary.error.selectionTooLong" : {
       "comment" : "Word lookup - Error shown when the selected text is too long to be treated as a dictionary entry",
       "extractionState" : "extracted_with_value",
@@ -69384,7 +69391,7 @@
       }
     },
     "translation.selection.failedTitle" : {
-      "comment" : "Selection translation - Toast title shown when selected text could not be translated",
+      "comment" : "Selection translation - Card title shown when selected text could not be translated",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "new", "value" : "Selection translation failed" } }
@@ -69395,13 +69402,6 @@
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "new", "value" : "Translating selection…" } }
-      }
-    },
-    "translation.selection.resultTitle" : {
-      "comment" : "Selection translation - Result toast title; placeholder is the target language name",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "new", "value" : "Translated to %@" } }
       }
     },
     "sidebar.feedbackButton.tooltip" : {

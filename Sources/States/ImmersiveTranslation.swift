@@ -376,15 +376,9 @@ extension BrowserState {
         let language = ImmersiveTranslationPreferences.loadLanguage()
         let provider = ImmersiveTranslationPreferences.loadProvider()
         guard selection.count <= SelectionTranslationPolicy.maximumCharacterCount else {
-            OverlayToastCenter.shared.show(
-                title: NSLocalizedString(
-                    "translation.selection.failedTitle",
-                    value: "Selection translation failed",
-                    comment: "Selection translation - Toast title shown when selected text could not be translated"
-                ),
-                message: ImmersiveTranslationError.selectionTooLong.localizedDescription,
-                duration: 6,
-                in: self
+            SelectionCardController.shared.presentFailure(
+                title: Self.selectionTranslationFailedTitle,
+                message: ImmersiveTranslationError.selectionTooLong.localizedDescription
             )
             return
         }
@@ -393,15 +387,8 @@ extension BrowserState {
         let operationID = UUID()
         let pageURL = tab.url
         tab.selectionTranslationOperationID = operationID
-        OverlayToastCenter.shared.show(
-            title: NSLocalizedString(
-                "translation.selection.progressTitle",
-                value: "Translating selection…",
-                comment: "Selection translation - Brief toast shown while selected webpage text is being translated"
-            ),
-            duration: 1.2,
-            in: self
-        )
+        AppLogInfo("[SelectionTranslation] started characters=\(selection.count) window=\(windowId)")
+        SelectionCardController.shared.presentTranslating(original: selection, language: language)
 
         tab.selectionTranslationTask = Task { @MainActor [weak self, weak tab] in
             guard let self, let tab else { return }
@@ -422,40 +409,39 @@ extension BrowserState {
                     provider: provider
                 )
                 try Task.checkCancellation()
+                AppLogInfo(
+                    "[SelectionTranslation] completed returned=\(translations.count) sameOperation=\(tab.selectionTranslationOperationID == operationID) sameURL=\(tab.url == pageURL) tabAlive=\(self.tabs.contains(where: { $0 === tab }))"
+                )
                 guard tab.selectionTranslationOperationID == operationID,
                       tab.url == pageURL,
                       self.tabs.contains(where: { $0 === tab }),
                       let translation = translations.first,
                       translation.id == segment.id else { return }
-                let title = String(
-                    format: NSLocalizedString(
-                        "translation.selection.resultTitle",
-                        value: "Translated to %@",
-                        comment: "Selection translation - Result toast title; placeholder is the target language name"
-                    ),
-                    language.displayName
-                )
-                OverlayToastCenter.shared.show(
-                    title: title,
-                    message: translation.text,
-                    duration: 8,
-                    in: self
+                SelectionCardController.shared.presentTranslation(
+                    original: selection,
+                    translated: translation.text,
+                    language: language
                 )
             } catch {
+                AppLogInfo(
+                    "[SelectionTranslation] failed error=\(String(describing: error)) cancelled=\(Task.isCancelled)"
+                )
                 guard !Task.isCancelled,
                       tab.selectionTranslationOperationID == operationID,
                       tab.url == pageURL else { return }
-                OverlayToastCenter.shared.show(
-                    title: NSLocalizedString(
-                        "translation.selection.failedTitle",
-                        value: "Selection translation failed",
-                        comment: "Selection translation - Toast title shown when selected text could not be translated"
-                    ),
-                    message: error.localizedDescription,
-                    duration: 6,
-                    in: self
+                SelectionCardController.shared.presentFailure(
+                    title: Self.selectionTranslationFailedTitle,
+                    message: error.localizedDescription
                 )
             }
         }
+    }
+
+    private static var selectionTranslationFailedTitle: String {
+        NSLocalizedString(
+            "translation.selection.failedTitle",
+            value: "Selection translation failed",
+            comment: "Selection translation - Card title shown when selected text could not be translated"
+        )
     }
 }

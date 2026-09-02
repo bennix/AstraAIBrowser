@@ -247,6 +247,9 @@ extension BrowserState {
         tab.wordLookupTask?.cancel()
         let operationID = UUID()
         tab.wordLookupOperationID = operationID
+        AppLogInfo(
+            "[WordLookup] started characters=\(word.count) savesToVocabulary=\(savesToVocabulary) window=\(windowId)"
+        )
 
         if savesToVocabulary {
             OverlayToastCenter.shared.show(
@@ -259,7 +262,7 @@ extension BrowserState {
                 in: self
             )
         } else {
-            WordLookupPanelController.shared.presentLoading(word: word, language: language)
+            SelectionCardController.shared.presentLookingUp(word: word, language: language)
         }
 
         tab.wordLookupTask = Task { @MainActor [weak self, weak tab] in
@@ -273,6 +276,9 @@ extension BrowserState {
             do {
                 let lookup = try await self.lookUpWord(word, language: language, provider: provider)
                 try Task.checkCancellation()
+                AppLogInfo(
+                    "[WordLookup] completed partOfSpeech=\(lookup.partOfSpeech) sameOperation=\(tab.wordLookupOperationID == operationID) tabAlive=\(self.tabs.contains(where: { $0 === tab }))"
+                )
                 guard tab.wordLookupOperationID == operationID,
                       self.tabs.contains(where: { $0 === tab }) else { return }
 
@@ -285,7 +291,7 @@ extension BrowserState {
                         in: self
                     )
                 } else {
-                    WordLookupPanelController.shared.presentResult(
+                    SelectionCardController.shared.presentLookup(
                         lookup,
                         language: language,
                         isSaved: store.contains(word: lookup.word),
@@ -302,6 +308,9 @@ extension BrowserState {
                     )
                 }
             } catch {
+                AppLogInfo(
+                    "[WordLookup] failed error=\(String(describing: error)) cancelled=\(Task.isCancelled)"
+                )
                 guard !Task.isCancelled,
                       tab.wordLookupOperationID == operationID else { return }
                 if savesToVocabulary {
@@ -312,7 +321,10 @@ extension BrowserState {
                         in: self
                     )
                 } else {
-                    WordLookupPanelController.shared.presentFailure(error.localizedDescription)
+                    SelectionCardController.shared.presentFailure(
+                        title: Self.lookupFailedTitle,
+                        message: error.localizedDescription
+                    )
                 }
             }
         }

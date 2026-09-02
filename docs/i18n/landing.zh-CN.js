@@ -30,9 +30,9 @@
     "features.immersiveTranslation.body": "在保留原文的同时，将网页可读内容逐段翻译并显示在原文下方。Astra 最多并发处理四个更小的 ZenMux 批次，每批完成后立即回填；一键即可恢复原页面。",
     "features.youtubeDigest.title": "重证据的 YouTube 视频摘要",
     "features.youtubeDigest.body": "YouTube 视频页会显示上下文侧边栏入口，使用可用字幕或视听分析生成覆盖完整视频的结构化摘要，包括时间章节、可核对引语、核心论证和明确标注的不确定性。",
-    "features.vocabularyBook.title": "划词查询与持久词汇本",
-    "features.vocabularyBook.body": "在网页上选中单词或短语后，可从右键菜单查看词性与 ZenMux 翻译，再保存到可搜索的持久词汇本，并支持复制或导出 Markdown。",
-    "download.summary": "Build 75 增加划词查询、ZenMux 词典卡片以及支持搜索和 Markdown 导出的持久词汇本。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "features.vocabularyBook.title": "划词翻译与持久词汇本",
+    "features.vocabularyBook.body": "在网页上选中文本后，可从右键菜单翻译内容或查询单词。指针锚定卡片会就地更新结果，支持复制译文，并可将词典结果保存到可搜索、可导出 Markdown 的持久词汇本。",
+    "download.summary": "Build 76 将划词翻译与单词查询合并到指针锚定卡片，支持就地更新、复制译文和保存词汇。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

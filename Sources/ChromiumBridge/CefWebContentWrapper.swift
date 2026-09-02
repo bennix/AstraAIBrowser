@@ -1320,6 +1320,9 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     ) -> Bool {
         guard let action = Self.selectionAction(forContextMenuCommandID: commandID) else { return false }
         let selection = SelectionTranslationPolicy.normalizedText(params.selectionText)
+        AppLogInfo(
+            "[WebSelection] context menu command action=\(action) characters=\(selection.count) hasHandler=\(onSelectionAction != nil)"
+        )
         guard !selection.isEmpty else { return true }
         onSelectionAction?(action, selection)
         return true

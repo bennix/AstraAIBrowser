@@ -14,7 +14,7 @@
 		3703C9822F69558C00E7CF6D /* BrowserState+ToggleAI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3703C9812F69558C00E7CF6D /* BrowserState+ToggleAI.swift */; };
 		A11CE0023000000000000001 /* ImmersiveTranslation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0013000000000000001 /* ImmersiveTranslation.swift */; };
 		A11CE0023000000000000002 /* VocabularyBook.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0013000000000000002 /* VocabularyBook.swift */; };
-		A11CE0023000000000000003 /* WordLookupPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0013000000000000003 /* WordLookupPanelController.swift */; };
+		A11CE0023000000000000003 /* SelectionCardController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0013000000000000003 /* SelectionCardController.swift */; };
 		A11CE0023000000000000004 /* VocabularyBookWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0013000000000000004 /* VocabularyBookWindowController.swift */; };
 		3703C9842F6956E600E7CF6D /* SentinelHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3703C9832F6956E600E7CF6D /* SentinelHelper.swift */; };
 		3703C9862F6956E600E7CF6D /* SentinelVersionGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3703C9852F6956E600E7CF6D /* SentinelVersionGuard.swift */; };
@@ -655,7 +655,7 @@
 		3703C9812F69558C00E7CF6D /* BrowserState+ToggleAI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BrowserState+ToggleAI.swift"; sourceTree = "<group>"; };
 		A11CE0013000000000000001 /* ImmersiveTranslation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersiveTranslation.swift; sourceTree = "<group>"; };
 		A11CE0013000000000000002 /* VocabularyBook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyBook.swift; sourceTree = "<group>"; };
-		A11CE0013000000000000003 /* WordLookupPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordLookupPanelController.swift; sourceTree = "<group>"; };
+		A11CE0013000000000000003 /* SelectionCardController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionCardController.swift; sourceTree = "<group>"; };
 		A11CE0013000000000000004 /* VocabularyBookWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyBookWindowController.swift; sourceTree = "<group>"; };
 		3703C9832F6956E600E7CF6D /* SentinelHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SentinelHelper.swift; sourceTree = "<group>"; };
 		3703C9852F6956E600E7CF6D /* SentinelVersionGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SentinelVersionGuard.swift; sourceTree = "<group>"; };
@@ -1682,7 +1682,7 @@
 		A11CE0033000000000000001 /* Vocabulary */ = {
 			isa = PBXGroup;
 			children = (
-				A11CE0013000000000000003 /* WordLookupPanelController.swift */,
+				A11CE0013000000000000003 /* SelectionCardController.swift */,
 				A11CE0013000000000000004 /* VocabularyBookWindowController.swift */,
 			);
 			path = Vocabulary;
@@ -3247,7 +3247,7 @@
 				3703C9822F69558C00E7CF6D /* BrowserState+ToggleAI.swift in Sources */,
 				A11CE0023000000000000001 /* ImmersiveTranslation.swift in Sources */,
 				A11CE0023000000000000002 /* VocabularyBook.swift in Sources */,
-				A11CE0023000000000000003 /* WordLookupPanelController.swift in Sources */,
+				A11CE0023000000000000003 /* SelectionCardController.swift in Sources */,
 				A11CE0023000000000000004 /* VocabularyBookWindowController.swift in Sources */,
 				EAD000000000000000000012 /* ReaderExtractionService.swift in Sources */,
 				EAD00000000000000000001A /* ReaderAccessibilityExtractor.swift in Sources */,
@@ -3568,7 +3568,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10075;
+				CURRENT_PROJECT_VERSION = 10076;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -4031,7 +4031,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10075;
+				CURRENT_PROJECT_VERSION = 10076;
 				DEVELOPMENT_TEAM = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -4085,7 +4085,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10075;
+				CURRENT_PROJECT_VERSION = 10076;
 				DEVELOPMENT_TEAM = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -4278,7 +4278,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10075;
+				CURRENT_PROJECT_VERSION = 10076;
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
