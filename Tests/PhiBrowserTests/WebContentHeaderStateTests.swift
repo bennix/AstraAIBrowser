@@ -82,7 +82,7 @@ final class WebContentHeaderStateTests: XCTestCase {
     func testFeatureEntryAnalyticsUsesOnlySupportedButtons() {
         XCTAssertEqual(
             FeatureEntryAnalytics.Button.allCases.map(\.rawValue),
-            ["chat", "memory", "download", "youtube_digest", "organize_tabs"]
+            ["chat", "memory", "download", "youtube_digest", "x_bookmark_digest", "organize_tabs"]
         )
     }
 

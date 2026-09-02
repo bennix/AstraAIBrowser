@@ -14,10 +14,10 @@
       "extractionState" : "extracted_with_value",
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Classifying collected X bookmarks…" } } }
     },
-    "sidebar.xBookmarkDigestButton.tooltip" : {
-      "comment" : "Sidebar - Tooltip for the contextual X bookmark archive button",
+    "browser.xBookmarkArchiveButton.tooltip" : {
+      "comment" : "Browser chrome - Tooltip for the contextual X bookmark archive button",
       "extractionState" : "extracted_with_value",
-      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Collect and summarize X bookmarks" } } }
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "X bookmark archive" } } }
     },
     "xBookmarks.error.collectionLimitReached" : {
       "comment" : "X bookmark digest - Error shown when the collector safety limit is reached before timeline completion",
@@ -48,6 +48,16 @@
       "comment" : "X bookmark digest - Explanation of the local automatic collection stage",
       "extractionState" : "extracted_with_value",
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Astra scrolls through the signed-in bookmarks timeline and collects each post's text, author, date, links, quoted text, and available media details without AI." } } }
+    },
+    "xBookmarks.popover.openBookmarksAction" : {
+      "comment" : "X bookmark digest - Button that navigates the focused X tab to its bookmarks timeline",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Open X bookmarks" } } }
+    },
+    "xBookmarks.popover.openBookmarksStatus" : {
+      "comment" : "X bookmark digest - Status shown when the entry is opened from another X page",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Open your X bookmarks timeline before starting the archive." } } }
     },
     "xBookmarks.popover.collectingStatus" : {
       "comment" : "X bookmark digest - Live collection status; placeholder is the unique post count",

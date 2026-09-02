@@ -108,12 +108,12 @@ embedded in the app. Do not export or commit the private key. Back it up through
 an approved secrets workflow before moving releases to another Mac.
 
 After notarization, generate a signed appcast from the exact DMG that will be
-uploaded. For Build 77, for example:
+uploaded. For Build 78, for example:
 
 ```sh
 scripts/generate_github_appcast.sh \
-  --dmg releases/Astra-Browser-build77.dmg \
-  --tag v1.0.77 \
+  --dmg releases/Astra-Browser-build78.dmg \
+  --tag v1.0.78 \
   --output releases/appcast.xml
 ```
 
@@ -122,11 +122,11 @@ remain exactly `appcast.xml`, because installed apps resolve it through
 `https://github.com/bennix/AstraAIBrowser/releases/latest/download/appcast.xml`.
 
 ```sh
-gh release create v1.0.77 \
-  releases/Astra-Browser-build77.dmg \
+gh release create v1.0.78 \
+  releases/Astra-Browser-build78.dmg \
   releases/appcast.xml \
   --repo bennix/AstraAIBrowser \
-  --title "Astra Browser 1.0 (Build 77)" \
+  --title "Astra Browser 1.0 (Build 78)" \
   --notes-file /path/to/release-notes.md
 ```
 
@@ -134,7 +134,7 @@ Never edit `appcast.xml` after generation. Any change invalidates its embedded
 feed signature. Verify both assets are present before announcing the release:
 
 ```sh
-gh release view v1.0.77 \
+gh release view v1.0.78 \
   --repo bennix/AstraAIBrowser \
   --json assets,url
 ```

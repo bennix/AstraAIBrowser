@@ -70,16 +70,29 @@ enum XBookmarkDigestPolicy {
     static let maximumCollectionPasses = 10_000
     static let requiredStableBottomPasses = 8
 
-    static func isBookmarksURL(_ rawValue: String?) -> Bool {
+    static func isXURL(_ rawValue: String?) -> Bool {
         guard let rawValue,
               let url = URL(string: rawValue),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
               let host = url.host?.lowercased() else { return false }
-        let isXHost = host == "x.com"
+        return host == "x.com"
             || host.hasSuffix(".x.com")
             || host == "twitter.com"
             || host.hasSuffix(".twitter.com")
+    }
+
+    static func isBookmarksURL(_ rawValue: String?) -> Bool {
+        guard isXURL(rawValue),
+              let rawValue,
+              let url = URL(string: rawValue) else { return false }
         let path = url.path.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        return isXHost && (path == "i/bookmarks" || path == "bookmarks")
+        return path == "i/bookmarks" || path == "bookmarks"
+    }
+
+    static func bookmarksURL(for rawValue: String?) -> String? {
+        guard isXURL(rawValue) else { return nil }
+        return "https://x.com/i/bookmarks"
     }
 }
 
@@ -196,7 +209,7 @@ extension BrowserState {
             && !isIncognito
             && !isOverviewActive
             && isChatAvailable
-            && XBookmarkDigestPolicy.isBookmarksURL(pageURL)
+            && XBookmarkDigestPolicy.isXURL(pageURL)
     }
 
     /// Collects the complete virtualized X bookmarks timeline without model
@@ -222,6 +235,16 @@ extension BrowserState {
             tab.xBookmarkDigestTask = nil
             tab.xBookmarkDigestOperationID = nil
             tab.xBookmarkDigestState = .inactive
+            return
+        }
+
+        if !XBookmarkDigestPolicy.isBookmarksURL(tab.url) {
+            guard let bookmarksURL = XBookmarkDigestPolicy.bookmarksURL(for: tab.url),
+                  let webContentWrapper = tab.webContentWrapper else {
+                NSSound.beep()
+                return
+            }
+            webContentWrapper.navigate(toURL: bookmarksURL)
             return
         }
 

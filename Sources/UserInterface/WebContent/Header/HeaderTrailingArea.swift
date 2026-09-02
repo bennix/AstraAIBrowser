@@ -86,7 +86,11 @@ struct HeaderTrailingArea: View {
     let showDownload: Bool
     let showMemory: Bool
     let showYouTubeDigest: Bool
+    let showXBookmarkDigest: Bool
     let showImmersiveTranslation: Bool
+    @Binding var xBookmarkDigestState: XBookmarkDigestState
+    let isXBookmarksPage: Bool
+    @Binding var isXBookmarkDigestPopoverShown: Bool
     @Binding var immersiveTranslationState: ImmersiveTranslationState
     @Binding var immersiveTranslationLanguage: ImmersiveTranslationLanguage
     @Binding var immersiveTranslationProvider: ImmersiveTranslationProvider
@@ -108,6 +112,7 @@ struct HeaderTrailingArea: View {
     let onMemoryTap: () -> Void
     let onDownloadTap: () -> Void
     let onYouTubeDigestTap: () -> Void
+    let onXBookmarkDigestTap: () -> Void
     let onImmersiveTranslationTap: (
         ImmersiveTranslationLanguage,
         ImmersiveTranslationProvider
@@ -177,6 +182,7 @@ struct HeaderTrailingArea: View {
         var budget = width - Metrics.trailingPadding - Metrics.extensionMenuWidth
         if showChat { budget -= Metrics.chatSlot }
         if showImmersiveTranslation { budget -= Metrics.contextualActionSlot }
+        if showXBookmarkDigest { budget -= Metrics.contextualActionSlot }
         if showYouTubeDigest { budget -= Metrics.contextualActionSlot }
 
         let allPinnedCost = CGFloat(pinnedExtensions.count) * Metrics.pinnedExtensionSlot
@@ -251,6 +257,11 @@ struct HeaderTrailingArea: View {
         HStack(alignment: .center, spacing: 0) {
             if showImmersiveTranslation {
                 immersiveTranslationButton
+                    .padding(.leading, 6)
+            }
+
+            if showXBookmarkDigest {
+                xBookmarkDigestButton
                     .padding(.leading, 6)
             }
 
@@ -368,6 +379,36 @@ struct HeaderTrailingArea: View {
                 language: $immersiveTranslationLanguage,
                 provider: $immersiveTranslationProvider,
                 onTranslate: onImmersiveTranslationTap
+            )
+        }
+    }
+
+    private var xBookmarkDigestButton: some View {
+        Button {
+            isXBookmarkDigestPopoverShown.toggle()
+        } label: {
+            Group {
+                if xBookmarkDigestState.isRunning {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "bookmark.square")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.primary)
+                }
+            }
+            .frame(width: Metrics.buttonSize, height: Metrics.buttonSize)
+        }
+        .buttonStyle(.plain)
+        .help(NSLocalizedString(
+            "browser.xBookmarkArchiveButton.tooltip",
+            value: "X bookmark archive",
+            comment: "Browser chrome - Tooltip for the contextual X bookmark archive button"
+        ))
+        .popover(isPresented: $isXBookmarkDigestPopoverShown, arrowEdge: .bottom) {
+            XBookmarkDigestPopover(
+                digestState: $xBookmarkDigestState,
+                isBookmarksPage: isXBookmarksPage,
+                onRun: onXBookmarkDigestTap
             )
         }
     }

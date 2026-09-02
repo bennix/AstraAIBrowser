@@ -74,6 +74,9 @@ class SidebarBottomBarState: ObservableObject {
 
     @Published var xBookmarkDigestState: XBookmarkDigestState = .inactive
 
+    /// Whether the focused X tab is displaying its bookmarks timeline.
+    @Published var isXBookmarksPage: Bool = false
+
     /// Whether immersive translation is unavailable for the focused page.
     @Published var isImmersiveTranslationHidden: Bool = true
 
@@ -218,13 +221,14 @@ struct SidebarBottomBarSwiftUI: View {
             }
             .buttonStyle(.plain)
             .help(NSLocalizedString(
-                "sidebar.xBookmarkDigestButton.tooltip",
-                value: "Collect and summarize X bookmarks",
-                comment: "Sidebar - Tooltip for the contextual X bookmark archive button"
+                "browser.xBookmarkArchiveButton.tooltip",
+                value: "X bookmark archive",
+                comment: "Browser chrome - Tooltip for the contextual X bookmark archive button"
             ))
             .popover(isPresented: $state.isXBookmarkDigestPopoverShown, arrowEdge: .top) {
                 XBookmarkDigestPopover(
                     digestState: $state.xBookmarkDigestState,
+                    isBookmarksPage: state.isXBookmarksPage,
                     onRun: onXBookmarkDigestTap
                 )
             }
@@ -407,6 +411,7 @@ struct ImmersiveTranslationPopover: View {
 
 struct XBookmarkDigestPopover: View {
     @Binding var digestState: XBookmarkDigestState
+    let isBookmarksPage: Bool
     let onRun: () -> Void
 
     private var isSummarizing: Bool {
@@ -461,55 +466,72 @@ struct XBookmarkDigestPopover: View {
 
     @ViewBuilder
     private var statusView: some View {
-        switch digestState {
-        case .inactive:
+        if !isBookmarksPage, !digestState.isRunning {
             Text(NSLocalizedString(
-                "xBookmarks.popover.readyStatus",
-                value: "Ready. Collection starts from the newest bookmark and continues to the oldest.",
-                comment: "X bookmark digest - Status shown before collection starts"
+                "xBookmarks.popover.openBookmarksStatus",
+                value: "Open your X bookmarks timeline before starting the archive.",
+                comment: "X bookmark digest - Status shown when the entry is opened from another X page"
             ))
             .font(.caption)
             .foregroundStyle(.secondary)
-        case .collecting(let count):
-            Text(String(
-                format: NSLocalizedString(
-                    "xBookmarks.popover.collectingStatus",
-                    value: "Collected %ld posts…",
-                    comment: "X bookmark digest - Live collection status; placeholder is the unique post count"
-                ),
-                count
-            ))
-            .font(.caption)
-        case .summarizing(let count):
-            Text(String(
-                format: NSLocalizedString(
-                    "xBookmarks.popover.summarizingStatus",
-                    value: "Collected %ld posts. ZenMux is classifying them…",
-                    comment: "X bookmark digest - Status shown during AI classification; placeholder is the collected post count"
-                ),
-                count
-            ))
-            .font(.caption)
-        case .completed(let count):
-            Text(String(
-                format: NSLocalizedString(
-                    "xBookmarks.popover.completedStatus",
-                    value: "%ld posts were classified and summarized in AI chat.",
-                    comment: "X bookmark digest - Completion status; placeholder is the summarized post count"
-                ),
-                count
-            ))
-            .font(.caption)
-            .foregroundStyle(.green)
-        case .failed(let message):
-            Text(message)
+        } else {
+            switch digestState {
+            case .inactive:
+                Text(NSLocalizedString(
+                    "xBookmarks.popover.readyStatus",
+                    value: "Ready. Collection starts from the newest bookmark and continues to the oldest.",
+                    comment: "X bookmark digest - Status shown before collection starts"
+                ))
                 .font(.caption)
-                .foregroundStyle(.red)
-                .fixedSize(horizontal: false, vertical: true)
+                .foregroundStyle(.secondary)
+            case .collecting(let count):
+                Text(String(
+                    format: NSLocalizedString(
+                        "xBookmarks.popover.collectingStatus",
+                        value: "Collected %ld posts…",
+                        comment: "X bookmark digest - Live collection status; placeholder is the unique post count"
+                    ),
+                    count
+                ))
+                .font(.caption)
+            case .summarizing(let count):
+                Text(String(
+                    format: NSLocalizedString(
+                        "xBookmarks.popover.summarizingStatus",
+                        value: "Collected %ld posts. ZenMux is classifying them…",
+                        comment: "X bookmark digest - Status shown during AI classification; placeholder is the collected post count"
+                    ),
+                    count
+                ))
+                .font(.caption)
+            case .completed(let count):
+                Text(String(
+                    format: NSLocalizedString(
+                        "xBookmarks.popover.completedStatus",
+                        value: "%ld posts were classified and summarized in AI chat.",
+                        comment: "X bookmark digest - Completion status; placeholder is the summarized post count"
+                    ),
+                    count
+                ))
+                .font(.caption)
+                .foregroundStyle(.green)
+            case .failed(let message):
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
     private var actionTitle: String {
+        if !isBookmarksPage, !digestState.isRunning {
+            return NSLocalizedString(
+                "xBookmarks.popover.openBookmarksAction",
+                value: "Open X bookmarks",
+                comment: "X bookmark digest - Button that navigates the focused X tab to its bookmarks timeline"
+            )
+        }
         switch digestState {
         case .collecting:
             return NSLocalizedString(
@@ -828,6 +850,10 @@ class SidebarBottomBarSwiftUIView: NSView {
 
     func setXBookmarkDigestState(_ digestState: XBookmarkDigestState) {
         state.xBookmarkDigestState = digestState
+    }
+
+    func setXBookmarksPage(_ isBookmarksPage: Bool) {
+        state.isXBookmarksPage = isBookmarksPage
     }
 
     func setImmersiveTranslationHidden(_ hidden: Bool) {

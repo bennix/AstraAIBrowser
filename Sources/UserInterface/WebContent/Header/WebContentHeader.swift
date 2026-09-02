@@ -17,6 +17,7 @@ class WebContentHeaderState: ObservableObject {
     @Published var showDownloadButton: Bool = false
     @Published var showMemoryButton: Bool = false
     @Published var showYouTubeDigestButton: Bool = false
+    @Published var showXBookmarkDigestButton: Bool = false
     @Published var showImmersiveTranslationButton: Bool = false
     @Published var showSidebarButton: Bool = false
     @Published var canGoBack: Bool = false
@@ -28,6 +29,9 @@ class WebContentHeaderState: ObservableObject {
     @Published var isIncognito: Bool = false
     @Published var isInPlaceholderMode: Bool = false
     @Published var isImmersiveTranslationPopoverShown: Bool = false
+    @Published var isXBookmarkDigestPopoverShown: Bool = false
+    @Published var isXBookmarksPage: Bool = false
+    @Published var xBookmarkDigestState: XBookmarkDigestState = .inactive
     @Published var immersiveTranslationState: ImmersiveTranslationState = .inactive
     @Published var immersiveTranslationLanguage = ImmersiveTranslationPreferences.loadLanguage() {
         didSet { ImmersiveTranslationPreferences.saveLanguage(immersiveTranslationLanguage) }
@@ -208,6 +212,9 @@ class WebContentHeader: NSView {
             onYouTubeDigestTap: { [weak self] in
                 self?.youTubeDigestButtonClicked()
             },
+            onXBookmarkDigestTap: { [weak self] in
+                self?.xBookmarkDigestButtonClicked()
+            },
             onImmersiveTranslationTap: { [weak self] language, provider in
                 self?.immersiveTranslationButtonClicked(language: language, provider: provider)
             },
@@ -354,6 +361,14 @@ class WebContentHeader: NSView {
             }
             .store(in: &cancellables)
 
+        currentTab.$xBookmarkDigestState
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateLayoutVisibility()
+            }
+            .store(in: &cancellables)
+
         observePartnerAIChatEnabled()
     }
 
@@ -405,6 +420,13 @@ class WebContentHeader: NSView {
             isOverviewActive: overviewActive,
             isChatAvailable: currentTab?.aiChatEnabled ?? false
         ) && !isInPlaceholder
+        let showXBookmarkDigest = showHeaderContextualEntries && BrowserState.shouldOfferXBookmarkDigest(
+            pageURL: currentTab?.url,
+            isAIEnabled: phiAIEnabled,
+            isIncognito: isIncognito,
+            isOverviewActive: overviewActive,
+            isChatAvailable: currentTab?.aiChatEnabled ?? false
+        ) && !isInPlaceholder
         let showImmersiveTranslation = showHeaderContextualEntries && BrowserState.shouldOfferImmersiveTranslation(
             pageURL: currentTab?.url,
             isIncognito: isIncognito,
@@ -427,6 +449,14 @@ class WebContentHeader: NSView {
             self.state.showDownloadButton = (traditionalLayout || (navigationAtTop && isCollapsed)) && !isInPlaceholder
             self.state.showMemoryButton = (traditionalLayout || (navigationAtTop && isCollapsed)) && phiAIEnabled && !isIncognito && !isInPlaceholder
             self.state.showYouTubeDigestButton = showYouTubeDigest
+            self.state.showXBookmarkDigestButton = showXBookmarkDigest
+            self.state.isXBookmarksPage = XBookmarkDigestPolicy.isBookmarksURL(self.currentTab?.url)
+            self.state.xBookmarkDigestState = showXBookmarkDigest
+                ? (self.currentTab?.xBookmarkDigestState ?? .inactive)
+                : .inactive
+            if !showXBookmarkDigest {
+                self.state.isXBookmarkDigestPopoverShown = false
+            }
             self.state.showImmersiveTranslationButton = showImmersiveTranslation
             self.state.immersiveTranslationState = translationState
             if !showImmersiveTranslation {
@@ -497,6 +527,11 @@ class WebContentHeader: NSView {
     private func youTubeDigestButtonClicked() {
         FeatureEntryAnalytics.capture(.youtubeDigest, surface: .webContentHeader)
         unsafeBrowserState?.startYouTubeDigest()
+    }
+
+    private func xBookmarkDigestButtonClicked() {
+        FeatureEntryAnalytics.capture(.xBookmarkDigest, surface: .webContentHeader)
+        unsafeBrowserState?.toggleXBookmarkDigest()
     }
 
     private func immersiveTranslationButtonClicked(

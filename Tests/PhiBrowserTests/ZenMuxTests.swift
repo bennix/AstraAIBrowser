@@ -2294,11 +2294,42 @@ final class ZenMuxTests: XCTestCase {
 }
 
 final class XBookmarkDigestTests: XCTestCase {
+    func testEntryURLPolicyAcceptsXPagesAndRejectsLookalikeHosts() {
+        XCTAssertTrue(XBookmarkDigestPolicy.isXURL("https://x.com"))
+        XCTAssertTrue(XBookmarkDigestPolicy.isXURL("https://x.com/home"))
+        XCTAssertTrue(XBookmarkDigestPolicy.isXURL("https://mobile.twitter.com/explore"))
+        XCTAssertFalse(XBookmarkDigestPolicy.isXURL("ftp://x.com/home"))
+        XCTAssertFalse(XBookmarkDigestPolicy.isXURL("https://example.com"))
+        XCTAssertFalse(XBookmarkDigestPolicy.isXURL("https://notx.com/home"))
+        XCTAssertEqual(
+            XBookmarkDigestPolicy.bookmarksURL(for: "https://x.com/home"),
+            "https://x.com/i/bookmarks"
+        )
+    }
+
     func testBookmarkURLPolicyAcceptsOnlyTheDedicatedXTimeline() {
         XCTAssertTrue(XBookmarkDigestPolicy.isBookmarksURL("https://x.com/i/bookmarks"))
         XCTAssertTrue(XBookmarkDigestPolicy.isBookmarksURL("https://mobile.twitter.com/bookmarks?ref=nav"))
         XCTAssertFalse(XBookmarkDigestPolicy.isBookmarksURL("https://x.com/home"))
         XCTAssertFalse(XBookmarkDigestPolicy.isBookmarksURL("https://example.com/i/bookmarks"))
+    }
+
+    func testEntryIsOfferedAcrossXWhileCollectionRemainsBookmarksOnly() {
+        XCTAssertTrue(BrowserState.shouldOfferXBookmarkDigest(
+            pageURL: "https://x.com/home",
+            isAIEnabled: true,
+            isIncognito: false,
+            isOverviewActive: false,
+            isChatAvailable: true
+        ))
+        XCTAssertFalse(XBookmarkDigestPolicy.isBookmarksURL("https://x.com/home"))
+        XCTAssertFalse(BrowserState.shouldOfferXBookmarkDigest(
+            pageURL: "https://example.com/home",
+            isAIEnabled: true,
+            isIncognito: false,
+            isOverviewActive: false,
+            isChatAvailable: true
+        ))
     }
 
     func testAccumulatorDeduplicatesPostsAndKeepsTheRicherContent() {

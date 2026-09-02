@@ -560,6 +560,9 @@ class FloatingSidebarViewController: NSViewController {
             isChatAvailable: tab?.aiChatEnabled ?? false
         )
         bottomBarSwiftUI.setXBookmarkDigestHidden(!shouldOffer)
+        bottomBarSwiftUI.setXBookmarksPage(
+            XBookmarkDigestPolicy.isBookmarksURL(tab?.url)
+        )
         bottomBarSwiftUI.setXBookmarkDigestState(
             shouldOffer ? (tab?.xBookmarkDigestState ?? .inactive) : .inactive
         )

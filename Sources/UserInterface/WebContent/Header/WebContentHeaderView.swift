@@ -22,6 +22,7 @@ struct WebContentHeaderView: View {
     let onMemoryTap: () -> Void
     let onDownloadTap: () -> Void
     let onYouTubeDigestTap: () -> Void
+    let onXBookmarkDigestTap: () -> Void
     let onImmersiveTranslationTap: (
         ImmersiveTranslationLanguage,
         ImmersiveTranslationProvider
@@ -50,6 +51,7 @@ struct WebContentHeaderView: View {
         onMemoryTap: @escaping () -> Void = {},
         onDownloadTap: @escaping () -> Void = {},
         onYouTubeDigestTap: @escaping () -> Void = {},
+        onXBookmarkDigestTap: @escaping () -> Void = {},
         onImmersiveTranslationTap: @escaping (
             ImmersiveTranslationLanguage,
             ImmersiveTranslationProvider
@@ -73,6 +75,7 @@ struct WebContentHeaderView: View {
         self.onMemoryTap = onMemoryTap
         self.onDownloadTap = onDownloadTap
         self.onYouTubeDigestTap = onYouTubeDigestTap
+        self.onXBookmarkDigestTap = onXBookmarkDigestTap
         self.onImmersiveTranslationTap = onImmersiveTranslationTap
         self.onOpenLocationBar = onOpenLocationBar
         self.onAnchorResolved = onAnchorResolved
@@ -113,7 +116,11 @@ struct WebContentHeaderView: View {
                     showDownload: state.showDownloadButton,
                     showMemory: state.showMemoryButton,
                     showYouTubeDigest: state.showYouTubeDigestButton,
+                    showXBookmarkDigest: state.showXBookmarkDigestButton,
                     showImmersiveTranslation: state.showImmersiveTranslationButton,
+                    xBookmarkDigestState: $state.xBookmarkDigestState,
+                    isXBookmarksPage: state.isXBookmarksPage,
+                    isXBookmarkDigestPopoverShown: $state.isXBookmarkDigestPopoverShown,
                     immersiveTranslationState: $state.immersiveTranslationState,
                     immersiveTranslationLanguage: $state.immersiveTranslationLanguage,
                     immersiveTranslationProvider: $state.immersiveTranslationProvider,
@@ -132,6 +139,7 @@ struct WebContentHeaderView: View {
                     onMemoryTap: onMemoryTap,
                     onDownloadTap: onDownloadTap,
                     onYouTubeDigestTap: onYouTubeDigestTap,
+                    onXBookmarkDigestTap: onXBookmarkDigestTap,
                     onImmersiveTranslationTap: onImmersiveTranslationTap,
                     onChatAnchorResolved: onChatAnchorResolved
                 )
