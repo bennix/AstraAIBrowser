@@ -74,6 +74,8 @@ struct XBookmarkPageSnapshot: Codable, Equatable, Sendable {
     let viewportHeight: Double
     let isAtBottom: Bool
     let isLoading: Bool
+    let isTimelineReady: Bool
+    let isExplicitlyEmpty: Bool
     let hasTimelineError: Bool
 }
 
@@ -3333,22 +3335,45 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     }
 
     func prepareXBookmarkCollection() async throws {
-        let operation = #"""
-        const host = location.hostname.toLowerCase().replace(/^\.+|\.+$/g, '');
-        const path = location.pathname.toLowerCase().replace(/^\/+|\/+$/g, '');
-        const supportedHost = host === 'x.com' || host.endsWith('.x.com')
-          || host === 'twitter.com' || host.endsWith('.twitter.com');
-        if (!supportedHost || (path !== 'i/bookmarks' && path !== 'bookmarks')) {
-          return 'unsupported';
+        for _ in 0..<XBookmarkDigestPolicy.maximumReadinessPasses {
+            try Task.checkCancellation()
+            let operation = #"""
+            const host = location.hostname.toLowerCase().replace(/^\.+|\.+$/g, '');
+            const path = location.pathname.toLowerCase().replace(/^\/+|\/+$/g, '');
+            const supportedHost = host === 'x.com' || host.endsWith('.x.com')
+              || host === 'twitter.com' || host.endsWith('.twitter.com');
+            if (!supportedHost || !['i/history', 'i/bookmarks', 'bookmarks'].includes(path)) {
+              return 'unsupported';
+            }
+            if (document.querySelector('[data-testid="error-detail"]')) {
+              return 'error';
+            }
+            const primaryColumn = document.querySelector('[data-testid="primaryColumn"]')
+              || document.querySelector('main');
+            const hasPost = Array.from(document.querySelectorAll('article')).some((article) =>
+              article.querySelector('a[href*="/status/"]')
+            );
+            const isExplicitlyEmpty = Boolean(primaryColumn?.querySelector('[data-testid="emptyState"]'));
+            if (!primaryColumn || (!hasPost && !isExplicitlyEmpty)) {
+              return 'loading';
+            }
+            const scroller = document.scrollingElement || document.documentElement;
+            scroller.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+            window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+            return 'ok';
+            """#
+            switch await evaluateJavaScriptResult(operation: operation, timeout: 5) {
+            case "ok":
+                return
+            case "unsupported":
+                throw XBookmarkDigestError.unavailablePage
+            case "error":
+                throw XBookmarkDigestError.timelineFailed
+            default:
+                try await Task.sleep(for: .milliseconds(XBookmarkDigestPolicy.readinessPollMilliseconds))
+            }
         }
-        const scroller = document.scrollingElement || document.documentElement;
-        scroller.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-        window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-        return 'ok';
-        """#
-        guard await evaluateJavaScriptResult(operation: operation, timeout: 5) == "ok" else {
-            throw XBookmarkDigestError.unavailablePage
-        }
+        throw XBookmarkDigestError.timelineFailed
     }
 
     func collectXBookmarkPageSnapshot() async throws -> XBookmarkPageSnapshot {
@@ -3517,6 +3542,10 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         const viewportHeight = Number(window.innerHeight || scroller.clientHeight || 0);
         const isAtBottom = scrollPosition + viewportHeight >= scrollHeight - 8;
         const isLoading = Boolean(document.querySelector('[role="progressbar"]'));
+        const primaryColumn = document.querySelector('[data-testid="primaryColumn"]')
+          || document.querySelector('main');
+        const isExplicitlyEmpty = Boolean(primaryColumn?.querySelector('[data-testid="emptyState"]'));
+        const isTimelineReady = records.length > 0 || isExplicitlyEmpty;
         const hasTimelineError = Boolean(document.querySelector('[data-testid="error-detail"]'));
         if (!isAtBottom) {
           const distance = Math.max(600, Math.floor(viewportHeight * 0.82));
@@ -3529,6 +3558,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
           viewportHeight,
           isAtBottom,
           isLoading,
+          isTimelineReady,
+          isExplicitlyEmpty,
           hasTimelineError,
         });
         """#

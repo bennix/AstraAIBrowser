@@ -69,6 +69,8 @@ enum XBookmarkDigestError: LocalizedError {
 enum XBookmarkDigestPolicy {
     static let maximumCollectionPasses = 10_000
     static let requiredStableBottomPasses = 8
+    static let maximumReadinessPasses = 60
+    static let readinessPollMilliseconds = 500
 
     static func isXURL(_ rawValue: String?) -> Bool {
         guard let rawValue,
@@ -87,12 +89,12 @@ enum XBookmarkDigestPolicy {
               let rawValue,
               let url = URL(string: rawValue) else { return false }
         let path = url.path.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        return path == "i/bookmarks" || path == "bookmarks"
+        return path == "i/history" || path == "i/bookmarks" || path == "bookmarks"
     }
 
     static func bookmarksURL(for rawValue: String?) -> String? {
         guard isXURL(rawValue) else { return nil }
-        return "https://x.com/i/bookmarks"
+        return "https://x.com/i/history"
     }
 }
 
@@ -136,6 +138,8 @@ struct XBookmarkDigestAccumulator {
         } ?? false
         if snapshot.isAtBottom,
            !snapshot.isLoading,
+           snapshot.isTimelineReady,
+           (!valuesByID.isEmpty || snapshot.isExplicitlyEmpty),
            !snapshot.hasTimelineError,
            newItemCount == 0,
            heightIsStable {

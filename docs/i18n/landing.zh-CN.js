@@ -36,7 +36,7 @@
     "features.xBookmarkArchive.body": "X 与 Twitter 的任意页面都会在地址栏右侧及侧栏显示归档入口。Astra 会按需进入已登录的书签时间线，自动滚动至历史末尾并在本地收集每条书签的正文、作者、日期、链接、引用与可见媒体信息，确认收集完成后再由 ZenMux 分类和总结。",
     "features.signedUpdates.title": "GitHub 签名在线更新",
     "features.signedUpdates.body": "打开“关于 Astra Browser”即会检查 GitHub Releases 更新。更新源与 DMG 均使用 Sparkle Ed25519 签名校验，并继续验证 Apple 代码签名。",
-    "download.summary": "Build 78 将 X 书签归档入口放到每个 X 与 Twitter 页面地址栏右侧，并保持只在已登录的书签时间线执行采集。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 79 适配 X 当前的书签历史入口，并等待已登录的时间线真正就绪后再开始采集，避免把加载页面误判为空归档。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

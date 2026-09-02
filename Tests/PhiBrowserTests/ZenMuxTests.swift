@@ -2303,11 +2303,12 @@ final class XBookmarkDigestTests: XCTestCase {
         XCTAssertFalse(XBookmarkDigestPolicy.isXURL("https://notx.com/home"))
         XCTAssertEqual(
             XBookmarkDigestPolicy.bookmarksURL(for: "https://x.com/home"),
-            "https://x.com/i/bookmarks"
+            "https://x.com/i/history"
         )
     }
 
     func testBookmarkURLPolicyAcceptsOnlyTheDedicatedXTimeline() {
+        XCTAssertTrue(XBookmarkDigestPolicy.isBookmarksURL("https://x.com/i/history"))
         XCTAssertTrue(XBookmarkDigestPolicy.isBookmarksURL("https://x.com/i/bookmarks"))
         XCTAssertTrue(XBookmarkDigestPolicy.isBookmarksURL("https://mobile.twitter.com/bookmarks?ref=nav"))
         XCTAssertFalse(XBookmarkDigestPolicy.isBookmarksURL("https://x.com/home"))
@@ -2365,6 +2366,38 @@ final class XBookmarkDigestTests: XCTestCase {
         XCTAssertFalse(update.reachedEnd)
     }
 
+    func testAccumulatorDoesNotTreatAnUnreadyBlankPageAsAnEmptyArchive() {
+        var accumulator = XBookmarkDigestAccumulator(requiredStableBottomPasses: 1)
+
+        let update = accumulator.ingest(makeSnapshot(
+            items: [],
+            scrollHeight: 1_000,
+            isTimelineReady: false
+        ))
+
+        XCTAssertFalse(update.reachedEnd)
+        XCTAssertTrue(accumulator.items.isEmpty)
+    }
+
+    func testAccumulatorAcceptsAnExplicitlyEmptyReadyTimeline() {
+        var accumulator = XBookmarkDigestAccumulator(requiredStableBottomPasses: 1)
+        _ = accumulator.ingest(makeSnapshot(
+            items: [],
+            scrollHeight: 1_000,
+            isTimelineReady: true,
+            isExplicitlyEmpty: true
+        ))
+
+        let update = accumulator.ingest(makeSnapshot(
+            items: [],
+            scrollHeight: 1_000,
+            isTimelineReady: true,
+            isExplicitlyEmpty: true
+        ))
+
+        XCTAssertTrue(update.reachedEnd)
+    }
+
     func testBatchPlannerPreservesEveryPostAndHonorsItemLimit() {
         let items = (0..<7).map {
             makeItem(id: String($0), text: "Post \($0)", visibleContent: "Post \($0)")
@@ -2404,7 +2437,9 @@ final class XBookmarkDigestTests: XCTestCase {
     private func makeSnapshot(
         items: [XBookmarkContent],
         scrollHeight: Double,
-        isLoading: Bool = false
+        isLoading: Bool = false,
+        isTimelineReady: Bool = true,
+        isExplicitlyEmpty: Bool = false
     ) -> XBookmarkPageSnapshot {
         XBookmarkPageSnapshot(
             items: items,
@@ -2413,6 +2448,8 @@ final class XBookmarkDigestTests: XCTestCase {
             viewportHeight: 100,
             isAtBottom: true,
             isLoading: isLoading,
+            isTimelineReady: isTimelineReady,
+            isExplicitlyEmpty: isExplicitlyEmpty,
             hasTimelineError: false
         )
     }
