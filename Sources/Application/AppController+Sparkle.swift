@@ -38,8 +38,6 @@ extension AppController: SPUUpdaterDelegate {
         sparkleUserDriver = userDriver
         self.updater = updater
 
-        updater.automaticallyChecksForUpdates = true
-
         do {
             try updater.start()
         } catch {

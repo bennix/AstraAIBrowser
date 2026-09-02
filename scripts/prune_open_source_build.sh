@@ -90,6 +90,9 @@ for key in \
     SUEnableAutomaticChecks \
     SUFeedURL \
     SUPublicEDKey \
+    SURequireSignedFeed \
+    SUSignedFeedFailureExpirationInterval \
+    SUVerifyUpdateBeforeExtraction \
     SUScheduledCheckInterval
 do
     /usr/libexec/PlistBuddy -c "Delete :$key" "$info_plist_path" >/dev/null 2>&1 || true

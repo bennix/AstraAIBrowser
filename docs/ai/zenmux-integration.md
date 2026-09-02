@@ -51,6 +51,30 @@ caption context and audiovisual fallback as normal page-aware chat, so it does
 not add another video downloader, model provider, credential store, or network
 owner.
 
+## X bookmark archive
+
+The dedicated X bookmarks timeline exposes a contextual archive action in the
+native sidebar. Collection is deterministic browser automation: the active tab
+scrolls from the top of the signed-in timeline, extracts every mounted bookmark,
+deduplicates recycled timeline nodes by status identifier, and stops only after
+the bottom remains stable without a loading indicator. A safety limit fails the
+operation instead of silently presenting a partial collection as complete.
+
+Each collected record contains the post body, author name and handle, published
+date, canonical status URL, visible quoted text, outbound links, media URLs,
+media descriptions, language, and a bounded visible-text fallback. No model is
+called while the timeline is being collected, and Astra does not inspect X
+cookies, passwords, or browser storage.
+
+After collection reaches a verified end, the existing chat session opens and
+`APIClient` sends bounded batches through the configured ZenMux model. Large
+archives use hierarchical reduction before the final report. The prompt treats
+posts as untrusted user-generated content, preserves source URLs, separates
+repeated themes from isolated claims, reports media-only uncertainty, and
+requires category counts to reconcile with the number of collected bookmarks.
+Collection, cancellation, progress, and failure state remain scoped to the
+originating tab.
+
 ## Immersive translation
 
 Public HTTP and HTTPS pages expose a native immersive-translation control in

@@ -16,10 +16,32 @@ final class ZenMuxTests: XCTestCase {
     func testZenMuxBuildDoesNotRequireLegacyAuthentication() {
         XCTAssertFalse(PhiBuildCapabilities.supportsAuthentication)
         XCTAssertTrue(PhiBuildCapabilities.supportsAI)
+        #if PHI_OSS_BUILD
         XCTAssertFalse(PhiBuildCapabilities.supportsSoftwareUpdates)
+        #else
+        XCTAssertTrue(PhiBuildCapabilities.supportsSoftwareUpdates)
+        #endif
         XCTAssertFalse(PhiBuildCapabilities.supportsLegacyRollback)
         XCTAssertFalse(PhiBuildCapabilities.supportsPhiOriginMenus)
     }
+
+    #if !PHI_OSS_BUILD
+    func testAstraUsesSignedGitHubReleaseUpdates() throws {
+        let info = try XCTUnwrap(Bundle.main.infoDictionary)
+
+        XCTAssertEqual(
+            info["SUFeedURL"] as? String,
+            "https://github.com/bennix/AstraAIBrowser/releases/latest/download/appcast.xml"
+        )
+        XCTAssertEqual(
+            info["SUPublicEDKey"] as? String,
+            "rWXUlON9obaJqG7YbfFwDLeqNwkr4eB/da+/GGvZ2mE="
+        )
+        XCTAssertEqual(info["SURequireSignedFeed"] as? Bool, true)
+        XCTAssertEqual(info["SUSignedFeedFailureExpirationInterval"] as? Int, 0)
+        XCTAssertEqual(info["SUVerifyUpdateBeforeExtraction"] as? Bool, true)
+    }
+    #endif
 
     func testBrowserAccountPrivacyDoesNotAssociateGoogleAccountsWithAstra() throws {
         var configuration = CefConfiguration.default
@@ -2268,5 +2290,99 @@ final class ZenMuxTests: XCTestCase {
         let stableHeights = measuredHeights.suffix(4)
         XCTAssertEqual(Set(stableHeights).count, 1)
         XCTAssertEqual(scrollView.contentSize.width, 220, accuracy: 0.5)
+    }
+}
+
+final class XBookmarkDigestTests: XCTestCase {
+    func testBookmarkURLPolicyAcceptsOnlyTheDedicatedXTimeline() {
+        XCTAssertTrue(XBookmarkDigestPolicy.isBookmarksURL("https://x.com/i/bookmarks"))
+        XCTAssertTrue(XBookmarkDigestPolicy.isBookmarksURL("https://mobile.twitter.com/bookmarks?ref=nav"))
+        XCTAssertFalse(XBookmarkDigestPolicy.isBookmarksURL("https://x.com/home"))
+        XCTAssertFalse(XBookmarkDigestPolicy.isBookmarksURL("https://example.com/i/bookmarks"))
+    }
+
+    func testAccumulatorDeduplicatesPostsAndKeepsTheRicherContent() {
+        var accumulator = XBookmarkDigestAccumulator(requiredStableBottomPasses: 2)
+        let first = makeItem(id: "1", text: "Short", visibleContent: "Short")
+        let richer = makeItem(
+            id: "1",
+            text: "A much more complete post body",
+            visibleContent: "A much more complete post body with card details"
+        )
+
+        let initial = accumulator.ingest(makeSnapshot(items: [first], scrollHeight: 1_000))
+        let stableOnce = accumulator.ingest(makeSnapshot(items: [richer], scrollHeight: 1_000))
+        let stableTwice = accumulator.ingest(makeSnapshot(items: [richer], scrollHeight: 1_000))
+
+        XCTAssertEqual(initial.totalCount, 1)
+        XCTAssertFalse(initial.reachedEnd)
+        XCTAssertFalse(stableOnce.reachedEnd)
+        XCTAssertTrue(stableTwice.reachedEnd)
+        XCTAssertEqual(accumulator.items, [richer])
+    }
+
+    func testAccumulatorDoesNotFinishWhileTheTimelineIsLoading() {
+        var accumulator = XBookmarkDigestAccumulator(requiredStableBottomPasses: 1)
+        _ = accumulator.ingest(makeSnapshot(items: [], scrollHeight: 1_000))
+
+        let update = accumulator.ingest(makeSnapshot(
+            items: [],
+            scrollHeight: 1_000,
+            isLoading: true
+        ))
+
+        XCTAssertFalse(update.reachedEnd)
+    }
+
+    func testBatchPlannerPreservesEveryPostAndHonorsItemLimit() {
+        let items = (0..<7).map {
+            makeItem(id: String($0), text: "Post \($0)", visibleContent: "Post \($0)")
+        }
+
+        let batches = XBookmarkDigestBatchPlanner.batches(
+            for: items,
+            maximumItemCount: 3,
+            maximumCharacterCount: 100_000
+        )
+
+        XCTAssertEqual(batches.map(\.count), [3, 3, 1])
+        XCTAssertEqual(batches.flatMap { $0 }, items)
+    }
+
+    private func makeItem(
+        id: String,
+        text: String,
+        visibleContent: String
+    ) -> XBookmarkContent {
+        XBookmarkContent(
+            id: id,
+            authorName: "Author",
+            authorHandle: "@author",
+            postedAt: "2026-09-03T00:00:00.000Z",
+            url: "https://x.com/author/status/\(id)",
+            text: text,
+            quotedText: "",
+            visibleContent: visibleContent,
+            links: [],
+            mediaURLs: [],
+            mediaDescriptions: [],
+            language: "en"
+        )
+    }
+
+    private func makeSnapshot(
+        items: [XBookmarkContent],
+        scrollHeight: Double,
+        isLoading: Bool = false
+    ) -> XBookmarkPageSnapshot {
+        XBookmarkPageSnapshot(
+            items: items,
+            scrollPosition: scrollHeight - 100,
+            scrollHeight: scrollHeight,
+            viewportHeight: 100,
+            isAtBottom: true,
+            isLoading: isLoading,
+            hasTimelineError: false
+        )
     }
 }

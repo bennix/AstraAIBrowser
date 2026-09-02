@@ -6,10 +6,16 @@
 import Foundation
 
 enum PhiBuildCapabilities {
-    #if PHI_OSS_BUILD || ASTRA_ZENMUX_BUILD
+    #if PHI_OSS_BUILD
     static let supportsAuthentication = false
     static let supportsAI = true
     static let supportsSoftwareUpdates = false
+    static let supportsLegacyRollback = false
+    static let supportsPhiOriginMenus = false
+    #elseif ASTRA_ZENMUX_BUILD
+    static let supportsAuthentication = false
+    static let supportsAI = true
+    static let supportsSoftwareUpdates = true
     static let supportsLegacyRollback = false
     static let supportsPhiOriginMenus = false
     #else

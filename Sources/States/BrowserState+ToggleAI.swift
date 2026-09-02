@@ -6,6 +6,170 @@
 import Foundation
 import Cocoa
 
+enum XBookmarkDigestState: Equatable {
+    case inactive
+    case collecting(count: Int)
+    case summarizing(count: Int)
+    case completed(count: Int)
+    case failed(String)
+
+    var isRunning: Bool {
+        switch self {
+        case .collecting, .summarizing:
+            return true
+        case .inactive, .completed, .failed:
+            return false
+        }
+    }
+}
+
+enum XBookmarkDigestError: LocalizedError {
+    case unavailablePage
+    case noBookmarks
+    case timelineFailed
+    case collectionLimitReached
+    case conversationBusy
+
+    var errorDescription: String? {
+        switch self {
+        case .unavailablePage:
+            return NSLocalizedString(
+                "xBookmarks.error.unavailablePage",
+                value: "Open the signed-in X bookmarks page before starting.",
+                comment: "X bookmark digest - Error shown when collection is started outside the supported bookmarks page"
+            )
+        case .noBookmarks:
+            return NSLocalizedString(
+                "xBookmarks.error.noBookmarks",
+                value: "No bookmark posts were found. Check that X is signed in and the bookmarks timeline is visible.",
+                comment: "X bookmark digest - Error shown when the automatic collector cannot find any bookmark posts"
+            )
+        case .timelineFailed:
+            return NSLocalizedString(
+                "xBookmarks.error.timelineFailed",
+                value: "X stopped loading the bookmarks timeline. Retry after the page recovers.",
+                comment: "X bookmark digest - Error shown when X displays a timeline loading failure during collection"
+            )
+        case .collectionLimitReached:
+            return NSLocalizedString(
+                "xBookmarks.error.collectionLimitReached",
+                value: "Collection stopped before the end of the bookmarks timeline could be verified.",
+                comment: "X bookmark digest - Error shown when the collector safety limit is reached before timeline completion"
+            )
+        case .conversationBusy:
+            return NSLocalizedString(
+                "xBookmarks.error.conversationBusy",
+                value: "Wait for the current ZenMux response to finish, then try again.",
+                comment: "X bookmark digest - Error shown when the tab AI conversation is already generating a response"
+            )
+        }
+    }
+}
+
+enum XBookmarkDigestPolicy {
+    static let maximumCollectionPasses = 10_000
+    static let requiredStableBottomPasses = 8
+
+    static func isBookmarksURL(_ rawValue: String?) -> Bool {
+        guard let rawValue,
+              let url = URL(string: rawValue),
+              let host = url.host?.lowercased() else { return false }
+        let isXHost = host == "x.com"
+            || host.hasSuffix(".x.com")
+            || host == "twitter.com"
+            || host.hasSuffix(".twitter.com")
+        let path = url.path.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return isXHost && (path == "i/bookmarks" || path == "bookmarks")
+    }
+}
+
+struct XBookmarkDigestAccumulator {
+    struct Update: Equatable {
+        let newItemCount: Int
+        let totalCount: Int
+        let reachedEnd: Bool
+    }
+
+    private var valuesByID: [String: XBookmarkContent] = [:]
+    private var orderedIDs: [String] = []
+    private var lastScrollHeight: Double?
+    private var stableBottomPasses = 0
+    private let requiredStableBottomPasses: Int
+
+    init(requiredStableBottomPasses: Int = XBookmarkDigestPolicy.requiredStableBottomPasses) {
+        self.requiredStableBottomPasses = max(1, requiredStableBottomPasses)
+    }
+
+    var items: [XBookmarkContent] {
+        orderedIDs.compactMap { valuesByID[$0] }
+    }
+
+    mutating func ingest(_ snapshot: XBookmarkPageSnapshot) -> Update {
+        var newItemCount = 0
+        for item in snapshot.items {
+            if let existing = valuesByID[item.id] {
+                if item.contentWeight > existing.contentWeight {
+                    valuesByID[item.id] = item
+                }
+            } else {
+                valuesByID[item.id] = item
+                orderedIDs.append(item.id)
+                newItemCount += 1
+            }
+        }
+
+        let heightIsStable = lastScrollHeight.map {
+            abs($0 - snapshot.scrollHeight) <= 4
+        } ?? false
+        if snapshot.isAtBottom,
+           !snapshot.isLoading,
+           !snapshot.hasTimelineError,
+           newItemCount == 0,
+           heightIsStable {
+            stableBottomPasses += 1
+        } else {
+            stableBottomPasses = 0
+        }
+        lastScrollHeight = snapshot.scrollHeight
+
+        return Update(
+            newItemCount: newItemCount,
+            totalCount: valuesByID.count,
+            reachedEnd: stableBottomPasses >= requiredStableBottomPasses
+        )
+    }
+}
+
+enum XBookmarkDigestBatchPlanner {
+    static func batches(
+        for items: [XBookmarkContent],
+        maximumItemCount: Int = 60,
+        maximumCharacterCount: Int = 45_000
+    ) -> [[XBookmarkContent]] {
+        let itemLimit = max(1, maximumItemCount)
+        let characterLimit = max(1, maximumCharacterCount)
+        var result: [[XBookmarkContent]] = []
+        var batch: [XBookmarkContent] = []
+        var characterCount = 0
+
+        for item in items {
+            let itemCharacters = max(1, item.estimatedCharacterCount)
+            if !batch.isEmpty,
+               (batch.count >= itemLimit || characterCount + itemCharacters > characterLimit) {
+                result.append(batch)
+                batch = []
+                characterCount = 0
+            }
+            batch.append(item)
+            characterCount += itemCharacters
+        }
+        if !batch.isEmpty {
+            result.append(batch)
+        }
+        return result
+    }
+}
+
 extension BrowserState {
     static func shouldOfferYouTubeDigest(
         pageURL: String?,
@@ -19,6 +183,128 @@ extension BrowserState {
             && !isOverviewActive
             && isChatAvailable
             && APIClient.isYouTubeVideoURL(pageURL)
+    }
+
+    static func shouldOfferXBookmarkDigest(
+        pageURL: String?,
+        isAIEnabled: Bool,
+        isIncognito: Bool,
+        isOverviewActive: Bool,
+        isChatAvailable: Bool
+    ) -> Bool {
+        isAIEnabled
+            && !isIncognito
+            && !isOverviewActive
+            && isChatAvailable
+            && XBookmarkDigestPolicy.isBookmarksURL(pageURL)
+    }
+
+    /// Collects the complete virtualized X bookmarks timeline without model
+    /// involvement, then sends the accumulated post content through the
+    /// existing ZenMux networking and chat path for classification.
+    @MainActor
+    func toggleXBookmarkDigest() {
+        let aiEnabled = PhiPreferences.AISettings.phiAIEnabled.loadValue()
+        guard let tab = focusingTab,
+              Self.shouldOfferXBookmarkDigest(
+                pageURL: tab.url,
+                isAIEnabled: aiEnabled,
+                isIncognito: isIncognito,
+                isOverviewActive: groupOverviewState != nil,
+                isChatAvailable: tab.aiChatEnabled
+              ) else {
+            NSSound.beep()
+            return
+        }
+
+        if tab.xBookmarkDigestState.isRunning {
+            tab.xBookmarkDigestTask?.cancel()
+            tab.xBookmarkDigestTask = nil
+            tab.xBookmarkDigestOperationID = nil
+            tab.xBookmarkDigestState = .inactive
+            return
+        }
+
+        guard let provider = tab.webContentWrapper as? XBookmarkCollectionProviding else {
+            tab.xBookmarkDigestState = .failed(XBookmarkDigestError.unavailablePage.localizedDescription)
+            return
+        }
+        let session = zenMuxChatSession(for: tab)
+        guard !session.isSending else {
+            tab.xBookmarkDigestState = .failed(XBookmarkDigestError.conversationBusy.localizedDescription)
+            return
+        }
+        guard ((try? ZenMuxCredentialStore.shared.loadAPIKey()) ?? nil) != nil else {
+            tab.xBookmarkDigestState = .failed(ZenMuxAPIError.invalidCredential.localizedDescription)
+            return
+        }
+
+        let operationID = UUID()
+        tab.xBookmarkDigestOperationID = operationID
+        tab.xBookmarkDigestState = .collecting(count: 0)
+        tab.xBookmarkDigestTask = Task { @MainActor [weak self, weak tab] in
+            guard let self, let tab else { return }
+            defer {
+                if tab.xBookmarkDigestOperationID == operationID {
+                    tab.xBookmarkDigestTask = nil
+                    tab.xBookmarkDigestOperationID = nil
+                }
+            }
+
+            do {
+                try await provider.prepareXBookmarkCollection()
+                try await Task.sleep(for: .milliseconds(1_000))
+                var accumulator = XBookmarkDigestAccumulator()
+                var reachedEnd = false
+
+                for _ in 0..<XBookmarkDigestPolicy.maximumCollectionPasses {
+                    try Task.checkCancellation()
+                    guard tab.xBookmarkDigestOperationID == operationID,
+                          XBookmarkDigestPolicy.isBookmarksURL(tab.url) else {
+                        throw CancellationError()
+                    }
+                    let snapshot = try await provider.collectXBookmarkPageSnapshot()
+                    if snapshot.hasTimelineError {
+                        throw XBookmarkDigestError.timelineFailed
+                    }
+                    let update = accumulator.ingest(snapshot)
+                    tab.xBookmarkDigestState = .collecting(count: update.totalCount)
+                    if update.reachedEnd {
+                        reachedEnd = true
+                        break
+                    }
+                    try await Task.sleep(for: .milliseconds(750))
+                }
+
+                guard reachedEnd else { throw XBookmarkDigestError.collectionLimitReached }
+                let items = accumulator.items
+                guard !items.isEmpty else { throw XBookmarkDigestError.noBookmarks }
+
+                tab.xBookmarkDigestState = .summarizing(count: items.count)
+                tab.updateFocusTarget(.aiChat)
+                self.prepareAIChatSidebarOpen(trigger: .button)
+                self.setAIChatCollapsed(for: tab, collapsed: false)
+                session.requestFocus()
+                let succeeded = await session.summarizeXBookmarks(items)
+                try Task.checkCancellation()
+                guard tab.xBookmarkDigestOperationID == operationID else { return }
+                if succeeded {
+                    tab.xBookmarkDigestState = .completed(count: items.count)
+                } else {
+                    tab.xBookmarkDigestState = .failed(
+                        session.errorMessage ?? ZenMuxAPIError.emptyResponse.localizedDescription
+                    )
+                }
+            } catch is CancellationError {
+                if tab.xBookmarkDigestOperationID == operationID {
+                    tab.xBookmarkDigestState = .inactive
+                }
+            } catch {
+                if tab.xBookmarkDigestOperationID == operationID {
+                    tab.xBookmarkDigestState = .failed(error.localizedDescription)
+                }
+            }
+        }
     }
 
     /// Opens the native AI sidebar and immediately creates a structured digest

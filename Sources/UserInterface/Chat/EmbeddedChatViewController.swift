@@ -589,6 +589,55 @@ final class ZenMuxChatSession: ObservableObject {
         }
     }
 
+    @MainActor
+    func summarizeXBookmarks(_ items: [XBookmarkContent]) async -> Bool {
+        guard !items.isEmpty, !isSending else { return false }
+        let requestSummary = String(
+            format: NSLocalizedString(
+                "chat.zenMux.xBookmarks.requestSummary",
+                value: "Classify and summarize all %ld posts collected from my X bookmarks.",
+                comment: "ZenMux chat - User message inserted after automatic X bookmark collection; placeholder is the collected post count"
+            ),
+            items.count
+        )
+        messages.append(ZenMuxChatMessage(role: .user, content: requestSummary))
+        errorMessage = nil
+        isSending = true
+        activityDescription = NSLocalizedString(
+            "chat.zenMux.xBookmarks.summarizingStatus",
+            value: "Classifying collected X bookmarks…",
+            comment: "ZenMux chat - Status shown while collected X bookmark posts are classified and summarized"
+        )
+        defer {
+            isSending = false
+            activityDescription = nil
+        }
+
+        do {
+            guard let apiKey = try ZenMuxCredentialStore.shared.loadAPIKey(),
+                  !apiKey.isEmpty else {
+                throw ZenMuxAPIError.invalidCredential
+            }
+            let model = PhiPreferences.AISettings.loadZenMuxModel()
+            let responseLanguage = PhiPreferences.AISettings.loadZenMuxResponseLanguage()
+            let report = try await APIClient.shared.summarizeXBookmarks(
+                items,
+                apiKey: apiKey,
+                model: model,
+                responseLanguage: responseLanguage
+            )
+            messages.append(ZenMuxChatMessage(role: .assistant, content: report))
+            await saveConversationMemory(
+                userMessage: requestSummary,
+                assistantMessage: report
+            )
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
     private func makeRequestMessages(
         model: ZenMuxModel,
         pageContext: ZenMuxPageContext,

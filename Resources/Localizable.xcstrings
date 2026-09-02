@@ -4,6 +4,106 @@
     "" : {
 
     },
+    "chat.zenMux.xBookmarks.requestSummary" : {
+      "comment" : "ZenMux chat - User message inserted after automatic X bookmark collection; placeholder is the collected post count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Classify and summarize all %ld posts collected from my X bookmarks." } } }
+    },
+    "chat.zenMux.xBookmarks.summarizingStatus" : {
+      "comment" : "ZenMux chat - Status shown while collected X bookmark posts are classified and summarized",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Classifying collected X bookmarks…" } } }
+    },
+    "sidebar.xBookmarkDigestButton.tooltip" : {
+      "comment" : "Sidebar - Tooltip for the contextual X bookmark archive button",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Collect and summarize X bookmarks" } } }
+    },
+    "xBookmarks.error.collectionLimitReached" : {
+      "comment" : "X bookmark digest - Error shown when the collector safety limit is reached before timeline completion",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Collection stopped before the end of the bookmarks timeline could be verified." } } }
+    },
+    "xBookmarks.error.conversationBusy" : {
+      "comment" : "X bookmark digest - Error shown when the tab AI conversation is already generating a response",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Wait for the current ZenMux response to finish, then try again." } } }
+    },
+    "xBookmarks.error.noBookmarks" : {
+      "comment" : "X bookmark digest - Error shown when the automatic collector cannot find any bookmark posts",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "No bookmark posts were found. Check that X is signed in and the bookmarks timeline is visible." } } }
+    },
+    "xBookmarks.error.timelineFailed" : {
+      "comment" : "X bookmark digest - Error shown when X displays a timeline loading failure during collection",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "X stopped loading the bookmarks timeline. Retry after the page recovers." } } }
+    },
+    "xBookmarks.error.unavailablePage" : {
+      "comment" : "X bookmark digest - Error shown when collection is started outside the supported bookmarks page",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Open the signed-in X bookmarks page before starting." } } }
+    },
+    "xBookmarks.popover.collectionNotice" : {
+      "comment" : "X bookmark digest - Explanation of the local automatic collection stage",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Astra scrolls through the signed-in bookmarks timeline and collects each post's text, author, date, links, quoted text, and available media details without AI." } } }
+    },
+    "xBookmarks.popover.collectingStatus" : {
+      "comment" : "X bookmark digest - Live collection status; placeholder is the unique post count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Collected %ld posts…" } } }
+    },
+    "xBookmarks.popover.completedStatus" : {
+      "comment" : "X bookmark digest - Completion status; placeholder is the summarized post count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "%ld posts were classified and summarized in AI chat." } } }
+    },
+    "xBookmarks.popover.readyStatus" : {
+      "comment" : "X bookmark digest - Status shown before collection starts",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Ready. Collection starts from the newest bookmark and continues to the oldest." } } }
+    },
+    "xBookmarks.popover.retryAction" : {
+      "comment" : "X bookmark digest - Button that retries after collection or summarization fails",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Retry" } } }
+    },
+    "xBookmarks.popover.runAgainAction" : {
+      "comment" : "X bookmark digest - Button that repeats collection after a completed report",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Run again" } } }
+    },
+    "xBookmarks.popover.startAction" : {
+      "comment" : "X bookmark digest - Button that starts automatic timeline collection",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Collect and summarize" } } }
+    },
+    "xBookmarks.popover.stopAction" : {
+      "comment" : "X bookmark digest - Button that cancels automatic timeline collection",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Stop collection" } } }
+    },
+    "xBookmarks.popover.summarizingAction" : {
+      "comment" : "X bookmark digest - Disabled button title while ZenMux prepares the report",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Summarizing…" } } }
+    },
+    "xBookmarks.popover.summarizingStatus" : {
+      "comment" : "X bookmark digest - Status shown during AI classification; placeholder is the collected post count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Collected %ld posts. ZenMux is classifying them…" } } }
+    },
+    "xBookmarks.popover.title" : {
+      "comment" : "X bookmark digest - Popover title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "X Bookmark Archive" } } }
+    },
+    "xBookmarks.popover.zenMuxNotice" : {
+      "comment" : "X bookmark digest - Privacy notice explaining when collected posts are sent to ZenMux",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "After the end of the timeline is verified, the collected post content is sent to your configured ZenMux model for classification and summarization." } } }
+    },
     "app.viewMenu.vocabularyBook" : {
       "comment" : "View menu - Menu item that opens the window listing words saved from webpages",
       "extractionState" : "extracted_with_value",

@@ -101,6 +101,10 @@ class Tab: WebContentRepresentable {
                 wordLookupTask?.cancel()
                 wordLookupTask = nil
                 wordLookupOperationID = nil
+                xBookmarkDigestTask?.cancel()
+                xBookmarkDigestTask = nil
+                xBookmarkDigestOperationID = nil
+                xBookmarkDigestState = .inactive
             }
         }
     }
@@ -118,6 +122,9 @@ class Tab: WebContentRepresentable {
     var selectionTranslationOperationID: UUID?
     var wordLookupTask: Task<Void, Never>?
     var wordLookupOperationID: UUID?
+    @Published var xBookmarkDigestState: XBookmarkDigestState = .inactive
+    var xBookmarkDigestTask: Task<Void, Never>?
+    var xBookmarkDigestOperationID: UUID?
 
     /// Native renderer crash-page state, set by `PhiChromiumCoordinator` from
     /// the `showCrashPage` bridge event and cleared on teardown. Non-nil drives
@@ -770,6 +777,9 @@ class Tab: WebContentRepresentable {
         wordLookupTask?.cancel()
         wordLookupTask = nil
         wordLookupOperationID = nil
+        xBookmarkDigestTask?.cancel()
+        xBookmarkDigestTask = nil
+        xBookmarkDigestOperationID = nil
         cancellables.forEach { $0.cancel() }
         cancellables.removeAll()
     }

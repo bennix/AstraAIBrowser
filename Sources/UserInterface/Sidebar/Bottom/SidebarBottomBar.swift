@@ -14,6 +14,7 @@ enum FeatureEntryAnalytics {
         case memory
         case download
         case youtubeDigest = "youtube_digest"
+        case xBookmarkDigest = "x_bookmark_digest"
         case organizeTabs = "organize_tabs"
     }
 
@@ -65,6 +66,14 @@ class SidebarBottomBarState: ObservableObject {
     /// Whether the contextual YouTube digest entry is hidden.
     @Published var isYouTubeDigestHidden: Bool = true
 
+    /// Whether the contextual X bookmark digest entry is hidden.
+    @Published var isXBookmarkDigestHidden: Bool = true
+
+    /// Whether the X bookmark collection controls are visible.
+    @Published var isXBookmarkDigestPopoverShown: Bool = false
+
+    @Published var xBookmarkDigestState: XBookmarkDigestState = .inactive
+
     /// Whether immersive translation is unavailable for the focused page.
     @Published var isImmersiveTranslationHidden: Bool = true
 
@@ -95,6 +104,7 @@ struct SidebarBottomBarSwiftUI: View {
     let onMemoryTap: () -> Void
     let onDownloadTap: () -> Void
     let onYouTubeDigestTap: () -> Void
+    let onXBookmarkDigestTap: () -> Void
     let onImmersiveTranslationTap: (
         ImmersiveTranslationLanguage,
         ImmersiveTranslationProvider
@@ -116,6 +126,8 @@ struct SidebarBottomBarSwiftUI: View {
             cardEntryButton
 
             immersiveTranslationButton
+
+            xBookmarkDigestButton
 
             if !state.isYouTubeDigestHidden {
                 YouTubeDigestButton(action: onYouTubeDigestTap)
@@ -185,6 +197,38 @@ struct SidebarBottomBarSwiftUI: View {
             return .accentColor
         }
         return .primary
+    }
+
+    @ViewBuilder
+    private var xBookmarkDigestButton: some View {
+        if !state.isXBookmarkDigestHidden {
+            Button {
+                state.isXBookmarkDigestPopoverShown.toggle()
+            } label: {
+                Group {
+                    if state.xBookmarkDigestState.isRunning {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "bookmark.square")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.primary)
+                    }
+                }
+                .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+            .help(NSLocalizedString(
+                "sidebar.xBookmarkDigestButton.tooltip",
+                value: "Collect and summarize X bookmarks",
+                comment: "Sidebar - Tooltip for the contextual X bookmark archive button"
+            ))
+            .popover(isPresented: $state.isXBookmarkDigestPopoverShown, arrowEdge: .top) {
+                XBookmarkDigestPopover(
+                    digestState: $state.xBookmarkDigestState,
+                    onRun: onXBookmarkDigestTap
+                )
+            }
+        }
     }
     
     // MARK: - Download Button
@@ -358,6 +402,146 @@ struct ImmersiveTranslationPopover: View {
             value: "Translate page",
             comment: "Immersive translation - Start translation action"
         )
+    }
+}
+
+struct XBookmarkDigestPopover: View {
+    @Binding var digestState: XBookmarkDigestState
+    let onRun: () -> Void
+
+    private var isSummarizing: Bool {
+        if case .summarizing = digestState { return true }
+        return false
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(NSLocalizedString(
+                "xBookmarks.popover.title",
+                value: "X Bookmark Archive",
+                comment: "X bookmark digest - Popover title"
+            ))
+            .font(.headline)
+
+            Text(NSLocalizedString(
+                "xBookmarks.popover.collectionNotice",
+                value: "Astra scrolls through the signed-in bookmarks timeline and collects each post's text, author, date, links, quoted text, and available media details without AI.",
+                comment: "X bookmark digest - Explanation of the local automatic collection stage"
+            ))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+            Text(NSLocalizedString(
+                "xBookmarks.popover.zenMuxNotice",
+                value: "After the end of the timeline is verified, the collected post content is sent to your configured ZenMux model for classification and summarization.",
+                comment: "X bookmark digest - Privacy notice explaining when collected posts are sent to ZenMux"
+            ))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+            statusView
+
+            Button(action: onRun) {
+                HStack {
+                    if digestState.isRunning {
+                        ProgressView().controlSize(.small)
+                    }
+                    Text(actionTitle)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isSummarizing)
+        }
+        .padding(16)
+        .frame(width: 360)
+    }
+
+    @ViewBuilder
+    private var statusView: some View {
+        switch digestState {
+        case .inactive:
+            Text(NSLocalizedString(
+                "xBookmarks.popover.readyStatus",
+                value: "Ready. Collection starts from the newest bookmark and continues to the oldest.",
+                comment: "X bookmark digest - Status shown before collection starts"
+            ))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        case .collecting(let count):
+            Text(String(
+                format: NSLocalizedString(
+                    "xBookmarks.popover.collectingStatus",
+                    value: "Collected %ld posts…",
+                    comment: "X bookmark digest - Live collection status; placeholder is the unique post count"
+                ),
+                count
+            ))
+            .font(.caption)
+        case .summarizing(let count):
+            Text(String(
+                format: NSLocalizedString(
+                    "xBookmarks.popover.summarizingStatus",
+                    value: "Collected %ld posts. ZenMux is classifying them…",
+                    comment: "X bookmark digest - Status shown during AI classification; placeholder is the collected post count"
+                ),
+                count
+            ))
+            .font(.caption)
+        case .completed(let count):
+            Text(String(
+                format: NSLocalizedString(
+                    "xBookmarks.popover.completedStatus",
+                    value: "%ld posts were classified and summarized in AI chat.",
+                    comment: "X bookmark digest - Completion status; placeholder is the summarized post count"
+                ),
+                count
+            ))
+            .font(.caption)
+            .foregroundStyle(.green)
+        case .failed(let message):
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var actionTitle: String {
+        switch digestState {
+        case .collecting:
+            return NSLocalizedString(
+                "xBookmarks.popover.stopAction",
+                value: "Stop collection",
+                comment: "X bookmark digest - Button that cancels automatic timeline collection"
+            )
+        case .summarizing:
+            return NSLocalizedString(
+                "xBookmarks.popover.summarizingAction",
+                value: "Summarizing…",
+                comment: "X bookmark digest - Disabled button title while ZenMux prepares the report"
+            )
+        case .inactive:
+            return NSLocalizedString(
+                "xBookmarks.popover.startAction",
+                value: "Collect and summarize",
+                comment: "X bookmark digest - Button that starts automatic timeline collection"
+            )
+        case .completed:
+            return NSLocalizedString(
+                "xBookmarks.popover.runAgainAction",
+                value: "Run again",
+                comment: "X bookmark digest - Button that repeats collection after a completed report"
+            )
+        case .failed:
+            return NSLocalizedString(
+                "xBookmarks.popover.retryAction",
+                value: "Retry",
+                comment: "X bookmark digest - Button that retries after collection or summarization fails"
+            )
+        }
     }
 }
 
@@ -552,6 +736,7 @@ class SidebarBottomBarSwiftUIView: NSView {
     var onMemoryTap: (() -> Void)?
     var onDownloadTap: (() -> Void)?
     var onYouTubeDigestTap: (() -> Void)?
+    var onXBookmarkDigestTap: (() -> Void)?
     var onImmersiveTranslationTap: ((
         ImmersiveTranslationLanguage,
         ImmersiveTranslationProvider
@@ -582,6 +767,7 @@ class SidebarBottomBarSwiftUIView: NSView {
                 onMemoryTap: { [weak self] in self?.onMemoryTap?() },
                 onDownloadTap: { [weak self] in self?.onDownloadTap?() },
                 onYouTubeDigestTap: { [weak self] in self?.onYouTubeDigestTap?() },
+                onXBookmarkDigestTap: { [weak self] in self?.onXBookmarkDigestTap?() },
                 onImmersiveTranslationTap: { [weak self] language, provider in
                     self?.onImmersiveTranslationTap?(language, provider)
                 }
@@ -631,6 +817,17 @@ class SidebarBottomBarSwiftUIView: NSView {
     /// Hides or shows the contextual YouTube video digest entry.
     func setYouTubeDigestHidden(_ hidden: Bool) {
         state.isYouTubeDigestHidden = hidden
+    }
+
+    func setXBookmarkDigestHidden(_ hidden: Bool) {
+        state.isXBookmarkDigestHidden = hidden
+        if hidden {
+            state.isXBookmarkDigestPopoverShown = false
+        }
+    }
+
+    func setXBookmarkDigestState(_ digestState: XBookmarkDigestState) {
+        state.xBookmarkDigestState = digestState
     }
 
     func setImmersiveTranslationHidden(_ hidden: Bool) {

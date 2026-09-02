@@ -479,6 +479,13 @@ extension AppController {
             } else
             
             if menuRole == .app, let subMenu = menuItem.submenu {
+                if let aboutItem = subMenu.items.first(where: {
+                    $0.tag == CommandWrapper.IDC_ABOUT.rawValue
+                }) {
+                    aboutItem.action = #selector(orderFrontStandardAboutPanel(_:))
+                    aboutItem.target = self
+                }
+
                 #if !PHI_OSS_BUILD
                 subMenu.items.removeAll { $0.tag == AppController.checkForUpdateItemTag }
 
@@ -711,10 +718,10 @@ extension AppController {
             if appMenu.items.isEmpty {
                 let about = NSMenuItem(
                     title: String(format: NSLocalizedString("About %@", comment: "Application menu - About"), appItem.title),
-                    action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
+                    action: #selector(orderFrontStandardAboutPanel(_:)),
                     keyEquivalent: ""
                 )
-                about.target = NSApp
+                about.target = self
                 appMenu.addItem(about)
 
                 let settings = NSMenuItem(
@@ -2386,6 +2393,14 @@ extension AppController {
     // MARK: - Chromium Menu Actions
 
     @objc func orderFrontStandardAboutPanel(_ sender: Any?) {
+        #if !PHI_OSS_BUILD
+        if PhiBuildCapabilities.supportsSoftwareUpdates {
+            DispatchQueue.main.async { [weak self] in
+                self?.checkForUpdate(nil)
+            }
+        }
+        #endif
+
         if let existingWindow = NSApp.windows.first(where: { $0.identifier?.rawValue ?? "" == "About Astra Browser" }) {
             existingWindow.makeKeyAndOrderFront(nil)
             return

@@ -90,14 +90,14 @@ if [[ -n "$release_build" ]]; then
   }
 fi
 
-for key in \
-  SUAutomaticallyUpdate \
-  SUEnableAutomaticChecks \
-  SUFeedURL \
-  SUPublicEDKey \
-  SUScheduledCheckInterval; do
-  assert_missing_plist_key "$key"
-done
+assert_plist_value SUAutomaticallyUpdate false
+assert_plist_value SUEnableAutomaticChecks true
+assert_plist_value SUFeedURL "https://github.com/bennix/AstraAIBrowser/releases/latest/download/appcast.xml"
+assert_plist_value SUPublicEDKey "rWXUlON9obaJqG7YbfFwDLeqNwkr4eB/da+/GGvZ2mE="
+assert_plist_value SURequireSignedFeed true
+assert_plist_value SUSignedFeedFailureExpirationInterval 0
+assert_plist_value SUVerifyUpdateBeforeExtraction true
+assert_missing_plist_key SUScheduledCheckInterval
 
 [[ -f "$resources_path/AstraIcon.icns" ]] || {
   >&2 echo "AstraIcon.icns is missing from the release bundle."

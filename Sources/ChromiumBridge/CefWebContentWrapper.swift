@@ -33,6 +33,58 @@ protocol ImmersiveTranslationProviding: AnyObject {
     func removeImmersiveTranslations() async
 }
 
+struct XBookmarkContent: Codable, Equatable, Hashable, Sendable {
+    let id: String
+    let authorName: String
+    let authorHandle: String
+    let postedAt: String
+    let url: String
+    let text: String
+    let quotedText: String
+    let visibleContent: String
+    let links: [String]
+    let mediaURLs: [String]
+    let mediaDescriptions: [String]
+    let language: String
+
+    var contentWeight: Int {
+        text.count
+            + quotedText.count
+            + visibleContent.count
+            + links.joined().count
+            + mediaURLs.joined().count
+            + mediaDescriptions.joined().count
+    }
+
+    var estimatedCharacterCount: Int {
+        contentWeight
+            + authorName.count
+            + authorHandle.count
+            + postedAt.count
+            + url.count
+            + language.count
+            + 160
+    }
+}
+
+struct XBookmarkPageSnapshot: Codable, Equatable, Sendable {
+    let items: [XBookmarkContent]
+    let scrollPosition: Double
+    let scrollHeight: Double
+    let viewportHeight: Double
+    let isAtBottom: Bool
+    let isLoading: Bool
+    let hasTimelineError: Bool
+}
+
+protocol XBookmarkCollectionProviding: AnyObject {
+    @MainActor
+    func prepareXBookmarkCollection() async throws
+
+    @MainActor
+    func collectXBookmarkPageSnapshot() async throws -> XBookmarkPageSnapshot
+}
+
 struct MediaDownloadCandidate: Codable, Hashable, Sendable {
     enum Kind: String, Codable, Sendable {
         case video
@@ -1112,7 +1164,7 @@ final class SystemMediaWebView: WKWebView {
 }
 
 @MainActor
-final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, CefBrowserDelegate, PageContentProviding, BrowserAutomationProviding, ImmersiveTranslationProviding, MediaSessionCookieProviding, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, CefBrowserDelegate, PageContentProviding, BrowserAutomationProviding, ImmersiveTranslationProviding, XBookmarkCollectionProviding, MediaSessionCookieProviding, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
     private final class SystemMediaPopupHost: NSObject, WKUIDelegate, NSWindowDelegate {
         let webView: SystemMediaWebView
         let window: NSWindow
@@ -3278,6 +3330,214 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         })()
         """
         return await browser.evaluateJavaScriptResult(expression, timeout: timeout)
+    }
+
+    func prepareXBookmarkCollection() async throws {
+        let operation = #"""
+        const host = location.hostname.toLowerCase().replace(/^\.+|\.+$/g, '');
+        const path = location.pathname.toLowerCase().replace(/^\/+|\/+$/g, '');
+        const supportedHost = host === 'x.com' || host.endsWith('.x.com')
+          || host === 'twitter.com' || host.endsWith('.twitter.com');
+        if (!supportedHost || (path !== 'i/bookmarks' && path !== 'bookmarks')) {
+          return 'unsupported';
+        }
+        const scroller = document.scrollingElement || document.documentElement;
+        scroller.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+        return 'ok';
+        """#
+        guard await evaluateJavaScriptResult(operation: operation, timeout: 5) == "ok" else {
+            throw XBookmarkDigestError.unavailablePage
+        }
+    }
+
+    func collectXBookmarkPageSnapshot() async throws -> XBookmarkPageSnapshot {
+        let operation = #"""
+        const clean = (value, limit = 16000) => String(value || '')
+          .replace(/\u00a0/g, ' ')
+          .replace(/[ \t]+\n/g, '\n')
+          .replace(/\n{3,}/g, '\n\n')
+          .trim()
+          .slice(0, limit);
+        const unique = (values, limit) => Array.from(new Set(values.filter(Boolean))).slice(0, limit);
+        const absoluteURL = (raw) => {
+          try {
+            const value = new URL(raw, location.origin);
+            value.hash = '';
+            return value.href;
+          } catch (_) {
+            return '';
+          }
+        };
+        const canonicalStatus = (article) => {
+          const timedLink = article.querySelector('time')?.closest('a[href*="/status/"]');
+          if (timedLink) return timedLink;
+          return Array.from(article.querySelectorAll('a[href*="/status/"]')).find((anchor) => {
+            try {
+              return /^\/[^/]+\/status\/\d+\/?$/.test(new URL(anchor.href, location.origin).pathname);
+            } catch (_) {
+              return false;
+            }
+          }) || null;
+        };
+        const postTextNodes = (article) => {
+          const legacy = Array.from(article.querySelectorAll('[data-testid="tweetText"]'));
+          if (legacy.length > 0) return legacy;
+          return Array.from(article.querySelectorAll('div[dir="auto"]')).filter((node) => {
+            if (node.closest('a, button') || node.closest('article') !== article) return false;
+            const classes = node.classList;
+            return classes.contains('whitespace-pre-wrap')
+              && classes.contains('text-body')
+              && classes.contains('font-normal');
+          });
+        };
+        const timelineArticles = Array.from(document.querySelectorAll('article')).filter(
+          (article) => !article.parentElement?.closest('article')
+        );
+        let expandedLongPosts = false;
+        for (const article of timelineArticles) {
+          if (!canonicalStatus(article)) continue;
+          const textNodes = postTextNodes(article);
+          const controls = new Set([
+            ...article.querySelectorAll('button[data-testid="tweet-text-show-more-link"]'),
+            ...textNodes.flatMap((node) => Array.from(node.children).filter((child) => child.tagName === 'BUTTON')),
+          ]);
+          for (const control of controls) {
+            if (control.disabled) continue;
+            control.click();
+            expandedLongPosts = true;
+          }
+        }
+        if (expandedLongPosts) {
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        }
+        const records = [];
+        for (const article of timelineArticles) {
+          const time = article.querySelector('time');
+          const statusAnchor = canonicalStatus(article);
+          const statusURL = absoluteURL(statusAnchor && statusAnchor.getAttribute('href'));
+          const idMatch = statusURL.match(/\/status\/(\d+)/);
+          if (!idMatch) continue;
+
+          const userName = article.querySelector('[data-testid="User-Name"]');
+          const userLines = clean(userName && userName.innerText, 1000)
+            .split('\n')
+            .map((value) => value.trim())
+            .filter(Boolean);
+          const statusPath = new URL(statusURL).pathname.split('/').filter(Boolean);
+          const statusHandle = decodeURIComponent(statusPath[0] || '');
+          const authorLinks = Array.from(article.querySelectorAll('a[href]')).filter((anchor) => {
+            try {
+              const path = new URL(anchor.href, location.origin).pathname.replace(/\/$/, '');
+              return statusHandle && path.toLowerCase() === `/${statusHandle.toLowerCase()}`;
+            } catch (_) {
+              return false;
+            }
+          });
+          const authorLinkTexts = authorLinks.map((anchor) => clean(anchor.innerText, 1000)).filter(Boolean);
+          const authorHandle = userLines.find((value) => value.startsWith('@'))
+            || authorLinkTexts.find((value) => value.startsWith('@'))
+            || (statusHandle ? `@${statusHandle}` : '');
+          const authorName = userLines.find((value) => !value.startsWith('@'))
+            || authorLinkTexts.find((value) => !value.startsWith('@'))
+            || '';
+          const textNodes = postTextNodes(article);
+          const textValues = textNodes.map((node) => clean(node.innerText, 12000)).filter(Boolean);
+          let postedAt = clean(time && time.getAttribute('datetime'), 100);
+          if (!postedAt) {
+            const displayedDate = clean(
+              statusAnchor.getAttribute('datetime')
+                || statusAnchor.getAttribute('title')
+                || statusAnchor.getAttribute('aria-label')
+                || statusAnchor.innerText,
+              100
+            );
+            try {
+              const timestamp = Number((BigInt(idMatch[1]) >> 22n) + 1288834974657n);
+              postedAt = Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : displayedDate;
+            } catch (_) {
+              postedAt = displayedDate;
+            }
+          }
+          const links = unique(
+            Array.from(article.querySelectorAll('a[href]')).map((anchor) => {
+              const url = absoluteURL(anchor.getAttribute('href'));
+              if (!url || url.startsWith('javascript:')) return '';
+              return url;
+            }),
+            32
+          );
+          const mediaNodes = Array.from(article.querySelectorAll('img, video')).filter((node) => {
+            if (node.tagName === 'VIDEO') return true;
+            if (node.matches('[data-testid="tweetPhoto"] img, [data-testid="videoPlayer"] video, [data-testid="videoComponent"] video, [data-testid^="card.layout"] img')) {
+              return true;
+            }
+            const source = String(node.currentSrc || node.src || node.poster || '');
+            if (/pbs\.twimg\.com\/(media|card_img)\//i.test(source)) return true;
+            const mediaLink = node.closest('a[href*="/status/"]');
+            if (!mediaLink) return false;
+            try {
+              return /^\/[^/]+\/status\/\d+\/(photo|video)\/\d+\/?$/.test(
+                new URL(mediaLink.href, location.origin).pathname
+              );
+            } catch (_) {
+              return false;
+            }
+          });
+          const mediaURLs = unique([
+            ...mediaNodes.flatMap((node) => [node.currentSrc, node.src, node.poster]),
+            ...Array.from(article.querySelectorAll('[data-testid="videoPlayer"] source[src], [data-testid="videoComponent"] source[src]'))
+              .map((source) => source.src),
+          ].map(absoluteURL), 24);
+          const mediaDescriptions = unique(
+            [...mediaNodes, ...Array.from(article.querySelectorAll('[data-testid="card.wrapper"]'))]
+              .map((node) => clean(node.getAttribute('alt') || node.getAttribute('aria-label') || node.innerText, 2000)),
+            24
+          );
+
+          records.push({
+            id: idMatch[1],
+            authorName,
+            authorHandle,
+            postedAt,
+            url: statusURL,
+            text: textValues[0] || '',
+            quotedText: textValues.slice(1).join('\n\n'),
+            visibleContent: clean(article.innerText),
+            links,
+            mediaURLs,
+            mediaDescriptions,
+            language: clean(textNodes[0] && textNodes[0].getAttribute('lang'), 40),
+          });
+        }
+
+        const scroller = document.scrollingElement || document.documentElement;
+        const scrollPosition = Number(scroller.scrollTop || window.scrollY || 0);
+        const scrollHeight = Number(Math.max(scroller.scrollHeight || 0, document.body?.scrollHeight || 0));
+        const viewportHeight = Number(window.innerHeight || scroller.clientHeight || 0);
+        const isAtBottom = scrollPosition + viewportHeight >= scrollHeight - 8;
+        const isLoading = Boolean(document.querySelector('[role="progressbar"]'));
+        const hasTimelineError = Boolean(document.querySelector('[data-testid="error-detail"]'));
+        if (!isAtBottom) {
+          const distance = Math.max(600, Math.floor(viewportHeight * 0.82));
+          scroller.scrollBy({ top: distance, left: 0, behavior: 'auto' });
+        }
+        return JSON.stringify({
+          items: records,
+          scrollPosition,
+          scrollHeight,
+          viewportHeight,
+          isAtBottom,
+          isLoading,
+          hasTimelineError,
+        });
+        """#
+        guard let result = await evaluateJavaScriptResult(operation: operation, timeout: 8),
+              let data = result.data(using: .utf8),
+              let snapshot = try? JSONDecoder().decode(XBookmarkPageSnapshot.self, from: data) else {
+            throw XBookmarkDigestError.unavailablePage
+        }
+        return snapshot
     }
 
     func mediaSessionCookies(for url: URL) async -> [HTTPCookie] {

@@ -32,7 +32,11 @@
     "features.youtubeDigest.body": "YouTube 视频页会显示上下文侧边栏入口，使用可用字幕或视听分析生成覆盖完整视频的结构化摘要，包括时间章节、可核对引语、核心论证和明确标注的不确定性。",
     "features.vocabularyBook.title": "划词翻译与持久词汇本",
     "features.vocabularyBook.body": "在网页上选中文本后，可从右键菜单翻译内容或查询单词。指针锚定卡片会就地更新结果，支持复制译文，并可将词典结果保存到可搜索、可导出 Markdown 的持久词汇本。",
-    "download.summary": "Build 76 将划词翻译与单词查询合并到指针锚定卡片，支持就地更新、复制译文和保存词汇。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "features.xBookmarkArchive.title": "X 书签全文归档",
+    "features.xBookmarkArchive.body": "Astra 可在已登录的 X 书签页自动滚动至历史末尾，本地收集每条书签的正文、作者、日期、链接、引用与可见媒体信息，确认收集完成后再由 ZenMux 分类和总结。",
+    "features.signedUpdates.title": "GitHub 签名在线更新",
+    "features.signedUpdates.body": "打开“关于 Astra Browser”即会检查 GitHub Releases 更新。更新源与 DMG 均使用 Sparkle Ed25519 签名校验，并继续验证 Apple 代码签名。",
+    "download.summary": "Build 77 增加 X 书签全文归档与 ZenMux 分类总结，并增加由“关于”触发的 GitHub 签名在线更新。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

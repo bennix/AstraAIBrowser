@@ -20,6 +20,7 @@ enum CommandWrapper: Int, Equatable {
     case IDC_EXIT                    = 34031
     case IDC_CLEAR_BROWSING_DATA     = 40013
     case IDC_IMPORT_SETTINGS         = 40014
+    case IDC_ABOUT                   = 40018
 
     // File
     case IDC_NEW_TAB                 = 34014

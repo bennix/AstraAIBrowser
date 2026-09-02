@@ -86,5 +86,19 @@
 	</array>
 	<key>OSAScriptingDefinition</key>
 	<string>Astra.sdef</string>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/bennix/AstraAIBrowser/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>rWXUlON9obaJqG7YbfFwDLeqNwkr4eB/da+/GGvZ2mE=</string>
+	<key>SURequireSignedFeed</key>
+	<true/>
+	<key>SUSignedFeedFailureExpirationInterval</key>
+	<integer>0</integer>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
 </dict>
 </plist>

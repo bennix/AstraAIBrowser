@@ -230,6 +230,11 @@ class SidebarViewController: NSViewController {
             FeatureEntryAnalytics.capture(.youtubeDigest, surface: .sidebar)
             self.state.startYouTubeDigest()
         }
+        view.onXBookmarkDigestTap = { [weak self] in
+            guard let self else { return }
+            FeatureEntryAnalytics.capture(.xBookmarkDigest, surface: .sidebar)
+            self.state.toggleXBookmarkDigest()
+        }
         view.onImmersiveTranslationTap = { [weak self] language, provider in
             self?.state.toggleImmersiveTranslation(language: language, provider: provider)
         }
@@ -400,6 +405,7 @@ class SidebarViewController: NSViewController {
         updateChatButtonVisibility()
         updateMemoryButtonVisibility()
         updateYouTubeDigestButtonVisibility()
+        updateXBookmarkDigestButton()
         updateImmersiveTranslationButton()
         updateSidebarContentActivation()
         updateSpaceTintGradient()
@@ -502,6 +508,21 @@ class SidebarViewController: NSViewController {
         bottomBarSwiftUI.setYouTubeDigestHidden(!shouldOffer)
     }
 
+    private func updateXBookmarkDigestButton() {
+        let tab = state.focusingTab
+        let shouldOffer = BrowserState.shouldOfferXBookmarkDigest(
+            pageURL: tab?.url,
+            isAIEnabled: PhiPreferences.AISettings.phiAIEnabled.loadValue(),
+            isIncognito: state.isIncognito,
+            isOverviewActive: state.groupOverviewState != nil,
+            isChatAvailable: tab?.aiChatEnabled ?? false
+        )
+        bottomBarSwiftUI.setXBookmarkDigestHidden(!shouldOffer)
+        bottomBarSwiftUI.setXBookmarkDigestState(
+            shouldOffer ? (tab?.xBookmarkDigestState ?? .inactive) : .inactive
+        )
+    }
+
     private func updateImmersiveTranslationButton() {
         let tab = state.focusingTab
         let shouldOffer = BrowserState.shouldOfferImmersiveTranslation(
@@ -551,6 +572,7 @@ class SidebarViewController: NSViewController {
                 self?.updateChatButtonVisibility()
                 self?.updateMemoryButtonVisibility()
                 self?.updateYouTubeDigestButtonVisibility()
+                self?.updateXBookmarkDigestButton()
                 self?.updateImmersiveTranslationButton()
                 self?.headerView.updateSpaceSwitchVisibility()
                 self?.updateHeaderHeight()
@@ -728,6 +750,7 @@ class SidebarViewController: NSViewController {
                 self?.observeFocusingTabAIChatEnabled(tab)
                 self?.updateChatButtonVisibility()
                 self?.updateYouTubeDigestButtonVisibility()
+                self?.updateXBookmarkDigestButton()
                 self?.updateImmersiveTranslationButton()
             }
             .store(in: &cancellables)
@@ -750,6 +773,7 @@ class SidebarViewController: NSViewController {
             .sink { [weak self] _ in
                 self?.updateChatButtonVisibility()
                 self?.updateYouTubeDigestButtonVisibility()
+                self?.updateXBookmarkDigestButton()
                 self?.updateImmersiveTranslationButton()
             }
             .store(in: &cancellables)
@@ -976,6 +1000,7 @@ class SidebarViewController: NSViewController {
     /// Subscription for the focused tab's URL, including YouTube SPA navigations.
     private var focusingTabURLCancellable: AnyCancellable?
     private var focusingTabTranslationCancellable: AnyCancellable?
+    private var focusingTabXBookmarkDigestCancellable: AnyCancellable?
 
     /// Observe `aiChatEnabled` on the current focusing tab.
     private func observeFocusingTabAIChatEnabled(_ tab: Tab?) {
@@ -987,8 +1012,11 @@ class SidebarViewController: NSViewController {
         focusingTabURLCancellable = nil
         focusingTabTranslationCancellable?.cancel()
         focusingTabTranslationCancellable = nil
+        focusingTabXBookmarkDigestCancellable?.cancel()
+        focusingTabXBookmarkDigestCancellable = nil
 
         guard let tab else {
+            updateXBookmarkDigestButton()
             updateImmersiveTranslationButton()
             return
         }
@@ -998,6 +1026,7 @@ class SidebarViewController: NSViewController {
             .sink { [weak self] _ in
                 self?.updateChatButtonVisibility()
                 self?.updateYouTubeDigestButtonVisibility()
+                self?.updateXBookmarkDigestButton()
             }
 
         focusingTabURLCancellable = tab.$url
@@ -1005,6 +1034,7 @@ class SidebarViewController: NSViewController {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.updateYouTubeDigestButtonVisibility()
+                self?.updateXBookmarkDigestButton()
                 self?.updateImmersiveTranslationButton()
             }
 
@@ -1013,6 +1043,13 @@ class SidebarViewController: NSViewController {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.updateImmersiveTranslationButton()
+            }
+
+        focusingTabXBookmarkDigestCancellable = tab.$xBookmarkDigestState
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateXBookmarkDigestButton()
             }
 
         if let partner = focusingTabSplitPartner() {
