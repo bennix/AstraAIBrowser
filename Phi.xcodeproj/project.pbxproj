@@ -16,6 +16,7 @@
 		A11CE0023000000000000002 /* VocabularyBook.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0013000000000000002 /* VocabularyBook.swift */; };
 		A11CE0023000000000000003 /* SelectionCardController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0013000000000000003 /* SelectionCardController.swift */; };
 		A11CE0023000000000000004 /* VocabularyBookWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0013000000000000004 /* VocabularyBookWindowController.swift */; };
+		A11CE0023000000000000005 /* XBookmarkArchiveWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0013000000000000005 /* XBookmarkArchiveWindowController.swift */; };
 		3703C9842F6956E600E7CF6D /* SentinelHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3703C9832F6956E600E7CF6D /* SentinelHelper.swift */; };
 		3703C9862F6956E600E7CF6D /* SentinelVersionGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3703C9852F6956E600E7CF6D /* SentinelVersionGuard.swift */; };
 		370D03AC2F0E463B0087A1C9 /* Mapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 370D03A32F0E463B0087A1C9 /* Mapper.swift */; };
@@ -657,6 +658,7 @@
 		A11CE0013000000000000002 /* VocabularyBook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyBook.swift; sourceTree = "<group>"; };
 		A11CE0013000000000000003 /* SelectionCardController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionCardController.swift; sourceTree = "<group>"; };
 		A11CE0013000000000000004 /* VocabularyBookWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyBookWindowController.swift; sourceTree = "<group>"; };
+		A11CE0013000000000000005 /* XBookmarkArchiveWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XBookmarkArchiveWindowController.swift; sourceTree = "<group>"; };
 		3703C9832F6956E600E7CF6D /* SentinelHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SentinelHelper.swift; sourceTree = "<group>"; };
 		3703C9852F6956E600E7CF6D /* SentinelVersionGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SentinelVersionGuard.swift; sourceTree = "<group>"; };
 		370D039F2F0E463B0087A1C9 /* Appearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Appearance.swift; sourceTree = "<group>"; };
@@ -1688,6 +1690,14 @@
 			path = Vocabulary;
 			sourceTree = "<group>";
 		};
+		A11CE0033000000000000002 /* XBookmarks */ = {
+			isa = PBXGroup;
+			children = (
+				A11CE0013000000000000005 /* XBookmarkArchiveWindowController.swift */,
+			);
+			path = XBookmarks;
+			sourceTree = "<group>";
+		};
 		8E0A10042FEA000000000001 /* OverlayToast */ = {
 			isa = PBXGroup;
 			children = (
@@ -2030,6 +2040,7 @@
 				CC24EEF32E8662AC00CE9DD7 /* Onboarding */,
 				8E0A10042FEA000000000001 /* OverlayToast */,
 				A11CE0033000000000000001 /* Vocabulary */,
+				A11CE0033000000000000002 /* XBookmarks */,
 				37C1B2F32EE287CB00DD4496 /* OverlayWindowToast */,
 				CC6B000C2E77DEA900D4F133 /* Preferences */,
 				5EA17ABC0000000000000120 /* SearchTabs */,
@@ -3249,6 +3260,7 @@
 				A11CE0023000000000000002 /* VocabularyBook.swift in Sources */,
 				A11CE0023000000000000003 /* SelectionCardController.swift in Sources */,
 				A11CE0023000000000000004 /* VocabularyBookWindowController.swift in Sources */,
+				A11CE0023000000000000005 /* XBookmarkArchiveWindowController.swift in Sources */,
 				EAD000000000000000000012 /* ReaderExtractionService.swift in Sources */,
 				EAD00000000000000000001A /* ReaderAccessibilityExtractor.swift in Sources */,
 				EAD000000000000000000026 /* ReaderExportService.swift in Sources */,
@@ -3568,7 +3580,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10079;
+				CURRENT_PROJECT_VERSION = 10080;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -4031,7 +4043,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10079;
+				CURRENT_PROJECT_VERSION = 10080;
 				DEVELOPMENT_TEAM = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -4085,7 +4097,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10079;
+				CURRENT_PROJECT_VERSION = 10080;
 				DEVELOPMENT_TEAM = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -4278,7 +4290,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10079;
+				CURRENT_PROJECT_VERSION = 10080;
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;

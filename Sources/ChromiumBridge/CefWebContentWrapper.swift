@@ -43,7 +43,8 @@ struct XBookmarkContent: Codable, Equatable, Hashable, Sendable {
     let quotedText: String
     let visibleContent: String
     let links: [String]
-    let mediaURLs: [String]
+    let imageURLs: [String]
+    let videoURLs: [String]
     let mediaDescriptions: [String]
     let language: String
 
@@ -52,7 +53,8 @@ struct XBookmarkContent: Codable, Equatable, Hashable, Sendable {
             + quotedText.count
             + visibleContent.count
             + links.joined().count
-            + mediaURLs.joined().count
+            + imageURLs.joined().count
+            + videoURLs.joined().count
             + mediaDescriptions.joined().count
     }
 
@@ -80,6 +82,9 @@ struct XBookmarkPageSnapshot: Codable, Equatable, Sendable {
 }
 
 protocol XBookmarkCollectionProviding: AnyObject {
+    @MainActor
+    func openXBookmarkTimeline() async throws
+
     @MainActor
     func prepareXBookmarkCollection() async throws
 
@@ -3334,6 +3339,55 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         return await browser.evaluateJavaScriptResult(expression, timeout: timeout)
     }
 
+    func openXBookmarkTimeline() async throws {
+        guard let routeData = try? JSONEncoder().encode(XBookmarkDigestPolicy.bookmarkRoutePaths),
+              let routeLiteral = String(data: routeData, encoding: .utf8) else {
+            throw XBookmarkDigestError.unavailablePage
+        }
+        for _ in 0..<XBookmarkDigestPolicy.maximumReadinessPasses {
+            try Task.checkCancellation()
+            let operation = """
+            const host = location.hostname.toLowerCase().replace(/^\\.+|\\.+$/g, '');
+            const path = location.pathname.toLowerCase().replace(/\\/+$/, '') || '/';
+            const supportedHost = host === 'x.com' || host.endsWith('.x.com')
+              || host === 'twitter.com' || host.endsWith('.twitter.com');
+            const bookmarkPaths = \(routeLiteral);
+            if (!supportedHost) return 'unsupported';
+            if (bookmarkPaths.includes(path)) return `ready\n${location.href}`;
+            if (document.querySelector('[data-testid="error-detail"]')) return 'error';
+            const routeLink = Array.from(document.querySelectorAll('a[href]')).find((anchor) => {
+              try {
+                const destination = new URL(anchor.href, location.origin);
+                return bookmarkPaths.includes(destination.pathname.toLowerCase().replace(/\\/+$/, '') || '/');
+              } catch (_) {
+                return false;
+              }
+            });
+            if (!routeLink) return 'loading';
+            routeLink.click();
+            return 'navigating';
+            """
+            let result = await evaluateJavaScriptResult(operation: operation, timeout: 5)
+            if let result,
+               result.hasPrefix("ready\n") {
+                let currentURL = String(result.dropFirst("ready\n".count))
+                if XBookmarkDigestPolicy.isBookmarksURL(currentURL) {
+                    urlString = currentURL
+                }
+                return
+            }
+            switch result {
+            case "unsupported":
+                throw XBookmarkDigestError.unavailablePage
+            case "error":
+                throw XBookmarkDigestError.timelineFailed
+            default:
+                try await Task.sleep(for: .milliseconds(XBookmarkDigestPolicy.readinessPollMilliseconds))
+            }
+        }
+        throw XBookmarkDigestError.timelineFailed
+    }
+
     func prepareXBookmarkCollection() async throws {
         for _ in 0..<XBookmarkDigestPolicy.maximumReadinessPasses {
             try Task.checkCancellation()
@@ -3378,6 +3432,13 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
 
     func collectXBookmarkPageSnapshot() async throws -> XBookmarkPageSnapshot {
         let operation = #"""
+        const host = location.hostname.toLowerCase().replace(/^\.+|\.+$/g, '');
+        const path = location.pathname.toLowerCase().replace(/^\/+|\/+$/g, '');
+        const supportedHost = host === 'x.com' || host.endsWith('.x.com')
+          || host === 'twitter.com' || host.endsWith('.twitter.com');
+        if (!supportedHost || !['i/history', 'i/bookmarks', 'bookmarks'].includes(path)) {
+          return 'unsupported';
+        }
         const clean = (value, limit = 16000) => String(value || '')
           .replace(/\u00a0/g, ' ')
           .replace(/[ \t]+\n/g, '\n')
@@ -3387,7 +3448,9 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         const unique = (values, limit) => Array.from(new Set(values.filter(Boolean))).slice(0, limit);
         const absoluteURL = (raw) => {
           try {
-            const value = new URL(raw, location.origin);
+            const candidate = String(raw || '').trim();
+            if (!candidate || candidate.startsWith('blob:')) return '';
+            const value = new URL(candidate, location.origin);
             value.hash = '';
             return value.href;
           } catch (_) {
@@ -3492,8 +3555,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             }),
             32
           );
-          const mediaNodes = Array.from(article.querySelectorAll('img, video')).filter((node) => {
-            if (node.tagName === 'VIDEO') return true;
+          const imageNodes = Array.from(article.querySelectorAll('img')).filter((node) => {
             if (node.matches('[data-testid="tweetPhoto"] img, [data-testid="videoPlayer"] video, [data-testid="videoComponent"] video, [data-testid^="card.layout"] img')) {
               return true;
             }
@@ -3509,13 +3571,18 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
               return false;
             }
           });
-          const mediaURLs = unique([
-            ...mediaNodes.flatMap((node) => [node.currentSrc, node.src, node.poster]),
-            ...Array.from(article.querySelectorAll('[data-testid="videoPlayer"] source[src], [data-testid="videoComponent"] source[src]'))
-              .map((source) => source.src),
+          const videoNodes = Array.from(article.querySelectorAll('video, [data-testid="videoPlayer"], [data-testid="videoComponent"]'));
+          const imageURLs = unique([
+            ...imageNodes.flatMap((node) => [node.currentSrc, node.src]),
+            ...videoNodes.flatMap((node) => [node.poster]),
           ].map(absoluteURL), 24);
+          const videoURLs = videoNodes.length > 0 ? unique([
+            statusURL,
+            ...Array.from(article.querySelectorAll('a[href*="/video/"]'))
+              .map((anchor) => absoluteURL(anchor.getAttribute('href'))),
+          ], 8) : [];
           const mediaDescriptions = unique(
-            [...mediaNodes, ...Array.from(article.querySelectorAll('[data-testid="card.wrapper"]'))]
+            [...imageNodes, ...videoNodes, ...Array.from(article.querySelectorAll('[data-testid="card.wrapper"]'))]
               .map((node) => clean(node.getAttribute('alt') || node.getAttribute('aria-label') || node.innerText, 2000)),
             24
           );
@@ -3530,7 +3597,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             quotedText: textValues.slice(1).join('\n\n'),
             visibleContent: clean(article.innerText),
             links,
-            mediaURLs,
+            imageURLs,
+            videoURLs,
             mediaDescriptions,
             language: clean(textNodes[0] && textNodes[0].getAttribute('lang'), 40),
           });

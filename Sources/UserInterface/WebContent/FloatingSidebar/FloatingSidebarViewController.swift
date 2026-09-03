@@ -152,6 +152,9 @@ class FloatingSidebarViewController: NSViewController {
             FeatureEntryAnalytics.capture(.xBookmarkDigest, surface: .sidebar)
             self.state.toggleXBookmarkDigest()
         }
+        view.onXBookmarkDigestStop = { [weak self] in
+            self?.state.stopXBookmarkDigest()
+        }
         view.onImmersiveTranslationTap = { [weak self] language, provider in
             self?.state.toggleImmersiveTranslation(language: language, provider: provider)
         }

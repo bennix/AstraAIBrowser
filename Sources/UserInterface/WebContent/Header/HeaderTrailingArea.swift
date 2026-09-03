@@ -113,6 +113,7 @@ struct HeaderTrailingArea: View {
     let onDownloadTap: () -> Void
     let onYouTubeDigestTap: () -> Void
     let onXBookmarkDigestTap: () -> Void
+    let onXBookmarkDigestStop: () -> Void
     let onImmersiveTranslationTap: (
         ImmersiveTranslationLanguage,
         ImmersiveTranslationProvider
@@ -408,7 +409,8 @@ struct HeaderTrailingArea: View {
             XBookmarkDigestPopover(
                 digestState: $xBookmarkDigestState,
                 isBookmarksPage: isXBookmarksPage,
-                onRun: onXBookmarkDigestTap
+                onRun: onXBookmarkDigestTap,
+                onStop: onXBookmarkDigestStop
             )
         }
     }

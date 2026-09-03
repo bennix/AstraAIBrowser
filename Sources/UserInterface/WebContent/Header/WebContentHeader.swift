@@ -215,6 +215,9 @@ class WebContentHeader: NSView {
             onXBookmarkDigestTap: { [weak self] in
                 self?.xBookmarkDigestButtonClicked()
             },
+            onXBookmarkDigestStop: { [weak self] in
+                self?.xBookmarkDigestStopClicked()
+            },
             onImmersiveTranslationTap: { [weak self] language, provider in
                 self?.immersiveTranslationButtonClicked(language: language, provider: provider)
             },
@@ -532,6 +535,10 @@ class WebContentHeader: NSView {
     private func xBookmarkDigestButtonClicked() {
         FeatureEntryAnalytics.capture(.xBookmarkDigest, surface: .webContentHeader)
         unsafeBrowserState?.toggleXBookmarkDigest()
+    }
+
+    private func xBookmarkDigestStopClicked() {
+        unsafeBrowserState?.stopXBookmarkDigest()
     }
 
     private func immersiveTranslationButtonClicked(

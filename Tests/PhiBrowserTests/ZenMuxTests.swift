@@ -2302,8 +2302,8 @@ final class XBookmarkDigestTests: XCTestCase {
         XCTAssertFalse(XBookmarkDigestPolicy.isXURL("https://example.com"))
         XCTAssertFalse(XBookmarkDigestPolicy.isXURL("https://notx.com/home"))
         XCTAssertEqual(
-            XBookmarkDigestPolicy.bookmarksURL(for: "https://x.com/home"),
-            "https://x.com/i/history"
+            XBookmarkDigestPolicy.bookmarkRoutePaths,
+            ["/i/history", "/i/bookmarks", "/bookmarks"]
         )
     }
 
@@ -2413,6 +2413,83 @@ final class XBookmarkDigestTests: XCTestCase {
         XCTAssertEqual(batches.flatMap { $0 }, items)
     }
 
+    func testBookmarkEncodingSeparatesImagesFromVideoLinks() throws {
+        let item = XBookmarkContent(
+            id: "1",
+            authorName: "Author",
+            authorHandle: "@author",
+            postedAt: "2026-09-03T00:00:00.000Z",
+            url: "https://x.com/author/status/1",
+            text: "Post",
+            quotedText: "",
+            visibleContent: "Post",
+            links: [],
+            imageURLs: ["https://pbs.twimg.com/media/example.jpg"],
+            videoURLs: ["https://x.com/author/status/1"],
+            mediaDescriptions: ["Attached image", "Video"],
+            language: "en"
+        )
+
+        let data = try JSONEncoder().encode(item)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(object["imageURLs"] as? [String], item.imageURLs)
+        XCTAssertEqual(object["videoURLs"] as? [String], item.videoURLs)
+        XCTAssertNil(object["mediaURLs"])
+    }
+
+    func testPausedDigestStateRetainsItsCollectedCountWithoutRunning() {
+        let state = XBookmarkDigestState.paused(count: 37)
+
+        XCTAssertFalse(state.isRunning)
+        XCTAssertEqual(state.collectedCount, 37)
+    }
+
+    func testCollectionSessionKeepsItemsAcrossAccumulatorUpdates() {
+        let session = XBookmarkCollectionSession()
+        _ = session.accumulator.ingest(makeSnapshot(
+            items: [makeItem(id: "1", text: "First post", visibleContent: "First post")],
+            scrollHeight: 1_000
+        ))
+        _ = session.accumulator.ingest(makeSnapshot(
+            items: [makeItem(id: "2", text: "Second post", visibleContent: "Second post")],
+            scrollHeight: 2_000
+        ))
+
+        XCTAssertEqual(session.items.map(\.id), ["1", "2"])
+    }
+
+    func testRawMarkdownArchiveIncludesDetailedContentAndKeepsVideoAsLink() {
+        let item = XBookmarkContent(
+            id: "42",
+            authorName: "Author",
+            authorHandle: "@author",
+            postedAt: "2026-09-03T00:00:00.000Z",
+            url: "https://x.com/author/status/42",
+            text: "Complete post body",
+            quotedText: "Quoted post body",
+            visibleContent: "Complete post body\nCard title and description",
+            links: ["https://example.com/source"],
+            imageURLs: ["https://pbs.twimg.com/media/example.jpg"],
+            videoURLs: ["https://x.com/author/status/42"],
+            mediaDescriptions: ["Attached chart"],
+            language: "en"
+        )
+
+        let markdown = XBookmarkMarkdownExporter.rawMarkdown(
+            for: [item],
+            collectedAt: Date(timeIntervalSince1970: 0)
+        )
+
+        XCTAssertTrue(markdown.contains("Complete post body"))
+        XCTAssertTrue(markdown.contains("Quoted post body"))
+        XCTAssertTrue(markdown.contains("Card title and description"))
+        XCTAssertTrue(markdown.contains("https://example.com/source"))
+        XCTAssertTrue(markdown.contains("https://pbs.twimg.com/media/example.jpg"))
+        XCTAssertTrue(markdown.contains("Videos (links only)"))
+        XCTAssertTrue(markdown.contains("https://x.com/author/status/42"))
+        XCTAssertFalse(markdown.contains("blob:"))
+    }
+
     private func makeItem(
         id: String,
         text: String,
@@ -2428,7 +2505,8 @@ final class XBookmarkDigestTests: XCTestCase {
             quotedText: "",
             visibleContent: visibleContent,
             links: [],
-            mediaURLs: [],
+            imageURLs: [],
+            videoURLs: [],
             mediaDescriptions: [],
             language: "en"
         )

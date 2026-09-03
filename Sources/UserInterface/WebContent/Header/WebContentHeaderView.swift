@@ -23,6 +23,7 @@ struct WebContentHeaderView: View {
     let onDownloadTap: () -> Void
     let onYouTubeDigestTap: () -> Void
     let onXBookmarkDigestTap: () -> Void
+    let onXBookmarkDigestStop: () -> Void
     let onImmersiveTranslationTap: (
         ImmersiveTranslationLanguage,
         ImmersiveTranslationProvider
@@ -52,6 +53,7 @@ struct WebContentHeaderView: View {
         onDownloadTap: @escaping () -> Void = {},
         onYouTubeDigestTap: @escaping () -> Void = {},
         onXBookmarkDigestTap: @escaping () -> Void = {},
+        onXBookmarkDigestStop: @escaping () -> Void = {},
         onImmersiveTranslationTap: @escaping (
             ImmersiveTranslationLanguage,
             ImmersiveTranslationProvider
@@ -76,6 +78,7 @@ struct WebContentHeaderView: View {
         self.onDownloadTap = onDownloadTap
         self.onYouTubeDigestTap = onYouTubeDigestTap
         self.onXBookmarkDigestTap = onXBookmarkDigestTap
+        self.onXBookmarkDigestStop = onXBookmarkDigestStop
         self.onImmersiveTranslationTap = onImmersiveTranslationTap
         self.onOpenLocationBar = onOpenLocationBar
         self.onAnchorResolved = onAnchorResolved
@@ -140,6 +143,7 @@ struct WebContentHeaderView: View {
                     onDownloadTap: onDownloadTap,
                     onYouTubeDigestTap: onYouTubeDigestTap,
                     onXBookmarkDigestTap: onXBookmarkDigestTap,
+                    onXBookmarkDigestStop: onXBookmarkDigestStop,
                     onImmersiveTranslationTap: onImmersiveTranslationTap,
                     onChatAnchorResolved: onChatAnchorResolved
                 )

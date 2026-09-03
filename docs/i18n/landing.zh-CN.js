@@ -32,11 +32,11 @@
     "features.youtubeDigest.body": "YouTube 视频页会显示上下文侧边栏入口，使用可用字幕或视听分析生成覆盖完整视频的结构化摘要，包括时间章节、可核对引语、核心论证和明确标注的不确定性。",
     "features.vocabularyBook.title": "划词翻译与持久词汇本",
     "features.vocabularyBook.body": "在网页上选中文本后，可从右键菜单翻译内容或查询单词。指针锚定卡片会就地更新结果，支持复制译文，并可将词典结果保存到可搜索、可导出 Markdown 的持久词汇本。",
-    "features.xBookmarkArchive.title": "X 书签全文归档",
-    "features.xBookmarkArchive.body": "X 与 Twitter 的任意页面都会在地址栏右侧及侧栏显示归档入口。Astra 会按需进入已登录的书签时间线，自动滚动至历史末尾并在本地收集每条书签的正文、作者、日期、链接、引用与可见媒体信息，确认收集完成后再由 ZenMux 分类和总结。",
+    "features.xBookmarkArchive.title": "可控制的 X 书签全文归档",
+    "features.xBookmarkArchive.body": "Astra 直接在当前已登录的 X 标签页中归档书签，不打开后台标签页。采集可随时暂停、继续或停止，并保留详细正文、引用、图片资源与视频贴文链接；结果可直接留存为本地 Markdown，也可在明确确认后交给 ZenMux 分类整理。",
     "features.signedUpdates.title": "GitHub 签名在线更新",
     "features.signedUpdates.body": "打开“关于 Astra Browser”即会检查 GitHub Releases 更新。更新源与 DMG 均使用 Sparkle Ed25519 签名校验，并继续验证 Apple 代码签名。",
-    "download.summary": "Build 79 适配 X 当前的书签历史入口，并等待已登录的时间线真正就绪后再开始采集，避免把加载页面误判为空归档。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 80 为 X 书签采集增加暂停、继续与停止控制，在不打开后台标签页的情况下收集详细贴文，并可导出本地原始 Markdown 或经明确授权后交给 ZenMux 分类。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

@@ -108,6 +108,7 @@ struct SidebarBottomBarSwiftUI: View {
     let onDownloadTap: () -> Void
     let onYouTubeDigestTap: () -> Void
     let onXBookmarkDigestTap: () -> Void
+    let onXBookmarkDigestStop: () -> Void
     let onImmersiveTranslationTap: (
         ImmersiveTranslationLanguage,
         ImmersiveTranslationProvider
@@ -229,7 +230,8 @@ struct SidebarBottomBarSwiftUI: View {
                 XBookmarkDigestPopover(
                     digestState: $state.xBookmarkDigestState,
                     isBookmarksPage: state.isXBookmarksPage,
-                    onRun: onXBookmarkDigestTap
+                    onRun: onXBookmarkDigestTap,
+                    onStop: onXBookmarkDigestStop
                 )
             }
         }
@@ -413,6 +415,7 @@ struct XBookmarkDigestPopover: View {
     @Binding var digestState: XBookmarkDigestState
     let isBookmarksPage: Bool
     let onRun: () -> Void
+    let onStop: () -> Void
 
     private var isSummarizing: Bool {
         if case .summarizing = digestState { return true }
@@ -430,7 +433,7 @@ struct XBookmarkDigestPopover: View {
 
             Text(NSLocalizedString(
                 "xBookmarks.popover.collectionNotice",
-                value: "Astra scrolls through the signed-in bookmarks timeline and collects each post's text, author, date, links, quoted text, and available media details without AI.",
+                value: "Astra uses the current signed-in X tab, opens no background tabs, and collects post text, links, quoted text, and images. Videos are never downloaded; only their post links are kept.",
                 comment: "X bookmark digest - Explanation of the local automatic collection stage"
             ))
             .font(.caption)
@@ -439,8 +442,8 @@ struct XBookmarkDigestPopover: View {
 
             Text(NSLocalizedString(
                 "xBookmarks.popover.zenMuxNotice",
-                value: "After the end of the timeline is verified, the collected post content is sent to your configured ZenMux model for classification and summarization.",
-                comment: "X bookmark digest - Privacy notice explaining when collected posts are sent to ZenMux"
+                value: "Collected content stays local unless you choose ZenMux classification when stopping or finishing. You can always keep a raw Markdown archive without AI.",
+                comment: "X bookmark digest - Privacy notice explaining that ZenMux classification is optional"
             ))
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -459,6 +462,17 @@ struct XBookmarkDigestPopover: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(isSummarizing)
+
+            if canStop {
+                Button(action: onStop) {
+                    Text(NSLocalizedString(
+                        "xBookmarks.popover.stopAndFinishAction",
+                        value: "Stop and create archive…",
+                        comment: "X bookmark digest - Button stopping collection and asking how to create a Markdown archive"
+                    ))
+                    .frame(maxWidth: .infinity)
+                }
+            }
         }
         .padding(16)
         .frame(width: 360)
@@ -466,11 +480,11 @@ struct XBookmarkDigestPopover: View {
 
     @ViewBuilder
     private var statusView: some View {
-        if !isBookmarksPage, !digestState.isRunning {
+        if !isBookmarksPage, digestState == .inactive {
             Text(NSLocalizedString(
                 "xBookmarks.popover.openBookmarksStatus",
-                value: "Open your X bookmarks timeline before starting the archive.",
-                comment: "X bookmark digest - Status shown when the entry is opened from another X page"
+                value: "Astra will open your X bookmarks and start collecting automatically.",
+                comment: "X bookmark digest - Status shown before automatic collection starts from another X page"
             ))
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -494,6 +508,27 @@ struct XBookmarkDigestPopover: View {
                     count
                 ))
                 .font(.caption)
+            case .paused(let count):
+                Text(String(
+                    format: NSLocalizedString(
+                        "xBookmarks.popover.pausedStatus",
+                        value: "Paused with %ld posts collected. Continue from this position or finish the archive now.",
+                        comment: "X bookmark digest - Paused collection status; placeholder is the unique post count"
+                    ),
+                    count
+                ))
+                .font(.caption)
+            case .ready(let count):
+                Text(String(
+                    format: NSLocalizedString(
+                        "xBookmarks.popover.readyForArchiveStatus",
+                        value: "Collection finished with %ld posts. Choose the Markdown output.",
+                        comment: "X bookmark digest - Status after the oldest bookmark is reached; placeholder is the unique post count"
+                    ),
+                    count
+                ))
+                .font(.caption)
+                .foregroundStyle(.green)
             case .summarizing(let count):
                 Text(String(
                     format: NSLocalizedString(
@@ -508,8 +543,8 @@ struct XBookmarkDigestPopover: View {
                 Text(String(
                     format: NSLocalizedString(
                         "xBookmarks.popover.completedStatus",
-                        value: "%ld posts were classified and summarized in AI chat.",
-                        comment: "X bookmark digest - Completion status; placeholder is the summarized post count"
+                        value: "%ld posts are available in the Markdown archive.",
+                        comment: "X bookmark digest - Completion status; placeholder is the archived post count"
                     ),
                     count
                 ))
@@ -525,19 +560,31 @@ struct XBookmarkDigestPopover: View {
     }
 
     private var actionTitle: String {
-        if !isBookmarksPage, !digestState.isRunning {
+        if !isBookmarksPage, digestState == .inactive {
             return NSLocalizedString(
                 "xBookmarks.popover.openBookmarksAction",
-                value: "Open X bookmarks",
-                comment: "X bookmark digest - Button that navigates the focused X tab to its bookmarks timeline"
+                value: "Start bookmark archive",
+                comment: "X bookmark digest - Button that opens the bookmarks timeline and starts automatic collection"
             )
         }
         switch digestState {
         case .collecting:
             return NSLocalizedString(
-                "xBookmarks.popover.stopAction",
-                value: "Stop collection",
-                comment: "X bookmark digest - Button that cancels automatic timeline collection"
+                "xBookmarks.popover.pauseAction",
+                value: "Pause collection",
+                comment: "X bookmark digest - Button pausing automatic timeline collection without discarding posts"
+            )
+        case .paused:
+            return NSLocalizedString(
+                "xBookmarks.popover.continueAction",
+                value: "Continue collection",
+                comment: "X bookmark digest - Button resuming automatic timeline collection from its saved position"
+            )
+        case .ready:
+            return NSLocalizedString(
+                "xBookmarks.popover.createArchiveAction",
+                value: "Create Markdown archive…",
+                comment: "X bookmark digest - Button choosing between classified and raw Markdown after collection"
             )
         case .summarizing:
             return NSLocalizedString(
@@ -548,14 +595,14 @@ struct XBookmarkDigestPopover: View {
         case .inactive:
             return NSLocalizedString(
                 "xBookmarks.popover.startAction",
-                value: "Collect and summarize",
+                value: "Start bookmark archive",
                 comment: "X bookmark digest - Button that starts automatic timeline collection"
             )
         case .completed:
             return NSLocalizedString(
                 "xBookmarks.popover.runAgainAction",
-                value: "Run again",
-                comment: "X bookmark digest - Button that repeats collection after a completed report"
+                value: "View Markdown archive",
+                comment: "X bookmark digest - Button reopening the completed Markdown archive"
             )
         case .failed:
             return NSLocalizedString(
@@ -563,6 +610,15 @@ struct XBookmarkDigestPopover: View {
                 value: "Retry",
                 comment: "X bookmark digest - Button that retries after collection or summarization fails"
             )
+        }
+    }
+
+    private var canStop: Bool {
+        switch digestState {
+        case .collecting, .paused:
+            return true
+        case .inactive, .ready, .summarizing, .completed, .failed:
+            return false
         }
     }
 }
@@ -759,6 +815,7 @@ class SidebarBottomBarSwiftUIView: NSView {
     var onDownloadTap: (() -> Void)?
     var onYouTubeDigestTap: (() -> Void)?
     var onXBookmarkDigestTap: (() -> Void)?
+    var onXBookmarkDigestStop: (() -> Void)?
     var onImmersiveTranslationTap: ((
         ImmersiveTranslationLanguage,
         ImmersiveTranslationProvider
@@ -790,6 +847,7 @@ class SidebarBottomBarSwiftUIView: NSView {
                 onDownloadTap: { [weak self] in self?.onDownloadTap?() },
                 onYouTubeDigestTap: { [weak self] in self?.onYouTubeDigestTap?() },
                 onXBookmarkDigestTap: { [weak self] in self?.onXBookmarkDigestTap?() },
+                onXBookmarkDigestStop: { [weak self] in self?.onXBookmarkDigestStop?() },
                 onImmersiveTranslationTap: { [weak self] language, provider in
                     self?.onImmersiveTranslationTap?(language, provider)
                 }

@@ -19,6 +19,151 @@
       "extractionState" : "extracted_with_value",
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "X bookmark archive" } } }
     },
+    "xBookmarks.archive.classifiedBadge" : {
+      "comment" : "X bookmark archive window - Label identifying an AI-classified Markdown document",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "ZenMux classified" } } }
+    },
+    "xBookmarks.archive.classifiedFilenameFormat" : {
+      "comment" : "X bookmark archive - Suggested classified Markdown filename; placeholder is the export date",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "X Bookmarks AI %@.md" } } }
+    },
+    "xBookmarks.archive.classifiedMetadataFormat" : {
+      "comment" : "X bookmark archive - AI report metadata; first placeholder is the post count and second is the generation date",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Collected %1$ld posts · Generated %2$@" } } }
+    },
+    "xBookmarks.archive.classifiedTitle" : {
+      "comment" : "X bookmark archive - Title of a ZenMux-classified Markdown archive",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "X Bookmark Archive — AI Classification" } } }
+    },
+    "xBookmarks.archive.copiedLabel" : {
+      "comment" : "X bookmark archive window - Temporary confirmation after copying Markdown",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Copied" } } }
+    },
+    "xBookmarks.archive.copyAction" : {
+      "comment" : "X bookmark archive window - Button copying the current Markdown document",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Copy Markdown" } } }
+    },
+    "xBookmarks.archive.dateLabel" : {
+      "comment" : "X bookmark archive - Markdown metadata label for the post date",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Date" } } }
+    },
+    "xBookmarks.archive.imagesSection" : {
+      "comment" : "X bookmark archive - Markdown section heading for collected image links",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Images" } } }
+    },
+    "xBookmarks.archive.languageLabel" : {
+      "comment" : "X bookmark archive - Markdown metadata label for the detected post language",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Language" } } }
+    },
+    "xBookmarks.archive.linksSection" : {
+      "comment" : "X bookmark archive - Markdown section heading for links found in a post",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Links" } } }
+    },
+    "xBookmarks.archive.mediaDescriptionsSection" : {
+      "comment" : "X bookmark archive - Markdown section heading for accessible media descriptions",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Media descriptions" } } }
+    },
+    "xBookmarks.archive.postSection" : {
+      "comment" : "X bookmark archive - Markdown section heading for the complete post text",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Post" } } }
+    },
+    "xBookmarks.archive.quotedPostSection" : {
+      "comment" : "X bookmark archive - Markdown section heading for quoted post text",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Quoted post" } } }
+    },
+    "xBookmarks.archive.rawBadge" : {
+      "comment" : "X bookmark archive window - Label identifying a raw Markdown document",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Raw archive" } } }
+    },
+    "xBookmarks.archive.rawFilenameFormat" : {
+      "comment" : "X bookmark archive - Suggested raw Markdown filename; placeholder is the export date",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "X Bookmarks %@.md" } } }
+    },
+    "xBookmarks.archive.rawMetadataFormat" : {
+      "comment" : "X bookmark archive - Raw archive metadata; first placeholder is the post count and second is the export date",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Collected %1$ld posts · Exported %2$@" } } }
+    },
+    "xBookmarks.archive.rawTitle" : {
+      "comment" : "X bookmark archive - Title of a raw Markdown archive",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "X Bookmark Archive" } } }
+    },
+    "xBookmarks.archive.saveAction" : {
+      "comment" : "X bookmark archive window - Button saving the current Markdown document to disk",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Save Markdown…" } } }
+    },
+    "xBookmarks.archive.savedPostTitle" : {
+      "comment" : "X bookmark archive - Fallback heading when a saved post has no author",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Saved post" } } }
+    },
+    "xBookmarks.archive.savePanelTitle" : {
+      "comment" : "X bookmark archive window - Save panel title for a Markdown document",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Save X Bookmark Archive" } } }
+    },
+    "xBookmarks.archive.sourceLabel" : {
+      "comment" : "X bookmark archive - Markdown metadata label for the original post URL",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Source" } } }
+    },
+    "xBookmarks.archive.videosSection" : {
+      "comment" : "X bookmark archive - Markdown section heading for video post links that were not downloaded",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Videos (links only)" } } }
+    },
+    "xBookmarks.archive.visibleDetailsSection" : {
+      "comment" : "X bookmark archive - Markdown section heading for extra visible post details",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Visible details" } } }
+    },
+    "xBookmarks.finish.classifyAction" : {
+      "comment" : "X bookmark archive - Button sending collected posts to ZenMux for a classified Markdown report",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Classify with ZenMux" } } }
+    },
+    "xBookmarks.finish.continueAction" : {
+      "comment" : "X bookmark archive - Button dismissing the stop choice and resuming collection",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Continue Collection" } } }
+    },
+    "xBookmarks.finish.laterAction" : {
+      "comment" : "X bookmark archive - Button postponing Markdown creation after collection completes",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Not Now" } } }
+    },
+    "xBookmarks.finish.message" : {
+      "comment" : "X bookmark archive - Choice description after collection stops; placeholder is the collected post count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "%ld posts are collected. ZenMux can classify and organize them, or you can keep the complete raw archive without AI." } } }
+    },
+    "xBookmarks.finish.rawAction" : {
+      "comment" : "X bookmark archive - Button creating a complete raw Markdown archive without AI",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Keep Raw Markdown" } } }
+    },
+    "xBookmarks.finish.title" : {
+      "comment" : "X bookmark archive - Title asking how collected posts should be turned into Markdown",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Create a Markdown archive?" } } }
+    },
     "xBookmarks.error.collectionLimitReached" : {
       "comment" : "X bookmark digest - Error shown when the collector safety limit is reached before timeline completion",
       "extractionState" : "extracted_with_value",
@@ -47,17 +192,17 @@
     "xBookmarks.popover.collectionNotice" : {
       "comment" : "X bookmark digest - Explanation of the local automatic collection stage",
       "extractionState" : "extracted_with_value",
-      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Astra scrolls through the signed-in bookmarks timeline and collects each post's text, author, date, links, quoted text, and available media details without AI." } } }
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Astra uses the current signed-in X tab, opens no background tabs, and collects post text, links, quoted text, and images. Videos are never downloaded; only their post links are kept." } } }
     },
     "xBookmarks.popover.openBookmarksAction" : {
-      "comment" : "X bookmark digest - Button that navigates the focused X tab to its bookmarks timeline",
+      "comment" : "X bookmark digest - Button that opens the bookmarks timeline and starts automatic collection",
       "extractionState" : "extracted_with_value",
-      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Open X bookmarks" } } }
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Start bookmark archive" } } }
     },
     "xBookmarks.popover.openBookmarksStatus" : {
-      "comment" : "X bookmark digest - Status shown when the entry is opened from another X page",
+      "comment" : "X bookmark digest - Status shown before automatic collection starts from another X page",
       "extractionState" : "extracted_with_value",
-      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Open your X bookmarks timeline before starting the archive." } } }
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Astra will open your X bookmarks and start collecting automatically." } } }
     },
     "xBookmarks.popover.collectingStatus" : {
       "comment" : "X bookmark digest - Live collection status; placeholder is the unique post count",
@@ -65,9 +210,34 @@
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Collected %ld posts…" } } }
     },
     "xBookmarks.popover.completedStatus" : {
-      "comment" : "X bookmark digest - Completion status; placeholder is the summarized post count",
+      "comment" : "X bookmark digest - Completion status; placeholder is the archived post count",
       "extractionState" : "extracted_with_value",
-      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "%ld posts were classified and summarized in AI chat." } } }
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "%ld posts are available in the Markdown archive." } } }
+    },
+    "xBookmarks.popover.continueAction" : {
+      "comment" : "X bookmark digest - Button resuming automatic timeline collection from its saved position",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Continue collection" } } }
+    },
+    "xBookmarks.popover.createArchiveAction" : {
+      "comment" : "X bookmark digest - Button choosing between classified and raw Markdown after collection",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Create Markdown archive…" } } }
+    },
+    "xBookmarks.popover.pauseAction" : {
+      "comment" : "X bookmark digest - Button pausing automatic timeline collection without discarding posts",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Pause collection" } } }
+    },
+    "xBookmarks.popover.pausedStatus" : {
+      "comment" : "X bookmark digest - Paused collection status; placeholder is the unique post count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Paused with %ld posts collected. Continue from this position or finish the archive now." } } }
+    },
+    "xBookmarks.popover.readyForArchiveStatus" : {
+      "comment" : "X bookmark digest - Status after the oldest bookmark is reached; placeholder is the unique post count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Collection finished with %ld posts. Choose the Markdown output." } } }
     },
     "xBookmarks.popover.readyStatus" : {
       "comment" : "X bookmark digest - Status shown before collection starts",
@@ -80,19 +250,19 @@
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Retry" } } }
     },
     "xBookmarks.popover.runAgainAction" : {
-      "comment" : "X bookmark digest - Button that repeats collection after a completed report",
+      "comment" : "X bookmark digest - Button reopening the completed Markdown archive",
       "extractionState" : "extracted_with_value",
-      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Run again" } } }
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "View Markdown archive" } } }
     },
     "xBookmarks.popover.startAction" : {
       "comment" : "X bookmark digest - Button that starts automatic timeline collection",
       "extractionState" : "extracted_with_value",
-      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Collect and summarize" } } }
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Start bookmark archive" } } }
     },
-    "xBookmarks.popover.stopAction" : {
-      "comment" : "X bookmark digest - Button that cancels automatic timeline collection",
+    "xBookmarks.popover.stopAndFinishAction" : {
+      "comment" : "X bookmark digest - Button stopping collection and asking how to create a Markdown archive",
       "extractionState" : "extracted_with_value",
-      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Stop collection" } } }
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Stop and create archive…" } } }
     },
     "xBookmarks.popover.summarizingAction" : {
       "comment" : "X bookmark digest - Disabled button title while ZenMux prepares the report",
@@ -110,9 +280,9 @@
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "X Bookmark Archive" } } }
     },
     "xBookmarks.popover.zenMuxNotice" : {
-      "comment" : "X bookmark digest - Privacy notice explaining when collected posts are sent to ZenMux",
+      "comment" : "X bookmark digest - Privacy notice explaining that ZenMux classification is optional",
       "extractionState" : "extracted_with_value",
-      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "After the end of the timeline is verified, the collected post content is sent to your configured ZenMux model for classification and summarization." } } }
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Collected content stays local unless you choose ZenMux classification when stopping or finishing. You can always keep a raw Markdown archive without AI." } } }
     },
     "app.viewMenu.vocabularyBook" : {
       "comment" : "View menu - Menu item that opens the window listing words saved from webpages",

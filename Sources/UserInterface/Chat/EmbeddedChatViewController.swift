@@ -590,8 +590,8 @@ final class ZenMuxChatSession: ObservableObject {
     }
 
     @MainActor
-    func summarizeXBookmarks(_ items: [XBookmarkContent]) async -> Bool {
-        guard !items.isEmpty, !isSending else { return false }
+    func summarizeXBookmarks(_ items: [XBookmarkContent]) async -> String? {
+        guard !items.isEmpty, !isSending else { return nil }
         let requestSummary = String(
             format: NSLocalizedString(
                 "chat.zenMux.xBookmarks.requestSummary",
@@ -631,10 +631,10 @@ final class ZenMuxChatSession: ObservableObject {
                 userMessage: requestSummary,
                 assistantMessage: report
             )
-            return true
+            return report
         } catch {
             errorMessage = error.localizedDescription
-            return false
+            return nil
         }
     }
 

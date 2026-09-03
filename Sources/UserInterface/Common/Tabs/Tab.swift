@@ -101,10 +101,23 @@ class Tab: WebContentRepresentable {
                 wordLookupTask?.cancel()
                 wordLookupTask = nil
                 wordLookupOperationID = nil
-                xBookmarkDigestTask?.cancel()
-                xBookmarkDigestTask = nil
-                xBookmarkDigestOperationID = nil
-                xBookmarkDigestState = .inactive
+                if xBookmarkCollectionSession != nil {
+                    if xBookmarkDigestTask != nil,
+                       !XBookmarkDigestPolicy.isBookmarksURL(url) {
+                        xBookmarkDigestTask?.cancel()
+                        xBookmarkDigestTask = nil
+                        xBookmarkDigestOperationID = nil
+                        xBookmarkCollectionSession?.hasPreparedTimeline = false
+                        xBookmarkDigestState = .paused(
+                            count: xBookmarkCollectionSession?.items.count ?? 0
+                        )
+                    }
+                } else {
+                    xBookmarkDigestTask?.cancel()
+                    xBookmarkDigestTask = nil
+                    xBookmarkDigestOperationID = nil
+                    xBookmarkDigestState = .inactive
+                }
             }
         }
     }
@@ -125,6 +138,8 @@ class Tab: WebContentRepresentable {
     @Published var xBookmarkDigestState: XBookmarkDigestState = .inactive
     var xBookmarkDigestTask: Task<Void, Never>?
     var xBookmarkDigestOperationID: UUID?
+    var xBookmarkCollectionSession: XBookmarkCollectionSession?
+    var xBookmarkArchiveWindowController: XBookmarkArchiveWindowController?
 
     /// Native renderer crash-page state, set by `PhiChromiumCoordinator` from
     /// the `showCrashPage` bridge event and cleared on teardown. Non-nil drives
