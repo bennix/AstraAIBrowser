@@ -578,8 +578,8 @@ final class FingerprintPrivacyPolicyTests: XCTestCase {
         XCTAssertNil(exception?.toString())
     }
 
-    func testPolicyUsesLocaleConsistentWithSimplifiedChineseAppLanguage() {
-        let locale = FingerprintPrivacyPolicy.outwardLocale(for: .simplifiedChinese)
+    func testInterfaceLocaleUsesSimplifiedChineseAppLanguage() {
+        let locale = FingerprintPrivacyPolicy.interfaceLocale(for: .simplifiedChinese)
         XCTAssertEqual(locale, "zh-CN")
         XCTAssertEqual(
             FingerprintPrivacyPolicy.acceptLanguageList(for: locale),
@@ -587,18 +587,120 @@ final class FingerprintPrivacyPolicyTests: XCTestCase {
         )
     }
 
-    func testPolicyUsesLocaleConsistentWithTraditionalChineseAppLanguage() {
+    func testInterfaceLocaleUsesTraditionalChineseAppLanguage() {
         XCTAssertEqual(
-            FingerprintPrivacyPolicy.outwardLocale(for: .traditionalChinese),
+            FingerprintPrivacyPolicy.interfaceLocale(for: .traditionalChinese),
             "zh-TW"
         )
     }
 
-    func testPolicyUsesLocaleConsistentWithJapaneseAppLanguage() {
+    func testInterfaceLocaleUsesJapaneseAppLanguage() {
         XCTAssertEqual(
-            FingerprintPrivacyPolicy.outwardLocale(for: .japanese),
+            FingerprintPrivacyPolicy.interfaceLocale(for: .japanese),
             "ja-JP"
         )
+    }
+
+    func testNetworkLocaleUsesPublicIPv4CountryInsteadOfInterfaceLanguage() throws {
+        let suiteName = "BrowserNetworkLanguagePolicyTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let locale = BrowserNetworkLanguagePolicy.resolvedLocale(
+            fallbackLocale: "zh-CN",
+            defaults: defaults,
+            now: Date(timeIntervalSince1970: 100)
+        ) {
+            PublicIPv4Location(address: "8.8.8.8", countryCode: "JP")
+        }
+
+        XCTAssertEqual(locale, "ja-JP")
+        XCTAssertEqual(
+            FingerprintPrivacyPolicy.acceptLanguageList(for: locale),
+            "ja-JP,ja,en-US,en"
+        )
+    }
+
+    func testNetworkLocaleFallsBackToRecentCountryWithoutPersistingAddress() throws {
+        let suiteName = "BrowserNetworkLanguagePolicyTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        _ = BrowserNetworkLanguagePolicy.resolvedLocale(
+            fallbackLocale: "zh-CN",
+            defaults: defaults,
+            now: Date(timeIntervalSince1970: 100)
+        ) {
+            PublicIPv4Location(address: "8.8.4.4", countryCode: "DE")
+        }
+        let cachedLocale = BrowserNetworkLanguagePolicy.resolvedLocale(
+            fallbackLocale: "zh-CN",
+            defaults: defaults,
+            now: Date(timeIntervalSince1970: 120)
+        ) {
+            nil
+        }
+
+        XCTAssertEqual(cachedLocale, "de-DE")
+        XCTAssertFalse(defaults.dictionaryRepresentation().values.contains { value in
+            String(describing: value).contains("8.8.4.4")
+        })
+    }
+
+    func testFingerprintScriptCanExposeNetworkLocaleIndependently() throws {
+        let context = try XCTUnwrap(JSContext())
+        context.evaluateScript(Self.browserSurfaceTestEnvironment)
+        context.evaluateScript(FingerprintPrivacyPolicy.javaScript(for: "ja-JP"))
+
+        XCTAssertEqual(context.evaluateScript("navigator.language")?.toString(), "ja-JP")
+        XCTAssertEqual(
+            context.evaluateScript("navigator.languages.join(',')")?.toString(),
+            "ja-JP,ja,en-US,en"
+        )
+    }
+
+    func testOutwardRequestUsesNetworkLocaleAndDoNotTrack() throws {
+        let url = try XCTUnwrap(URL(string: "https://example.com/"))
+        let request = BrowserOutwardRequestPolicy.applying(
+            to: URLRequest(url: url),
+            locale: "ja-JP",
+            doNotTrackEnabled: true
+        )
+
+        XCTAssertEqual(
+            request.value(forHTTPHeaderField: "Accept-Language"),
+            "ja-JP,ja,en-US,en"
+        )
+        XCTAssertEqual(request.value(forHTTPHeaderField: "DNT"), "1")
+    }
+
+    func testOutwardRequestCanDisableDoNotTrackWithoutRewritingPostNavigation() throws {
+        let url = try XCTUnwrap(URL(string: "https://example.com/"))
+        var source = URLRequest(url: url)
+        source.httpMethod = "POST"
+        source.setValue("1", forHTTPHeaderField: "DNT")
+        let request = BrowserOutwardRequestPolicy.applying(
+            to: source,
+            locale: "en-US",
+            doNotTrackEnabled: false
+        )
+
+        XCTAssertNil(request.value(forHTTPHeaderField: "DNT"))
+        XCTAssertFalse(BrowserOutwardRequestPolicy.needsCurrentHeaders(source))
+    }
+
+    func testDoNotTrackScriptMatchesEnabledState() throws {
+        let context = try XCTUnwrap(JSContext())
+        context.evaluateScript(Self.browserSurfaceTestEnvironment)
+        context.evaluateScript(
+            BrowserOutwardRequestPolicy.doNotTrackJavaScript(enabled: true)
+        )
+        XCTAssertEqual(context.evaluateScript("navigator.doNotTrack")?.toString(), "1")
+
+        context.evaluateScript(
+            BrowserOutwardRequestPolicy.doNotTrackJavaScript(enabled: false)
+        )
+        XCTAssertTrue(context.evaluateScript("navigator.doNotTrack === null")?.toBool() == true)
     }
 
     private static let browserSurfaceTestEnvironment = """

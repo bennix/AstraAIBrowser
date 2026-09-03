@@ -783,6 +783,9 @@ private struct BrowsingSectionView: View {
     @AppStorage(PhiPreferences.GeneralSettings.alwaysShowURLPath.rawValue)
     private var alwaysShowURLPath: Bool = PhiPreferences.GeneralSettings.alwaysShowURLPath.defaultValue
 
+    @AppStorage(PhiPreferences.GeneralSettings.doNotTrack.rawValue)
+    private var doNotTrack: Bool = PhiPreferences.GeneralSettings.doNotTrack.defaultValue
+
     @AppStorage(PhiPreferences.GeneralSettings.autoPictureInPictureModeKey)
     private var autoPictureInPictureModeRawValue: String = PhiPreferences.GeneralSettings.loadAutoPictureInPictureMode().rawValue
 
@@ -851,6 +854,38 @@ private struct BrowsingSectionView: View {
                             .toggleStyle(.switch)
                             .controlSize(.mini)
                             .themedTint(.themeColor)
+                    }
+
+                    Divider()
+
+                    HStack(alignment: .center, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(NSLocalizedString(
+                                "settings.general.privacy.doNotTrackToggle",
+                                value: "Send a Do Not Track request",
+                                comment: "General settings - Toggle title for sending the standard Do Not Track browser signal"
+                            ))
+                            .font(.system(size: 13))
+                            .themedForeground(.textPrimary)
+                            Text(NSLocalizedString(
+                                "settings.general.privacy.doNotTrackHint",
+                                value: "Websites may choose whether to honor this request.",
+                                comment: "General settings - Hint explaining that websites decide whether to respect the Do Not Track signal"
+                            ))
+                            .font(.system(size: 11))
+                            .themedForeground(.textTertiary)
+                        }
+                        Spacer(minLength: 12)
+                        Toggle("", isOn: $doNotTrack)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.mini)
+                            .themedTint(.themeColor)
+                    }
+                    .padding(.vertical, 12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onChange(of: doNotTrack) { _, newValue in
+                        AppController.shared?.applyDoNotTrackPreference(newValue)
                     }
 
                     Divider()

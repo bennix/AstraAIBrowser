@@ -71,6 +71,26 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertEqual(existing?["value"] as? Int, 7)
     }
 
+    func testPublicIPv4DecoderRejectsLocalAndNonIPv4Addresses() {
+        XCTAssertEqual(
+            APIClient.decodePublicIPv4(from: Data(#"{"ip":"8.8.8.8"}"#.utf8)),
+            "8.8.8.8"
+        )
+        XCTAssertNil(APIClient.decodePublicIPv4(from: Data(#"{"ip":"192.168.1.2"}"#.utf8)))
+        XCTAssertNil(APIClient.decodePublicIPv4(from: Data(#"{"ip":"10.0.0.4"}"#.utf8)))
+        XCTAssertNil(APIClient.decodePublicIPv4(from: Data(#"{"ip":"2001:db8::1"}"#.utf8)))
+    }
+
+    func testPublicIPv4CountryMustMatchTheResolvedAddress() {
+        let data = Data(#"{"ip":"8.8.8.8","country":"jp"}"#.utf8)
+
+        XCTAssertEqual(
+            APIClient.decodeCountryCode(from: data, expectedIPv4: "8.8.8.8"),
+            "JP"
+        )
+        XCTAssertNil(APIClient.decodeCountryCode(from: data, expectedIPv4: "1.1.1.1"))
+    }
+
     func testSupportedModelsMatchProviderConfiguration() {
         XCTAssertEqual(
             ZenMuxModel.allCases.map(\.rawValue),

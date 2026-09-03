@@ -2002,6 +2002,11 @@ private final class ZenMuxWebGroundingRedirectGuard: NSObject, URLSessionTaskDel
     }
 }
 
+struct PublicIPv4Location: Equatable {
+    let address: String
+    let countryCode: String
+}
+
 class APIClient {
     static let shared = APIClient()
     private lazy var webGroundingSession: URLSession = {
@@ -2022,6 +2027,121 @@ class APIClient {
         string: "https://api.github.com/repos/foru17/make-x-great-again/commits/data-mirror"
     )!
     private static let maximumXSpamShieldArtifactSize = 32 * 1_024 * 1_024
+
+    /// Resolves the public IPv4 address visible to internet services and maps
+    /// that exact address to an ISO country code. This intentionally performs
+    /// no interface or routing-table inspection: private LAN addresses must
+    /// never influence the browser's outward language fingerprint.
+    static func resolvePublicIPv4Location(timeout: TimeInterval = 3) -> PublicIPv4Location? {
+        let requestTimeout = max(0.5, timeout / 2)
+        guard let addressURL = URL(string: "https://api.ipify.org?format=json"),
+              let addressData = synchronousPublicData(from: addressURL, timeout: requestTimeout),
+              let address = decodePublicIPv4(from: addressData),
+              let countryURL = URL(string: "https://api.country.is/\(address)"),
+              let countryData = synchronousPublicData(from: countryURL, timeout: requestTimeout),
+              let countryCode = decodeCountryCode(from: countryData, expectedIPv4: address) else {
+            return nil
+        }
+        return PublicIPv4Location(address: address, countryCode: countryCode)
+    }
+
+    static func decodePublicIPv4(from data: Data) -> String? {
+        struct Response: Decodable {
+            let ip: String
+        }
+
+        guard let response = try? JSONDecoder().decode(Response.self, from: data),
+              isPublicIPv4(response.ip) else {
+            return nil
+        }
+        return response.ip
+    }
+
+    static func decodeCountryCode(from data: Data, expectedIPv4: String) -> String? {
+        struct Response: Decodable {
+            let ip: String
+            let country: String
+        }
+
+        guard let response = try? JSONDecoder().decode(Response.self, from: data),
+              response.ip == expectedIPv4,
+              isPublicIPv4(response.ip) else {
+            return nil
+        }
+        let countryCode = response.country.uppercased()
+        guard countryCode.count == 2,
+              countryCode.unicodeScalars.allSatisfy({ scalar in
+                  scalar.value >= 65 && scalar.value <= 90
+              }),
+              countryCode != "ZZ" else {
+            return nil
+        }
+        return countryCode
+    }
+
+    static func isPublicIPv4(_ address: String) -> Bool {
+        let components = address.split(separator: ".", omittingEmptySubsequences: false)
+        guard components.count == 4,
+              let a = UInt8(components[0]),
+              let b = UInt8(components[1]),
+              let c = UInt8(components[2]),
+              let d = UInt8(components[3]) else {
+            return false
+        }
+
+        if a == 0 || a == 10 || a == 127 || a >= 224 { return false }
+        if a == 100 && (64...127).contains(b) { return false }
+        if a == 169 && b == 254 { return false }
+        if a == 172 && (16...31).contains(b) { return false }
+        if a == 192 && b == 168 { return false }
+        if a == 192 && b == 0 && (c == 0 || c == 2) { return false }
+        if a == 198 && (b == 18 || b == 19 || (b == 51 && c == 100)) { return false }
+        if a == 203 && b == 0 && c == 113 { return false }
+        _ = d
+        return true
+    }
+
+    private static func synchronousPublicData(from url: URL, timeout: TimeInterval) -> Data? {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = timeout
+        configuration.timeoutIntervalForResource = timeout
+        configuration.waitsForConnectivity = false
+        configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        let session = URLSession(configuration: configuration)
+        let semaphore = DispatchSemaphore(value: 0)
+        let lock = NSLock()
+        var responseData: Data?
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = timeout
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("AstraBrowser/1.0", forHTTPHeaderField: "User-Agent")
+
+        let task = session.dataTask(with: request) { data, response, _ in
+            defer { semaphore.signal() }
+            guard let response = response as? HTTPURLResponse,
+                  (200..<300).contains(response.statusCode),
+                  let data,
+                  data.count <= 4_096 else {
+                return
+            }
+            lock.lock()
+            responseData = data
+            lock.unlock()
+        }
+        task.resume()
+
+        guard semaphore.wait(timeout: .now() + timeout) == .success else {
+            task.cancel()
+            session.invalidateAndCancel()
+            return nil
+        }
+        session.finishTasksAndInvalidate()
+        lock.lock()
+        defer { lock.unlock() }
+        return responseData
+    }
     #if DEBUG
     private var accountBaseURL: String {
         if AuthManager.useStagingAuth0 {

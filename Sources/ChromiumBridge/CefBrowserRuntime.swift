@@ -268,6 +268,188 @@ enum CefBrowserAccountPrivacyPolicy {
     }
 }
 
+enum BrowserNetworkLanguagePolicy {
+    private static let cachedCountryCodeKey = "BrowserNetworkLanguageCountryCode"
+    private static let cachedCountryCodeDateKey = "BrowserNetworkLanguageCountryCodeDate"
+    private static let maximumCachedCountryCodeAge: TimeInterval = 60 * 60
+
+    static func resolvedLocale(
+        fallbackLocale: String,
+        defaults: UserDefaults = .standard,
+        now: Date = Date(),
+        lookup: () -> PublicIPv4Location?
+    ) -> String {
+        if let location = lookup() {
+            defaults.set(location.countryCode, forKey: cachedCountryCodeKey)
+            defaults.set(now, forKey: cachedCountryCodeDateKey)
+            return locale(forCountryCode: location.countryCode) ?? fallbackLocale
+        }
+
+        if let cachedCountryCode = defaults.string(forKey: cachedCountryCodeKey),
+           let cachedDate = defaults.object(forKey: cachedCountryCodeDateKey) as? Date,
+           now.timeIntervalSince(cachedDate) >= 0,
+           now.timeIntervalSince(cachedDate) <= maximumCachedCountryCodeAge,
+           let cachedLocale = locale(forCountryCode: cachedCountryCode) {
+            return cachedLocale
+        }
+        return fallbackLocale
+    }
+
+    static func locale(forCountryCode rawCountryCode: String) -> String? {
+        let countryCode = rawCountryCode.uppercased()
+        guard countryCode.count == 2,
+              countryCode.unicodeScalars.allSatisfy({ scalar in
+                  scalar.value >= 65 && scalar.value <= 90
+              }),
+              countryCode != "ZZ" else {
+            return nil
+        }
+
+        let language: String
+        switch countryCode {
+        case "CN": language = "zh"
+        case "TW": language = "zh-Hant"
+        case "HK", "MO": language = "zh-Hant"
+        case "JP": language = "ja"
+        case "KR": language = "ko"
+        case "TH": language = "th"
+        case "VN": language = "vi"
+        case "ID": language = "id"
+        case "MY": language = "ms"
+        case "PH": language = "fil"
+        case "KH": language = "km"
+        case "LA": language = "lo"
+        case "MM": language = "my"
+        case "BD": language = "bn"
+        case "IN": language = "hi"
+        case "NP": language = "ne"
+        case "PK": language = "ur"
+        case "LK": language = "si"
+        case "AF", "IR": language = "fa"
+        case "IL": language = "he"
+        case "TR": language = "tr"
+        case "AZ": language = "az"
+        case "AM": language = "hy"
+        case "GE": language = "ka"
+        case "KZ": language = "kk"
+        case "KG": language = "ky"
+        case "UZ": language = "uz"
+        case "RU", "BY": language = "ru"
+        case "UA": language = "uk"
+        case "PL": language = "pl"
+        case "CZ": language = "cs"
+        case "SK": language = "sk"
+        case "HU": language = "hu"
+        case "RO", "MD": language = "ro"
+        case "BG": language = "bg"
+        case "RS", "ME": language = "sr"
+        case "HR", "BA": language = "hr"
+        case "SI": language = "sl"
+        case "AL": language = "sq"
+        case "MK": language = "mk"
+        case "GR", "CY": language = "el"
+        case "DE", "AT", "LI": language = "de"
+        case "CH": language = "de"
+        case "NL": language = "nl"
+        case "BE": language = "nl"
+        case "FR", "MC": language = "fr"
+        case "LU": language = "fr"
+        case "IT", "SM", "VA": language = "it"
+        case "ES", "AR", "BO", "CL", "CO", "CR", "CU", "DO", "EC",
+             "GQ", "GT", "HN", "MX", "NI", "PA", "PE", "PR", "PY",
+             "SV", "UY", "VE": language = "es"
+        case "PT", "BR", "AO", "CV", "GW", "MZ", "ST", "TL": language = "pt"
+        case "DK": language = "da"
+        case "NO": language = "nb"
+        case "SE": language = "sv"
+        case "FI": language = "fi"
+        case "IS": language = "is"
+        case "EE": language = "et"
+        case "LV": language = "lv"
+        case "LT": language = "lt"
+        case "SA", "AE", "BH", "DZ", "EG", "IQ", "JO", "KW", "LB",
+             "LY", "MA", "MR", "OM", "PS", "QA", "SD", "SO", "SY",
+             "TN", "YE": language = "ar"
+        case "ET": language = "am"
+        case "KE", "TZ": language = "sw"
+        case "ZA": language = "en"
+        default: language = "en"
+        }
+        return "\(language)-\(countryCode)"
+    }
+}
+
+enum BrowserOutwardRequestPolicy {
+    static let preferenceDidChangeNotification = Notification.Name(
+        "BrowserDoNotTrackPreferenceDidChange"
+    )
+
+    static func applying(
+        to request: URLRequest,
+        locale: String,
+        doNotTrackEnabled: Bool
+    ) -> URLRequest {
+        guard let scheme = request.url?.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else {
+            return request
+        }
+        var result = request
+        result.setValue(
+            FingerprintPrivacyPolicy.acceptLanguageList(for: locale),
+            forHTTPHeaderField: "Accept-Language"
+        )
+        if doNotTrackEnabled {
+            result.setValue("1", forHTTPHeaderField: "DNT")
+        } else {
+            result.setValue(nil, forHTTPHeaderField: "DNT")
+        }
+        return result
+    }
+
+    static func current(_ request: URLRequest) -> URLRequest {
+        applying(
+            to: request,
+            locale: FingerprintPrivacyPolicy.outwardLocale,
+            doNotTrackEnabled: PhiPreferences.GeneralSettings.doNotTrack.loadValue()
+        )
+    }
+
+    static func needsCurrentHeaders(_ request: URLRequest) -> Bool {
+        guard let method = request.httpMethod?.uppercased(),
+              method == "GET" || method == "HEAD" else {
+            return false
+        }
+        let expected = current(request)
+        return expected.value(forHTTPHeaderField: "Accept-Language")
+                != request.value(forHTTPHeaderField: "Accept-Language")
+            || expected.value(forHTTPHeaderField: "DNT")
+                != request.value(forHTTPHeaderField: "DNT")
+    }
+
+    static func doNotTrackJavaScript(enabled: Bool) -> String {
+        let value = enabled ? "'1'" : "null"
+        return """
+        (() => {
+          const value = \(value);
+          const replaceGetter = (target, name) => {
+            if (!target) return;
+            try {
+              const descriptor = Object.getOwnPropertyDescriptor(target, name);
+              if (descriptor && descriptor.configurable !== true) return;
+              Object.defineProperty(target, name, {
+                get: () => value,
+                configurable: true,
+                enumerable: descriptor?.enumerable === true
+              });
+            } catch (_) {}
+          };
+          replaceGetter(globalThis.Navigator?.prototype, 'doNotTrack');
+          replaceGetter(globalThis.Window?.prototype, 'doNotTrack');
+        })();
+        """
+    }
+}
+
 enum CefBrowserDataPage: String, CaseIterable {
     case history = "chrome://history"
     case clearBrowsingData = "chrome://settings/clearBrowserData"
@@ -522,17 +704,27 @@ enum AudioFingerprintPrivacyPolicy {
 }
 
 enum FingerprintPrivacyPolicy {
-    static var outwardLocale: String {
-        outwardLocale(
+    private static var configuredOutwardLocale: String?
+
+    static var interfaceLocale: String {
+        interfaceLocale(
             for: PhiPreferences.GeneralSettings.activeProcessAppLanguage()
         )
+    }
+
+    static var outwardLocale: String {
+        configuredOutwardLocale ?? interfaceLocale
+    }
+
+    static func configureOutwardLocale(_ locale: String) {
+        configuredOutwardLocale = locale
     }
 
     static var acceptLanguageList: String {
         acceptLanguageList(for: outwardLocale)
     }
 
-    static func outwardLocale(for appLanguage: SupportedAppLanguage) -> String {
+    static func interfaceLocale(for appLanguage: SupportedAppLanguage) -> String {
         switch appLanguage {
         case .english:
             return "en-US"
@@ -567,9 +759,13 @@ enum FingerprintPrivacyPolicy {
 
     private static let processSeed = UUID().uuidString
 
-    static let javaScript: String = {
-        let outwardLocaleValue = FingerprintPrivacyPolicy.outwardLocale
-        let outwardLanguages = FingerprintPrivacyPolicy.acceptLanguageList
+    static var javaScript: String {
+        javaScript(for: outwardLocale)
+    }
+
+    static func javaScript(for outwardLocale: String) -> String {
+        let outwardLocaleValue = outwardLocale
+        let outwardLanguages = FingerprintPrivacyPolicy.acceptLanguageList(for: outwardLocale)
         let surfacePolicy = #"""
         (() => {
           if (globalThis.__astraUsesNativeSecurityChallengeSurfaces) {
@@ -943,7 +1139,7 @@ enum FingerprintPrivacyPolicy {
             + AudioFingerprintPrivacyPolicy.javaScript
             + "\n"
             + surfacePolicy
-    }()
+    }
 }
 
 /// Reads Chrome-runtime extension metadata from the profile directory. CEF's
@@ -1506,6 +1702,29 @@ private final class CefBrowserWindow: NSWindow {
     @objc static func bootstrapApplication() -> Bool {
         do {
             var configuration = CefConfiguration.default
+            let interfaceLocale = FingerprintPrivacyPolicy.interfaceLocale
+            let outwardLocale: String
+            if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+                outwardLocale = interfaceLocale
+            } else if let overrideCountryCode = CommandLine.arguments
+                .first(where: { $0.hasPrefix("--astra-egress-country=") })?
+                .dropFirst("--astra-egress-country=".count),
+                let overriddenLocale = BrowserNetworkLanguagePolicy.locale(
+                    forCountryCode: String(overrideCountryCode)
+                ) {
+                outwardLocale = overriddenLocale
+            } else {
+                outwardLocale = BrowserNetworkLanguagePolicy.resolvedLocale(
+                    fallbackLocale: interfaceLocale
+                ) {
+                    APIClient.resolvePublicIPv4Location()
+                }
+            }
+            FingerprintPrivacyPolicy.configureOutwardLocale(outwardLocale)
+            AppLogInfo(
+                "[CEF] Browser language fingerprint locale=\(outwardLocale); " +
+                "interface locale=\(interfaceLocale)"
+            )
             let root: URL
             if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
                 || CommandLine.arguments.contains("--cef-smoke-test") {
@@ -1525,10 +1744,12 @@ private final class CefBrowserWindow: NSWindow {
             configuration.cachePath = root
             configuration.persistSessionCookies = true
             configuration.defaultRuntimeStyle = .chrome
-            configuration.locale = FingerprintPrivacyPolicy.outwardLocale
+            configuration.locale = interfaceLocale
             configuration.acceptLanguageList = FingerprintPrivacyPolicy.acceptLanguageList
             configuration.userAgentProduct = SupportedBrowserUserAgent.chromiumProduct
             configuration.documentStartJavaScript = FingerprintPrivacyPolicy.javaScript
+            configuration.doNotTrackEnabled =
+                PhiPreferences.GeneralSettings.doNotTrack.loadValue()
             configuration.customSchemes.append(AstraMemorySchemeHandler.customScheme)
             CefBrowserAccountPrivacyPolicy.apply(to: &configuration)
             try CefBrowserAccountPrivacyPolicy.prepareProfile(at: root)
@@ -1628,6 +1849,20 @@ private final class CefBrowserWindow: NSWindow {
         }
 
         openBrowserWindow(initialURL: page.rawValue)
+    }
+
+    @discardableResult
+    func applyDoNotTrackPreference(_ enabled: Bool) -> Bool {
+        let globalApplied = CefRuntime.shared.setDoNotTrackEnabled(enabled)
+        let isolatedProfilesApplied = profiles.values.reduce(true) { result, profile in
+            profile.setDoNotTrackEnabled(enabled) && result
+        }
+        NotificationCenter.default.post(
+            name: BrowserOutwardRequestPolicy.preferenceDidChangeNotification,
+            object: nil,
+            userInfo: ["enabled": enabled]
+        )
+        return globalApplied && isolatedProfilesApplied
     }
 
     /// Chrome runtime extension APIs may create a complete native Chromium

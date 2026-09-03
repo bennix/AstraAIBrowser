@@ -1,0 +1,149 @@
+diff --git a/Sources/CefKit/CefConfiguration.swift b/Sources/CefKit/CefConfiguration.swift
+index 236e1d7..fc39cbb 100644
+--- a/Sources/CefKit/CefConfiguration.swift
++++ b/Sources/CefKit/CefConfiguration.swift
+@@ -99,5 +99,9 @@ public struct CefConfiguration: Sendable {
+     /// Persist session cookies across runs.
+     public var persistSessionCookies: Bool = false
+ 
++    /// Sends the standard `DNT: 1` request header and exposes the matching
++    /// JavaScript browser preference when enabled.
++    public var doNotTrackEnabled: Bool = false
++
+     /// Default runtime style for browsers created without an explicit style.
+     public var defaultRuntimeStyle: CefRuntimeStyle = .default
+diff --git a/Sources/CefKit/CefProfile.swift b/Sources/CefKit/CefProfile.swift
+index fead94b..a2b59bd 100644
+--- a/Sources/CefKit/CefProfile.swift
++++ b/Sources/CefKit/CefProfile.swift
+@@ -1,6 +1,37 @@
+ import CCef
+ import Foundation
+ 
++enum CefBuiltInPreference {
++    static let doNotTrack = "enable_do_not_track"
++
++    static func setBoolean(
++        _ value: Bool,
++        forKey key: String,
++        in context: UnsafeMutablePointer<cef_request_context_t>
++    ) -> String? {
++        guard let cefValue = cef_value_create() else {
++            return "CEF could not allocate a preference value."
++        }
++        defer { cefRelease(UnsafeMutableRawPointer(cefValue)) }
++        guard cefValue.pointee.set_bool?(cefValue, value ? 1 : 0) != 0 else {
++            return "CEF rejected the Boolean preference value."
++        }
++
++        var error = cef_string_t()
++        defer { ccef_string_clear(&error) }
++        let succeeded = CefStringUtil.withCefString(key) { cefKey in
++            withUnsafeMutablePointer(to: &context.pointee.base) { manager in
++                manager.pointee.set_preference?(manager, cefKey, cefValue, &error) ?? 0
++            }
++        }
++        guard succeeded != 0 else {
++            let message = CefStringUtil.string(from: error)
++            return message.isEmpty ? "CEF rejected the browser preference." : message
++        }
++        return nil
++    }
++}
++
+ /// An isolated browsing profile — a CEF request context with its own cookies,
+ /// `localStorage`, cache, and HTTP state.
+ ///
+@@ -109,6 +140,20 @@ public final class CefProfile {
+         }
+     }
+ 
++    /// Updates Do Not Track in an already materialized isolated context. A
++    /// profile that has not created a context yet will read the current runtime
++    /// configuration when it is first used.
++    @discardableResult
++    public func setDoNotTrackEnabled(_ enabled: Bool) -> Bool {
++        guard kind != .global else { return true }
++        guard let raw else { return true }
++        return CefBuiltInPreference.setBoolean(
++            enabled,
++            forKey: CefBuiltInPreference.doNotTrack,
++            in: raw
++        ) == nil
++    }
++
+     private func createContext() -> UnsafeMutablePointer<cef_request_context_t>? {
+         var settings = cef_request_context_settings_t()
+         settings.size = MemoryLayout<cef_request_context_settings_t>.stride
+@@ -121,10 +166,30 @@ public final class CefProfile {
+                 settings.persist_session_cookies = 1
+             }
+         }
++        CefStringUtil.set(
++            CefRuntime.shared.configuration?.acceptLanguageList,
++            into: &settings.accept_language_list
++        )
+         // Empty cache_path => incognito/in-memory (the CEF default).
+-        defer { ccef_string_clear(&settings.cache_path) }
++        defer {
++            ccef_string_clear(&settings.cache_path)
++            ccef_string_clear(&settings.accept_language_list)
++        }
+         // No request-context handler needed: cookies/storage isolation is
+         // driven entirely by the distinct cache_path.
+-        return cef_request_context_create_context(&settings, nil)
++        guard let context = cef_request_context_create_context(&settings, nil) else {
++            return nil
++        }
++        if let enabled = CefRuntime.shared.configuration?.doNotTrackEnabled,
++           let error = CefBuiltInPreference.setBoolean(
++               enabled,
++               forKey: CefBuiltInPreference.doNotTrack,
++               in: context
++           ) {
++            FileHandle.standardError.write(
++                Data("CefSwift: failed to apply Do Not Track to profile: \(error)\n".utf8)
++            )
++        }
++        return context
+     }
+ }
+diff --git a/Sources/CefKit/CefRuntime.swift b/Sources/CefKit/CefRuntime.swift
+index 83dfc73..70ba453 100644
+--- a/Sources/CefKit/CefRuntime.swift
++++ b/Sources/CefKit/CefRuntime.swift
+@@ -204,10 +204,34 @@ public final class CefRuntime {
+         CEFApplication.setTerminateHandler(cefTerminateHandler)
+         isInitialized = true
+ 
++        if !setDoNotTrackEnabled(configuration.doNotTrackEnabled) {
++            FileHandle.standardError.write(
++                Data("CefSwift: failed to apply the initial Do Not Track preference.\n".utf8)
++            )
++        }
++
+         // Route cefswift://bridge/* to the bridge dispatcher.
+         registerSchemeHandler(scheme: CefBridge.schemeName, handler: CefBridgeSchemeHandler(bridge: bridge))
+     }
+ 
++    /// Applies Do Not Track to the global request context and updates the
++    /// default used when isolated profiles are materialized later.
++    @discardableResult
++    public func setDoNotTrackEnabled(_ enabled: Bool) -> Bool {
++        precondition(Thread.isMainThread, "CEF preferences must be changed on the main thread.")
++        guard isInitialized,
++              let context = cef_request_context_get_global_context() else {
++            return false
++        }
++        defer { cefRelease(UnsafeMutableRawPointer(context)) }
++        configuration?.doNotTrackEnabled = enabled
++        return CefBuiltInPreference.setBoolean(
++            enabled,
++            forKey: CefBuiltInPreference.doNotTrack,
++            in: context
++        ) == nil
++    }
++
+     // MARK: Custom scheme handlers
+ 
+     /// Registers `handler` as the content source for `scheme` (optionally

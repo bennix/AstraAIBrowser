@@ -70,8 +70,11 @@ enum AppLanguagePreference: Hashable, Identifiable {
     static let systemStorageValue = "system"
 
     init(storageValue: String?) {
-        guard let storageValue,
-              storageValue != Self.systemStorageValue,
+        guard let storageValue else {
+            self = .language(.simplifiedChinese)
+            return
+        }
+        guard storageValue != Self.systemStorageValue,
               let language = SupportedAppLanguage(rawValue: storageValue) else {
             self = .system
             return

@@ -24,10 +24,10 @@ final class AppLanguagePreferenceTests: XCTestCase {
         super.tearDown()
     }
 
-    func testFreshInstallFollowsSystem() {
+    func testFreshInstallDefaultsToSimplifiedChinese() {
         XCTAssertEqual(
             PhiPreferences.GeneralSettings.loadAppLanguagePreference(from: defaults),
-            .system
+            .language(.simplifiedChinese)
         )
     }
 

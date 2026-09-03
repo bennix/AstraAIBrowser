@@ -21,6 +21,15 @@ final class SettingsPresentationState: ObservableObject {
 }
 
 extension AppController {
+
+    @MainActor
+    func applyDoNotTrackPreference(_ enabled: Bool) {
+        guard CefBrowserRuntime.shared.applyDoNotTrackPreference(enabled) else {
+            AppLogError("Failed to apply the Do Not Track preference to every browser profile")
+            return
+        }
+        AppLogInfo("Do Not Track preference changed: enabled=\(enabled)")
+    }
     
     private func panes() -> [SettingsPane] {
         var panes: [SettingsPane] = []

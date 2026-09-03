@@ -55377,6 +55377,30 @@
         }
       }
     },
+    "settings.general.privacy.doNotTrackHint" : {
+      "comment" : "General settings - Hint explaining that websites decide whether to respect the Do Not Track signal",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Websites may choose whether to honor this request."
+          }
+        }
+      }
+    },
+    "settings.general.privacy.doNotTrackToggle" : {
+      "comment" : "General settings - Toggle title for sending the standard Do Not Track browser signal",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Send a Do Not Track request"
+          }
+        }
+      }
+    },
     "settings.general.pinnedTabScope.openSpacesSettingsLink" : {
       "comment" : "General settings - Link that jumps to the Spaces settings pane",
       "extractionState" : "extracted_with_value",

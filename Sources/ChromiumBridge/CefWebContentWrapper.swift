@@ -1172,7 +1172,7 @@ final class SystemMediaWebView: WKWebView {
 
 @MainActor
 final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, CefBrowserDelegate, PageContentProviding, BrowserAutomationProviding, ImmersiveTranslationProviding, XBookmarkCollectionProviding, MediaSessionCookieProviding, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
-    private final class SystemMediaPopupHost: NSObject, WKUIDelegate, NSWindowDelegate {
+    private final class SystemMediaPopupHost: NSObject, WKNavigationDelegate, WKUIDelegate, NSWindowDelegate {
         let webView: SystemMediaWebView
         let window: NSWindow
         var onClose: (() -> Void)?
@@ -1193,6 +1193,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             webView.onSearchSelectedText = onSearchSelectedText
             webView.onSelectionAction = onSelectionAction
             webView.customUserAgent = SupportedBrowserUserAgent.safariCompatibleUserAgent
+            webView.navigationDelegate = self
             webView.uiDelegate = self
             window.delegate = self
             window.contentView = webView
@@ -1211,8 +1212,35 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             window.close()
         }
 
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationAction: WKNavigationAction,
+            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        ) {
+            guard navigationAction.targetFrame?.isMainFrame == true,
+                  BrowserOutwardRequestPolicy.needsCurrentHeaders(navigationAction.request) else {
+                decisionHandler(.allow)
+                return
+            }
+            decisionHandler(.cancel)
+            webView.load(BrowserOutwardRequestPolicy.current(navigationAction.request))
+        }
+
+        func applyDoNotTrackPreference(_ enabled: Bool) {
+            let script = BrowserOutwardRequestPolicy.doNotTrackJavaScript(enabled: enabled)
+            webView.configuration.userContentController.addUserScript(
+                WKUserScript(
+                    source: script,
+                    injectionTime: .atDocumentStart,
+                    forMainFrameOnly: false
+                )
+            )
+            webView.evaluateJavaScript(script)
+        }
+
         func windowWillClose(_ notification: Notification) {
             window.parent?.removeChildWindow(window)
+            webView.navigationDelegate = nil
             webView.uiDelegate = nil
             onClose?()
         }
@@ -1288,6 +1316,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     private var nativePopupTimeout: DispatchWorkItem?
     private var systemMediaPopupHosts: [ObjectIdentifier: SystemMediaPopupHost] = [:]
     private var pendingExternalApplicationURL: URL?
+    private var doNotTrackPreferenceObserver: NSObjectProtocol?
 
     var onActivate: (() -> Void)?
     var onClose: (() -> Void)?
@@ -1337,6 +1366,16 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         super.init()
         hostView.owner = self
         hostView.autoresizesSubviews = true
+        doNotTrackPreferenceObserver = NotificationCenter.default.addObserver(
+            forName: BrowserOutwardRequestPolicy.preferenceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let enabled = notification.userInfo?["enabled"] as? Bool else { return }
+            MainActor.assumeIsolated {
+                self?.applyDoNotTrackPreference(enabled)
+            }
+        }
     }
 
     func browser(
@@ -1507,6 +1546,15 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         )
         configuration.userContentController.addUserScript(
             WKUserScript(
+                source: BrowserOutwardRequestPolicy.doNotTrackJavaScript(
+                    enabled: PhiPreferences.GeneralSettings.doNotTrack.loadValue()
+                ),
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: false
+            )
+        )
+        configuration.userContentController.addUserScript(
+            WKUserScript(
                 source: YouTubeAdPlaybackPolicy.javaScript,
                 injectionTime: .atDocumentStart,
                 forMainFrameOnly: true
@@ -1597,8 +1645,25 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             webView.evaluateJavaScript(script)
             return nil
         }
-        webView.load(URLRequest(url: pendingURL))
+        webView.load(BrowserOutwardRequestPolicy.current(URLRequest(url: pendingURL)))
         schedulePageContextSmokeIfNeeded()
+    }
+
+    private func applyDoNotTrackPreference(_ enabled: Bool) {
+        let script = BrowserOutwardRequestPolicy.doNotTrackJavaScript(enabled: enabled)
+        if let systemMediaWebView {
+            systemMediaWebView.configuration.userContentController.addUserScript(
+                WKUserScript(
+                    source: script,
+                    injectionTime: .atDocumentStart,
+                    forMainFrameOnly: false
+                )
+            )
+            systemMediaWebView.evaluateJavaScript(script)
+        }
+        systemMediaPopupHosts.values.forEach {
+            $0.applyDoNotTrackPreference(enabled)
+        }
     }
 
     private func systemMediaDataStore() -> WKWebsiteDataStore {
@@ -1765,6 +1830,10 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         guard !didRequestClose else { return }
         didRequestClose = true
         cancelNativePopupIntegration()
+        if let doNotTrackPreferenceObserver {
+            NotificationCenter.default.removeObserver(doNotTrackPreferenceObserver)
+            self.doNotTrackPreferenceObserver = nil
+        }
         CefBrowserRuntime.shared.unregisterCredentialHandler(token: pageContextToken)
         let popupHosts = Array(systemMediaPopupHosts.values)
         systemMediaPopupHosts.removeAll()
@@ -1838,7 +1907,9 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         pendingURL = destination
         if shouldUsePersistentWebKit(for: destination) {
             if let systemMediaWebView {
-                systemMediaWebView.load(URLRequest(url: destination))
+                systemMediaWebView.load(
+                    BrowserOutwardRequestPolicy.current(URLRequest(url: destination))
+                )
             } else {
                 chromeBrowser?.nsWindow?.orderOut(nil)
                 createSystemMediaWebView()
@@ -3166,7 +3237,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                     deviceMemory: navigator.deviceMemory ?? null,
                     colorDepth: screen.colorDepth,
                     language: navigator.language,
-                    languages: navigator.languages
+                    languages: navigator.languages,
+                    doNotTrack: navigator.doNotTrack
                   });
                 })();
                 """
@@ -5250,6 +5322,12 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         if ExternalApplicationURLPolicy.shouldOpenExternally(destination) {
             presentExternalApplicationPrompt(for: destination)
             decisionHandler(.cancel)
+            return
+        }
+        if navigationAction.targetFrame?.isMainFrame == true,
+           BrowserOutwardRequestPolicy.needsCurrentHeaders(navigationAction.request) {
+            decisionHandler(.cancel)
+            webView.load(BrowserOutwardRequestPolicy.current(navigationAction.request))
             return
         }
         if navigationAction.targetFrame == nil,

@@ -42,7 +42,7 @@ enum UserDefaultsRegistration {
             defaults[setting.rawValue] = setting.defaultValue
         }
         defaults[PhiPreferences.GeneralSettings.appLanguagePreferenceKey] =
-            AppLanguagePreference.system.storageValue
+            AppLanguagePreference.language(.simplifiedChinese).storageValue
         return defaults
     }
     

@@ -14,6 +14,7 @@ patches=(
   "$repository_root/patches/cefswift/export-session-cookies.patch"
   "$repository_root/patches/cefswift/support-embedded-profile-and-popovers.patch"
   "$repository_root/patches/cefswift/forward-mouse-release-flags.patch"
+  "$repository_root/patches/cefswift/configure-do-not-track.patch"
 )
 targets=(
   "$cef_swift_root/Sources/CefKit/CefBrowser.swift"
@@ -24,6 +25,7 @@ targets=(
   "$cef_swift_root/Sources/CefKit/CefBrowser.swift"
   "$cef_swift_root/Sources/CefKit/CefChromeBrowser.swift"
   "$cef_swift_root/Sources/CefSwiftUI/CefMetalHostView+Input.swift"
+  "$cef_swift_root/Sources/CefKit/CefConfiguration.swift"
 )
 markers=(
   "public func captureVisiblePageScreenshot"
@@ -34,6 +36,7 @@ markers=(
   "public func cookies(for url: URL"
   "public func activate()"
   "eventType: NSEvent.EventType? = nil"
+  "public var doNotTrackEnabled"
 )
 
 applied_any=false

@@ -3,9 +3,9 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 83)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.83/Astra-Browser-build83.dmg)
+[Download Astra 1.0 (build 84)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.84/Astra-Browser-build84.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.83)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.84)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
@@ -18,7 +18,8 @@ and accepted by Apple's notarization service.
 - Local AI memory uses an account-scoped SQLite vector index, renders Markdown tables and LaTeX locally, exports one or several selected entries as Markdown files, remembers completed user/AI turns, and summarizes expired conversation memory before removing its source records.
 - Browsing history stays in each persistent Chromium profile; the native History menu, Command-Y, and General settings provide direct access to viewing or clearing it.
 - Account settings show whether Astra owns both HTTP and HTTPS and can request complete macOS default-browser ownership.
-- Links opened by other macOS apps enter Astra's embedded Chromium tabs, and exposed browser language follows Astra's selected interface language.
+- Links opened by other macOS apps enter Astra's embedded Chromium tabs. Astra's rendered interface follows the user-selected app language and defaults to Simplified Chinese on a fresh installation, while web-exposed language signals follow the country of the public egress IPv4 address without storing that address.
+- Do Not Track is enabled by default, applies to Chromium and WebKit request paths and JavaScript surfaces, and can be changed from General settings.
 - Explicit HTTP pages use Astra's existing in-app compatibility engine when the embedded Chromium network stack cannot reach a legacy server, while HTTPS browsing keeps its normal Chromium path.
 - Integrated AI workspace for browsing and task assistance.
 - ZenMux page vision and up to five removable image attachments with thumbnail previews.
