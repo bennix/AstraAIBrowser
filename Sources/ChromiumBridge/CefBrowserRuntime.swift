@@ -69,6 +69,14 @@ enum CefDisabledFeaturePolicy {
 /// anti-abuse SDKs validate consistency across canvas, WebGL, audio, fonts,
 /// and pointer input. Other pages continue to receive fingerprint privacy.
 enum CefSecurityChallengeCompatibilityPolicy {
+    /// Sites whose security SDKs run inline on authenticated product pages,
+    /// not only on a dedicated login or challenge route. These hosts must use
+    /// one consistent set of native browser surfaces for the whole origin so
+    /// a challenge opened after navigation sees the same fingerprint values.
+    private static let inlineChallengeHosts = Set([
+        "developer.amd.com.cn"
+    ])
+
     private static let authenticationPathSegments = Set([
         "auth",
         "authenticate",
@@ -100,8 +108,12 @@ enum CefSecurityChallengeCompatibilityPolicy {
     ])
 
     static func shouldUseNativeBrowserSurfaces(host: String, path: String) -> Bool {
-        let hostLabels = host
-            .lowercased()
+        let normalizedHost = host.lowercased()
+        if inlineChallengeHosts.contains(normalizedHost) {
+            return true
+        }
+
+        let hostLabels = normalizedHost
             .split(separator: ".")
             .map(String.init)
         if hostLabels.contains(where: challengeHostLabels.contains) {
@@ -117,6 +129,9 @@ enum CefSecurityChallengeCompatibilityPolicy {
 
     static let javaScript = #"""
     (() => {
+      const inlineChallengeHosts = new Set([
+        "developer.amd.com.cn"
+      ]);
       const authenticationPathSegments = new Set([
         "auth", "authenticate", "authentication", "captcha", "challenge",
         "login", "oauth", "recaptcha", "sign-in", "signin", "sso",
@@ -131,8 +146,11 @@ enum CefSecurityChallengeCompatibilityPolicy {
         if (!locationValue) {
           return false;
         }
-        const hostLabels = String(locationValue.hostname || "")
-          .toLowerCase()
+        const normalizedHost = String(locationValue.hostname || "").toLowerCase();
+        if (inlineChallengeHosts.has(normalizedHost)) {
+          return true;
+        }
+        const hostLabels = normalizedHost
           .split(".")
           .filter(Boolean);
         if (hostLabels.some((label) => challengeHostLabels.has(label))) {

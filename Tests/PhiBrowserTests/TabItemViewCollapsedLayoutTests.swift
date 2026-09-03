@@ -8,6 +8,10 @@ import XCTest
 @testable import Phi
 
 final class TabItemViewCollapsedLayoutTests: XCTestCase {
+    func testTabAcceptsFirstClickWhileWindowIsInactive() {
+        XCTAssertTrue(TabItemView().acceptsFirstMouse(for: nil))
+    }
+
     func test_zeroSizedTabItemDoesNotExposeContentSubviews() {
         let view = TabItemView()
         view.configure(with: TabRenderData(

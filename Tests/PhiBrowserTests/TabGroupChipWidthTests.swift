@@ -8,6 +8,9 @@ import XCTest
 @testable import Phi
 
 final class TabGroupChipWidthTests: XCTestCase {
+    func testGroupChipAcceptsFirstClickWhileWindowIsInactive() {
+        XCTAssertTrue(TabGroupChipView().acceptsFirstMouse(for: nil))
+    }
 
     func test_named_expanded_includesCountBadge() {
         let width = TabGroupChipView.chipWidth(

@@ -231,6 +231,13 @@ final class TabItemView: NSView {
         true
     }
 
+    /// A tab click should both reactivate an inactive browser window and
+    /// select the requested tab. This matters especially after the user
+    /// leaves Astra to retrieve an email verification code.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
     override var mouseDownCanMoveWindow: Bool {
         false
     }

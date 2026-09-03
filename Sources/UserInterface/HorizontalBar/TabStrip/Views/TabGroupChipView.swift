@@ -483,6 +483,7 @@ final class TabGroupChipView: NSView {
     /// false return is ignored in the window-drag heuristic.
     override var mouseDownCanMoveWindow: Bool { false }
     override var acceptsFirstResponder: Bool { true }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func mouseDown(with event: NSEvent) {
         mouseDownInside = true

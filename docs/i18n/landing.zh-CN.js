@@ -36,7 +36,7 @@
     "features.xBookmarkArchive.body": "Astra 直接在当前已登录的 X 标签页中归档书签，不打开后台标签页。采集可随时暂停、继续或停止，并保留详细正文、引用、图片资源与视频贴文链接；结果可直接留存为本地 Markdown，也可在明确确认后交给 ZenMux 分类整理。",
     "features.signedUpdates.title": "GitHub 签名在线更新",
     "features.signedUpdates.body": "打开“关于 Astra Browser”即会检查 GitHub Releases 更新。更新源与 DMG 均使用 Sparkle Ed25519 签名校验，并继续验证 Apple 代码签名。",
-    "download.summary": "Build 82 改进登录与安全验证路径上滑块验证码的加载和校验兼容性，同时保持普通网页的指纹隐私防护。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 83 改进 AMD 开发者网页中内联滑块验证码的兼容性，并让浏览器窗口处于非激活状态时的首次点击也能立即切换标签页。普通网页继续保留指纹隐私防护。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

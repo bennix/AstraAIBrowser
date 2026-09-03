@@ -63,10 +63,25 @@ final class CefSecurityChallengeCompatibilityPolicyTests: XCTestCase {
         )
     }
 
+    func testInlineChallengeOriginUsesNativeBrowserSurfacesAcrossProductRoutes() {
+        XCTAssertTrue(
+            CefSecurityChallengeCompatibilityPolicy.shouldUseNativeBrowserSurfaces(
+                host: "developer.amd.com.cn",
+                path: "/radeon/tokenfactory"
+            )
+        )
+        XCTAssertTrue(
+            CefSecurityChallengeCompatibilityPolicy.shouldUseNativeBrowserSurfaces(
+                host: "developer.amd.com.cn",
+                path: "/account-settings"
+            )
+        )
+    }
+
     func testOrdinaryPagesKeepFingerprintPrivacy() {
         XCTAssertFalse(
             CefSecurityChallengeCompatibilityPolicy.shouldUseNativeBrowserSurfaces(
-                host: "developer.amd.com.cn",
+                host: "developer.example.com",
                 path: "/radeon/tokenfactory"
             )
         )
@@ -88,6 +103,35 @@ final class CefSecurityChallengeCompatibilityPolicyTests: XCTestCase {
         globalThis.location = {
           hostname: 'developer.amd.com.cn',
           pathname: '/login'
+        };
+        """)
+        context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
+
+        XCTAssertEqual(
+            context.evaluateScript("globalThis.__astraUsesNativeSecurityChallengeSurfaces === true")?.toBool(),
+            true
+        )
+        XCTAssertEqual(
+            context.evaluateScript("globalThis.__astraFingerprintPrivacyInstalled === true")?.toBool(),
+            false
+        )
+        XCTAssertEqual(
+            context.evaluateScript("globalThis.__astraAudioPrivacyInstalled === true")?.toBool(),
+            false
+        )
+        XCTAssertNil(exception?.toString())
+    }
+
+    func testInlineChallengeProductDocumentSkipsFingerprintWrappers() throws {
+        let context = try XCTUnwrap(JSContext())
+        var exception: JSValue?
+        context.exceptionHandler = { _, value in exception = value }
+        context.evaluateScript("""
+        globalThis.window = globalThis;
+        globalThis.top = globalThis;
+        globalThis.location = {
+          hostname: 'developer.amd.com.cn',
+          pathname: '/account-settings'
         };
         """)
         context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
