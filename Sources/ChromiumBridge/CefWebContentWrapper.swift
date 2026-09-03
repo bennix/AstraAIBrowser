@@ -3152,6 +3152,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                   }
                   fontProbe.remove();
                   return JSON.stringify({
+                    nativeSecurityChallengeSurfaces:
+                      globalThis.__astraUsesNativeSecurityChallengeSurfaces === true,
                     installed: globalThis.__astraFingerprintPrivacyInstalled === true,
                     audioInstalled: globalThis.__astraAudioPrivacyInstalled === true,
                     canvas: canvas.toDataURL().slice(0, 32),

@@ -65,6 +65,108 @@ enum CefDisabledFeaturePolicy {
     }
 }
 
+/// Keeps authentication challenges on native browser surfaces because
+/// anti-abuse SDKs validate consistency across canvas, WebGL, audio, fonts,
+/// and pointer input. Other pages continue to receive fingerprint privacy.
+enum CefSecurityChallengeCompatibilityPolicy {
+    private static let authenticationPathSegments = Set([
+        "auth",
+        "authenticate",
+        "authentication",
+        "captcha",
+        "challenge",
+        "login",
+        "oauth",
+        "recaptcha",
+        "sign-in",
+        "signin",
+        "sso",
+        "verification",
+        "verify"
+    ])
+
+    private static let challengeHostLabels = Set([
+        "auth",
+        "captcha",
+        "challenge",
+        "challenges",
+        "login",
+        "oauth",
+        "recaptcha",
+        "signin",
+        "sso",
+        "verification",
+        "verify"
+    ])
+
+    static func shouldUseNativeBrowserSurfaces(host: String, path: String) -> Bool {
+        let hostLabels = host
+            .lowercased()
+            .split(separator: ".")
+            .map(String.init)
+        if hostLabels.contains(where: challengeHostLabels.contains) {
+            return true
+        }
+
+        let pathSegments = path
+            .lowercased()
+            .split(separator: "/")
+            .map(String.init)
+        return pathSegments.contains(where: authenticationPathSegments.contains)
+    }
+
+    static let javaScript = #"""
+    (() => {
+      const authenticationPathSegments = new Set([
+        "auth", "authenticate", "authentication", "captcha", "challenge",
+        "login", "oauth", "recaptcha", "sign-in", "signin", "sso",
+        "verification", "verify"
+      ]);
+      const challengeHostLabels = new Set([
+        "auth", "captcha", "challenge", "challenges", "recaptcha",
+        "login", "oauth", "signin", "sso", "verification", "verify"
+      ]);
+
+      const isSecurityChallengeLocation = (locationValue) => {
+        if (!locationValue) {
+          return false;
+        }
+        const hostLabels = String(locationValue.hostname || "")
+          .toLowerCase()
+          .split(".")
+          .filter(Boolean);
+        if (hostLabels.some((label) => challengeHostLabels.has(label))) {
+          return true;
+        }
+        const pathSegments = String(locationValue.pathname || "")
+          .toLowerCase()
+          .split("/")
+          .filter(Boolean);
+        return pathSegments.some((segment) => authenticationPathSegments.has(segment));
+      };
+
+      let usesNativeSurfaces = isSecurityChallengeLocation(globalThis.location);
+      if (!usesNativeSurfaces) {
+        try {
+          usesNativeSurfaces = isSecurityChallengeLocation(globalThis.top?.location);
+        } catch (_) {
+          // Cross-origin frames are classified by their own challenge host.
+        }
+      }
+      if (!usesNativeSurfaces) {
+        return;
+      }
+
+      Object.defineProperty(globalThis, "__astraUsesNativeSecurityChallengeSurfaces", {
+        value: true,
+        configurable: false,
+        enumerable: false,
+        writable: false
+      });
+    })();
+    """#
+}
+
 enum CefWebStoreExtensionDownloadPolicy {
     private static let trustedHosts = Set([
         "clients2.google.com",
@@ -156,6 +258,9 @@ enum CefBrowserDataPage: String, CaseIterable {
 enum AudioFingerprintPrivacyPolicy {
     static let javaScript = """
     (() => {
+      if (globalThis.__astraUsesNativeSecurityChallengeSurfaces) {
+        return;
+      }
       if (globalThis.__astraAudioPrivacyInstalled) {
         return;
       }
@@ -449,6 +554,9 @@ enum FingerprintPrivacyPolicy {
         let outwardLanguages = FingerprintPrivacyPolicy.acceptLanguageList
         let surfacePolicy = #"""
         (() => {
+          if (globalThis.__astraUsesNativeSecurityChallengeSurfaces) {
+            return;
+          }
           if (globalThis.__astraFingerprintPrivacyInstalled) {
             return;
           }
@@ -812,7 +920,11 @@ enum FingerprintPrivacyPolicy {
           replaceGetter(globalThis.Screen?.prototype, "pixelDepth", 24);
         })();
         """#
-        return AudioFingerprintPrivacyPolicy.javaScript + "\n" + surfacePolicy
+        return CefSecurityChallengeCompatibilityPolicy.javaScript
+            + "\n"
+            + AudioFingerprintPrivacyPolicy.javaScript
+            + "\n"
+            + surfacePolicy
     }()
 }
 

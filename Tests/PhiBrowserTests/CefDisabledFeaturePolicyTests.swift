@@ -35,6 +35,109 @@ final class CefDisabledFeaturePolicyTests: XCTestCase {
     }
 }
 
+final class CefSecurityChallengeCompatibilityPolicyTests: XCTestCase {
+    func testAuthenticationAndChallengeRoutesUseNativeBrowserSurfaces() {
+        XCTAssertTrue(
+            CefSecurityChallengeCompatibilityPolicy.shouldUseNativeBrowserSurfaces(
+                host: "developer.amd.com.cn",
+                path: "/login"
+            )
+        )
+        XCTAssertTrue(
+            CefSecurityChallengeCompatibilityPolicy.shouldUseNativeBrowserSurfaces(
+                host: "challenges.cloudflare.com",
+                path: "/turnstile/v0/g/rcv/0"
+            )
+        )
+        XCTAssertTrue(
+            CefSecurityChallengeCompatibilityPolicy.shouldUseNativeBrowserSurfaces(
+                host: "www.google.com",
+                path: "/recaptcha/api2/anchor"
+            )
+        )
+        XCTAssertTrue(
+            CefSecurityChallengeCompatibilityPolicy.shouldUseNativeBrowserSurfaces(
+                host: "login.example.com",
+                path: "/"
+            )
+        )
+    }
+
+    func testOrdinaryPagesKeepFingerprintPrivacy() {
+        XCTAssertFalse(
+            CefSecurityChallengeCompatibilityPolicy.shouldUseNativeBrowserSurfaces(
+                host: "developer.amd.com.cn",
+                path: "/radeon/tokenfactory"
+            )
+        )
+        XCTAssertFalse(
+            CefSecurityChallengeCompatibilityPolicy.shouldUseNativeBrowserSurfaces(
+                host: "example.com",
+                path: "/articles/authentication-browser-history"
+            )
+        )
+    }
+
+    func testLoginDocumentSkipsFingerprintWrappers() throws {
+        let context = try XCTUnwrap(JSContext())
+        var exception: JSValue?
+        context.exceptionHandler = { _, value in exception = value }
+        context.evaluateScript("""
+        globalThis.window = globalThis;
+        globalThis.top = globalThis;
+        globalThis.location = {
+          hostname: 'developer.amd.com.cn',
+          pathname: '/login'
+        };
+        """)
+        context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
+
+        XCTAssertEqual(
+            context.evaluateScript("globalThis.__astraUsesNativeSecurityChallengeSurfaces === true")?.toBool(),
+            true
+        )
+        XCTAssertEqual(
+            context.evaluateScript("globalThis.__astraFingerprintPrivacyInstalled === true")?.toBool(),
+            false
+        )
+        XCTAssertEqual(
+            context.evaluateScript("globalThis.__astraAudioPrivacyInstalled === true")?.toBool(),
+            false
+        )
+        XCTAssertNil(exception?.toString())
+    }
+
+    func testSameOriginChildFrameInheritsAuthenticationCompatibility() throws {
+        let context = try XCTUnwrap(JSContext())
+        var exception: JSValue?
+        context.exceptionHandler = { _, value in exception = value }
+        context.evaluateScript("""
+        globalThis.window = globalThis;
+        globalThis.location = {
+          hostname: '',
+          pathname: ''
+        };
+        globalThis.top = {
+          location: {
+            hostname: 'developer.amd.com.cn',
+            pathname: '/login'
+          }
+        };
+        """)
+        context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
+
+        XCTAssertEqual(
+            context.evaluateScript("globalThis.__astraUsesNativeSecurityChallengeSurfaces === true")?.toBool(),
+            true
+        )
+        XCTAssertEqual(
+            context.evaluateScript("globalThis.__astraFingerprintPrivacyInstalled === true")?.toBool(),
+            false
+        )
+        XCTAssertNil(exception?.toString())
+    }
+}
+
 final class CefWebStoreExtensionDownloadPolicyTests: XCTestCase {
     func testExtractsExtensionIDFromTrustedWebStoreDownload() {
         XCTAssertEqual(

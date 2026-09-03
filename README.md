@@ -3,9 +3,9 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 81)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.81/Astra-Browser-build81.dmg)
+[Download Astra 1.0 (build 82)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.82/Astra-Browser-build82.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.81)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.82)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
@@ -40,6 +40,7 @@ and accepted by Apple's notarization service.
 - WebRTC exposes no direct candidates, while camera and microphone access requires one-time approval.
 - Silent WebAudio fingerprinting is disrupted at document start: fingerprint readbacks are randomized per page context and zero-gain processing graphs cannot claim the system audio output. Deferred legitimate audio connections are bounded, deduplicated, and restored asynchronously so privacy protection cannot block page navigation. Standard HTML media playback is left unchanged.
 - Canvas and WebGL readbacks are farbled per site and session, precise Apple GPU models are masked, protected local and Chinese fonts resist direct and text-metric enumeration, and exposed hardware and language signals are normalized to a coherent profile.
+- Authentication and security-challenge routes use Chromium-native Canvas, WebGL, WebAudio, and font surfaces so slider CAPTCHA widgets can load and validate consistently; ordinary pages retain Astra's fingerprint privacy protections.
 - Grok stays in its persistent Chromium session after sign-in, and X OAuth popups retain their originating page relationship.
 - Chrome Web Store installs remain inside Astra and installed extension actions stay visible on Chromium-rendered pages.
 - Newly opened YouTube and other Chromium-heavy tabs stay attached to Astra, and close promptly even if the underlying Chromium window has already disappeared.

@@ -6,8 +6,8 @@
     "features.extensions.body": "可直接从 Chrome 应用商店安装扩展，并在 Chromium 渲染的页面中保持扩展操作图标可见，全程不跳出另一个浏览器窗口。",
     "features.privacy.title": "默认保护 WebRTC 隐私",
     "features.privacy.body": "阻止不经过代理的 WebRTC 直连；网站请求摄像头或麦克风时，必须由用户明确决定是否仅允许本次访问。",
-    "features.fingerprintPrivacy.title": "跨维度浏览器指纹防护",
-    "features.fingerprintPrivacy.body": "Astra 对 Canvas、WebGL 和 WebAudio 读取结果进行扰动，隐藏精确 GPU 信息，阻止枚举受保护的本地及中文字体，并统一硬件与浏览器语言信号。Build 45 在中和字体测量探针的同时保留网页正常的字体样式赋值。",
+    "features.fingerprintPrivacy.title": "兼顾安全验证的指纹隐私防护",
+    "features.fingerprintPrivacy.body": "普通网页继续使用 Astra 的 Canvas、WebGL、WebAudio、GPU、字体、硬件与语言信号隐私防护；登录和安全验证路径使用 Chromium 原生表面，以提高滑块验证码的加载与校验一致性。",
     "features.visualContext.title": "视觉 AI 上下文",
     "features.visualContext.body": "可在提问区截取用户当前看到的网页渲染结果，包括标准视频在截图瞬间的画面，并可通过缩略图确认或删除。",
     "features.richAnswers.title": "丰富的技术内容渲染",
@@ -36,7 +36,7 @@
     "features.xBookmarkArchive.body": "Astra 直接在当前已登录的 X 标签页中归档书签，不打开后台标签页。采集可随时暂停、继续或停止，并保留详细正文、引用、图片资源与视频贴文链接；结果可直接留存为本地 Markdown，也可在明确确认后交给 ZenMux 分类整理。",
     "features.signedUpdates.title": "GitHub 签名在线更新",
     "features.signedUpdates.body": "打开“关于 Astra Browser”即会检查 GitHub Releases 更新。更新源与 DMG 均使用 Sparkle Ed25519 签名校验，并继续验证 Apple 代码签名。",
-    "download.summary": "Build 81 将网页中的 macOS 应用协议交给 Launch Services，不再显示 Chromium 未知协议错误；打开前会明确确认，并同时覆盖 Chromium 与兼容引擎。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 82 改进登录与安全验证路径上滑块验证码的加载和校验兼容性，同时保持普通网页的指纹隐私防护。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {
