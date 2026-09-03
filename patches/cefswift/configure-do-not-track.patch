@@ -1,8 +1,106 @@
+diff --git a/Sources/CefKit/BrowserClient.swift b/Sources/CefKit/BrowserClient.swift
+index 44a10e0..5665dde 100644
+--- a/Sources/CefKit/BrowserClient.swift
++++ b/Sources/CefKit/BrowserClient.swift
+@@ -2,6 +2,32 @@ import AppKit
+ import CCef
+ import Foundation
+ 
++/// Process-wide request policy used from CEF's IO thread.
++///
++/// CEF's native `enable_do_not_track` preference is not safe to mutate in the
++/// Chrome runtime used by Astra. Applying the header at the request boundary
++/// preserves the setting without touching Chromium's preference store.
++final class CefDoNotTrackPolicy: @unchecked Sendable {
++    static let shared = CefDoNotTrackPolicy()
++
++    private let lock = NSLock()
++    private var enabled = false
++
++    private init() {}
++
++    func setEnabled(_ enabled: Bool) {
++        lock.lock()
++        self.enabled = enabled
++        lock.unlock()
++    }
++
++    func isEnabled() -> Bool {
++        lock.lock()
++        defer { lock.unlock() }
++        return enabled
++    }
++}
++
+ /// Swift owner behind the `cef_client_t` + handler structs for one browser.
+ ///
+ /// CEF invokes the struct callbacks on its UI thread, which is the main
+@@ -30,6 +56,7 @@ final class BrowserClient {
+     nonisolated(unsafe) var contextMenuPointer: UnsafeMutablePointer<cef_context_menu_handler_t>?
+     nonisolated(unsafe) var permissionPointer: UnsafeMutablePointer<cef_permission_handler_t>?
+     nonisolated(unsafe) var requestPointer: UnsafeMutablePointer<cef_request_handler_t>?
++    nonisolated(unsafe) private var resourceRequestPointer: UnsafeMutablePointer<cef_resource_request_handler_t>?
+     nonisolated(unsafe) var keyboardPointer: UnsafeMutablePointer<cef_keyboard_handler_t>?
+     nonisolated(unsafe) var focusPointer: UnsafeMutablePointer<cef_focus_handler_t>?
+     nonisolated(unsafe) var renderPointer: UnsafeMutablePointer<cef_render_handler_t>?
+@@ -655,6 +682,30 @@ extension BrowserClient {
+     // MARK: Navigation / requests
+ 
+     private func makeRequestHandler() {
++        let resourceHandler = cefAllocate(cef_resource_request_handler_t.self, owner: self)
++        resourceHandler.pointee.on_before_resource_load = {
++            _, browser, frame, request, callback in
++            cefRelease(browser.map(UnsafeMutableRawPointer.init))
++            cefRelease(frame.map(UnsafeMutableRawPointer.init))
++            cefRelease(callback.map(UnsafeMutableRawPointer.init))
++            guard let request else { return RV_CONTINUE }
++            defer { cefRelease(UnsafeMutableRawPointer(request)) }
++
++            guard CefDoNotTrackPolicy.shared.isEnabled() else { return RV_CONTINUE }
++            let urlString = CefStringUtil.takingUserFree(request.pointee.get_url?(request)) ?? ""
++            guard let scheme = URL(string: urlString)?.scheme?.lowercased(),
++                  scheme == "http" || scheme == "https" else {
++                return RV_CONTINUE
++            }
++            CefStringUtil.withCefString("DNT") { name in
++                CefStringUtil.withCefString("1") { value in
++                    request.pointee.set_header_by_name?(request, name, value, 1)
++                }
++            }
++            return RV_CONTINUE
++        }
++        resourceRequestPointer = resourceHandler
++
+         let handler = cefAllocate(cef_request_handler_t.self, owner: self)
+         handler.pointee.on_before_browse = { handlerSelf, browser, frame, request, userGesture, isRedirect in
+             cefRelease(browser.map(UnsafeMutableRawPointer.init))
+@@ -737,9 +788,18 @@ extension BrowserClient {
+                 cefBrowser.delegate?.browser(cefBrowser, renderProcessDidTerminate: reason, errorCode: code)
+             }
+         }
+-        // get_resource_request_handler left unset (returns NULL by default) —
+-        // the custom-scheme path already covers app-served content; per-response
+-        // interception is intentionally out of scope.
++        handler.pointee.get_resource_request_handler = {
++            handlerSelf, browser, frame, request, _, _, _, _ in
++            cefRelease(browser.map(UnsafeMutableRawPointer.init))
++            cefRelease(frame.map(UnsafeMutableRawPointer.init))
++            cefRelease(request.map(UnsafeMutableRawPointer.init))
++            guard let client = BrowserClient.owner(handlerSelf.map(UnsafeMutableRawPointer.init)),
++                  let resourceHandler = client.resourceRequestPointer else {
++                return nil
++            }
++            cefAddRef(UnsafeMutableRawPointer(resourceHandler))
++            return resourceHandler
++        }
+         requestPointer = handler
+     }
+ 
 diff --git a/Sources/CefKit/CefConfiguration.swift b/Sources/CefKit/CefConfiguration.swift
-index 236e1d7..fc39cbb 100644
+index 72fbe11..d9b5f03 100644
 --- a/Sources/CefKit/CefConfiguration.swift
 +++ b/Sources/CefKit/CefConfiguration.swift
-@@ -99,5 +99,9 @@ public struct CefConfiguration: Sendable {
+@@ -100,6 +100,10 @@ public struct CefConfiguration: Sendable {
      /// Persist session cookies across runs.
      public var persistSessionCookies: Bool = false
  
@@ -12,70 +110,26 @@ index 236e1d7..fc39cbb 100644
 +
      /// Default runtime style for browsers created without an explicit style.
      public var defaultRuntimeStyle: CefRuntimeStyle = .default
+ 
 diff --git a/Sources/CefKit/CefProfile.swift b/Sources/CefKit/CefProfile.swift
-index fead94b..a2b59bd 100644
+index fead94b..1727375 100644
 --- a/Sources/CefKit/CefProfile.swift
 +++ b/Sources/CefKit/CefProfile.swift
-@@ -1,6 +1,37 @@
- import CCef
- import Foundation
- 
-+enum CefBuiltInPreference {
-+    static let doNotTrack = "enable_do_not_track"
-+
-+    static func setBoolean(
-+        _ value: Bool,
-+        forKey key: String,
-+        in context: UnsafeMutablePointer<cef_request_context_t>
-+    ) -> String? {
-+        guard let cefValue = cef_value_create() else {
-+            return "CEF could not allocate a preference value."
-+        }
-+        defer { cefRelease(UnsafeMutableRawPointer(cefValue)) }
-+        guard cefValue.pointee.set_bool?(cefValue, value ? 1 : 0) != 0 else {
-+            return "CEF rejected the Boolean preference value."
-+        }
-+
-+        var error = cef_string_t()
-+        defer { ccef_string_clear(&error) }
-+        let succeeded = CefStringUtil.withCefString(key) { cefKey in
-+            withUnsafeMutablePointer(to: &context.pointee.base) { manager in
-+                manager.pointee.set_preference?(manager, cefKey, cefValue, &error) ?? 0
-+            }
-+        }
-+        guard succeeded != 0 else {
-+            let message = CefStringUtil.string(from: error)
-+            return message.isEmpty ? "CEF rejected the browser preference." : message
-+        }
-+        return nil
-+    }
-+}
-+
- /// An isolated browsing profile — a CEF request context with its own cookies,
- /// `localStorage`, cache, and HTTP state.
- ///
-@@ -109,6 +140,20 @@ public final class CefProfile {
+@@ -109,6 +109,13 @@ public final class CefProfile {
          }
      }
  
-+    /// Updates Do Not Track in an already materialized isolated context. A
-+    /// profile that has not created a context yet will read the current runtime
-+    /// configuration when it is first used.
++    /// Updates the process-wide request-layer Do Not Track policy.
 +    @discardableResult
 +    public func setDoNotTrackEnabled(_ enabled: Bool) -> Bool {
-+        guard kind != .global else { return true }
-+        guard let raw else { return true }
-+        return CefBuiltInPreference.setBoolean(
-+            enabled,
-+            forKey: CefBuiltInPreference.doNotTrack,
-+            in: raw
-+        ) == nil
++        CefDoNotTrackPolicy.shared.setEnabled(enabled)
++        return true
 +    }
 +
      private func createContext() -> UnsafeMutablePointer<cef_request_context_t>? {
          var settings = cef_request_context_settings_t()
          settings.size = MemoryLayout<cef_request_context_settings_t>.stride
-@@ -121,10 +166,30 @@ public final class CefProfile {
+@@ -121,10 +128,15 @@ public final class CefProfile {
                  settings.persist_session_cookies = 1
              }
          }
@@ -85,63 +139,38 @@ index fead94b..a2b59bd 100644
 +        )
          // Empty cache_path => incognito/in-memory (the CEF default).
 -        defer { ccef_string_clear(&settings.cache_path) }
+-        // No request-context handler needed: cookies/storage isolation is
+-        // driven entirely by the distinct cache_path.
 +        defer {
 +            ccef_string_clear(&settings.cache_path)
 +            ccef_string_clear(&settings.accept_language_list)
 +        }
-         // No request-context handler needed: cookies/storage isolation is
-         // driven entirely by the distinct cache_path.
--        return cef_request_context_create_context(&settings, nil)
-+        guard let context = cef_request_context_create_context(&settings, nil) else {
-+            return nil
-+        }
-+        if let enabled = CefRuntime.shared.configuration?.doNotTrackEnabled,
-+           let error = CefBuiltInPreference.setBoolean(
-+               enabled,
-+               forKey: CefBuiltInPreference.doNotTrack,
-+               in: context
-+           ) {
-+            FileHandle.standardError.write(
-+                Data("CefSwift: failed to apply Do Not Track to profile: \(error)\n".utf8)
-+            )
-+        }
-+        return context
+         return cef_request_context_create_context(&settings, nil)
      }
  }
 diff --git a/Sources/CefKit/CefRuntime.swift b/Sources/CefKit/CefRuntime.swift
-index 83dfc73..70ba453 100644
+index a8ee87c..dc41007 100644
 --- a/Sources/CefKit/CefRuntime.swift
 +++ b/Sources/CefKit/CefRuntime.swift
-@@ -204,10 +204,34 @@ public final class CefRuntime {
-         CEFApplication.setTerminateHandler(cefTerminateHandler)
-         isInitialized = true
+@@ -138,6 +138,7 @@ public final class CefRuntime {
+     public func initialize(configuration: CefConfiguration = .default) throws(CefError) {
+         precondition(Thread.isMainThread, "CefRuntime.initialize must run on the main thread.")
+         guard !isInitialized else { throw CefError.alreadyInitialized }
++        CefDoNotTrackPolicy.shared.setEnabled(configuration.doNotTrackEnabled)
  
-+        if !setDoNotTrackEnabled(configuration.doNotTrackEnabled) {
-+            FileHandle.standardError.write(
-+                Data("CefSwift: failed to apply the initial Do Not Track preference.\n".utf8)
-+            )
-+        }
-+
-         // Route cefswift://bridge/* to the bridge dispatcher.
+         // CEFApplication must exist before cef_initialize.
+         if NSApp == nil {
+@@ -212,6 +213,15 @@ public final class CefRuntime {
          registerSchemeHandler(scheme: CefBridge.schemeName, handler: CefBridgeSchemeHandler(bridge: bridge))
      }
  
-+    /// Applies Do Not Track to the global request context and updates the
-+    /// default used when isolated profiles are materialized later.
++    /// Updates the request-layer Do Not Track policy for all browser profiles.
 +    @discardableResult
 +    public func setDoNotTrackEnabled(_ enabled: Bool) -> Bool {
-+        precondition(Thread.isMainThread, "CEF preferences must be changed on the main thread.")
-+        guard isInitialized,
-+              let context = cef_request_context_get_global_context() else {
-+            return false
-+        }
-+        defer { cefRelease(UnsafeMutableRawPointer(context)) }
++        precondition(Thread.isMainThread, "CEF request policy must be changed on the main thread.")
++        CefDoNotTrackPolicy.shared.setEnabled(enabled)
 +        configuration?.doNotTrackEnabled = enabled
-+        return CefBuiltInPreference.setBoolean(
-+            enabled,
-+            forKey: CefBuiltInPreference.doNotTrack,
-+            in: context
-+        ) == nil
++        return true
 +    }
 +
      // MARK: Custom scheme handlers

@@ -19,7 +19,7 @@ patches=(
 targets=(
   "$cef_swift_root/Sources/CefKit/CefBrowser.swift"
   "$cef_swift_root/Sources/CefKit/CefBrowser.swift"
-  "$cef_swift_root/Sources/CefKit/CefConfiguration.swift"
+  "$cef_swift_root/Sources/CefKit/BrowserClient.swift"
   "$cef_swift_root/Sources/CefKit/CefRuntime.swift"
   "$cef_swift_root/Sources/CefKit/CefConfiguration.swift"
   "$cef_swift_root/Sources/CefKit/CefBrowser.swift"
@@ -36,7 +36,7 @@ markers=(
   "public func cookies(for url: URL"
   "public func activate()"
   "eventType: NSEvent.EventType? = nil"
-  "public var doNotTrackEnabled"
+  "final class CefDoNotTrackPolicy"
 )
 
 applied_any=false

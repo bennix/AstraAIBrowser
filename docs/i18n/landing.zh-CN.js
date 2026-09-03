@@ -36,7 +36,7 @@
     "features.xBookmarkArchive.body": "Astra 直接在当前已登录的 X 标签页中归档书签，不打开后台标签页。采集可随时暂停、继续或停止，并保留详细正文、引用、图片资源与视频贴文链接；结果可直接留存为本地 Markdown，也可在明确确认后交给 ZenMux 分类整理。",
     "features.signedUpdates.title": "GitHub 签名在线更新",
     "features.signedUpdates.body": "打开“关于 Astra Browser”即会检查 GitHub Releases 更新。更新源与 DMG 均使用 Sparkle Ed25519 签名校验，并继续验证 Apple 代码签名。",
-    "download.summary": "Build 84 将用户选择的界面语言与跟随公网出口地区的网页语言信号分离，新安装默认使用简体中文，并在 Chromium 与 WebKit 路径中加入可配置的“勿追踪”信号。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 85 修复了 Chromium 隐私初始化路径导致的启动闪退，同时通过请求层标头与文档启动时浏览器信号保留“勿追踪”功能。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

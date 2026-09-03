@@ -1747,9 +1747,12 @@ private final class CefBrowserWindow: NSWindow {
             configuration.locale = interfaceLocale
             configuration.acceptLanguageList = FingerprintPrivacyPolicy.acceptLanguageList
             configuration.userAgentProduct = SupportedBrowserUserAgent.chromiumProduct
-            configuration.documentStartJavaScript = FingerprintPrivacyPolicy.javaScript
-            configuration.doNotTrackEnabled =
-                PhiPreferences.GeneralSettings.doNotTrack.loadValue()
+            let doNotTrackEnabled = PhiPreferences.GeneralSettings.doNotTrack.loadValue()
+            configuration.documentStartJavaScript = [
+                FingerprintPrivacyPolicy.javaScript,
+                BrowserOutwardRequestPolicy.doNotTrackJavaScript(enabled: doNotTrackEnabled)
+            ].joined(separator: "\n")
+            configuration.doNotTrackEnabled = doNotTrackEnabled
             configuration.customSchemes.append(AstraMemorySchemeHandler.customScheme)
             CefBrowserAccountPrivacyPolicy.apply(to: &configuration)
             try CefBrowserAccountPrivacyPolicy.prepareProfile(at: root)
