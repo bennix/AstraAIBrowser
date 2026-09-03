@@ -29,6 +29,9 @@ public struct URLProcessor {
             return trimmedText
         } else if trimmedText.hasPrefix("phi://") {
             return trimmedText.replacingOccurrences(of: "phi://", with: "chrome://")
+        } else if let url = URL(string: trimmedText),
+                  ExternalApplicationURLPolicy.shouldOpenExternally(url) {
+            return trimmedText
         } else if isURL(trimmedText) {
             return "https://\(trimmedText)"
         } else {
@@ -66,6 +69,11 @@ public struct URLProcessor {
            trimmedText.hasPrefix("about://") ||
            trimmedText.hasPrefix("astra://") ||
            trimmedText.hasPrefix("phi://") {
+            return true
+        }
+
+        if let url = URL(string: trimmedText),
+           ExternalApplicationURLPolicy.shouldOpenExternally(url) {
             return true
         }
         
@@ -126,5 +134,36 @@ public struct URLProcessor {
         }
 
         return components.string
+    }
+}
+
+/// Separates URLs owned by the browser from links that macOS applications own.
+/// External links are still subject to user confirmation before Launch Services
+/// receives them.
+enum ExternalApplicationURLPolicy {
+    private static let browserOwnedSchemes: Set<String> = [
+        "about",
+        "astra",
+        "blob",
+        "chrome",
+        "chrome-extension",
+        "data",
+        "devtools",
+        "file",
+        "filesystem",
+        "ftp",
+        "http",
+        "https",
+        "javascript",
+        "phi",
+        "view-source",
+        "ws",
+        "wss",
+    ]
+
+    static func shouldOpenExternally(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(),
+              !scheme.isEmpty else { return false }
+        return !browserOwnedSchemes.contains(scheme) && !scheme.hasPrefix("chrome-")
     }
 }

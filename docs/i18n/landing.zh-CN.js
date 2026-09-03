@@ -21,7 +21,7 @@
     "features.localMemory.title": "本地第二大脑",
     "features.localMemory.body": "Astra 将笔记和完整的用户/AI 对话保存到账号独立的本地向量索引，并镜像成可迁移的 Markdown 文件，在本机检索相关上下文。记忆内容支持 Markdown、可横向滚动的表格、本地 LaTeX 数学及化学公式渲染，并可将单条或多条记忆导出为 Markdown 文件。过期会话会先完成摘要，再删除原记录。",
     "features.browserOwnership.title": "原生链接与旧式 HTTP 兼容",
-    "features.browserOwnership.body": "通用设置可让 Astra 完整接管 HTTP 与 HTTPS。其他 Mac 应用打开的链接会留在 Astra 内；当旧式服务器无法通过 Chromium 连接时，显式 HTTP 页面会自动使用现有的应用内兼容引擎。",
+    "features.browserOwnership.body": "通用设置可让 Astra 完整接管 HTTP 与 HTTPS。其他 Mac 应用打开的网页链接会留在 Astra 内；网页中的腾讯会议等已安装应用链接会在确认后交给 macOS 打开；旧式 HTTP 页面则自动使用应用内兼容引擎。",
     "features.history.title": "完整保留浏览历史",
     "features.history.body": "Astra 将浏览历史保存在持久化 Chromium 配置中，可从原生“历史记录”菜单和“通用”设置查看或清除，也可按 Command-Y 打开完整记录。",
     "features.recentResearch.title": "口径安全的循证研究",
@@ -36,7 +36,7 @@
     "features.xBookmarkArchive.body": "Astra 直接在当前已登录的 X 标签页中归档书签，不打开后台标签页。采集可随时暂停、继续或停止，并保留详细正文、引用、图片资源与视频贴文链接；结果可直接留存为本地 Markdown，也可在明确确认后交给 ZenMux 分类整理。",
     "features.signedUpdates.title": "GitHub 签名在线更新",
     "features.signedUpdates.body": "打开“关于 Astra Browser”即会检查 GitHub Releases 更新。更新源与 DMG 均使用 Sparkle Ed25519 签名校验，并继续验证 Apple 代码签名。",
-    "download.summary": "Build 80 为 X 书签采集增加暂停、继续与停止控制，在不打开后台标签页的情况下收集详细贴文，并可导出本地原始 Markdown 或经明确授权后交给 ZenMux 分类。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 81 将网页中的 macOS 应用协议交给 Launch Services，不再显示 Chromium 未知协议错误；打开前会明确确认，并同时覆盖 Chromium 与兼容引擎。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

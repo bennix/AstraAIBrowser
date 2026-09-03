@@ -1287,6 +1287,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     private var nativePopupObservers: [NSObjectProtocol] = []
     private var nativePopupTimeout: DispatchWorkItem?
     private var systemMediaPopupHosts: [ObjectIdentifier: SystemMediaPopupHost] = [:]
+    private var pendingExternalApplicationURL: URL?
 
     var onActivate: (() -> Void)?
     var onClose: (() -> Void)?
@@ -3233,7 +3234,26 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         isInContentFullscreen = isFullscreen
     }
 
+    func browser(
+        _ browser: CefBrowser,
+        decidePolicyForNavigation url: URL?,
+        isRedirect: Bool,
+        userGesture: Bool
+    ) -> CefNavigationDecision {
+        guard let url,
+              ExternalApplicationURLPolicy.shouldOpenExternally(url) else {
+            return .allow
+        }
+        presentExternalApplicationPrompt(for: url)
+        return .cancel
+    }
+
     func browser(_ browser: CefBrowser, decideWindowOpenFor request: CefWindowOpenRequest) -> CefWindowOpenAction {
+        if let url = request.targetURL,
+           ExternalApplicationURLPolicy.shouldOpenExternally(url) {
+            presentExternalApplicationPrompt(for: url)
+            return .handled
+        }
         let action = BrowserWindowOpenPolicy.action(for: request)
         AppLogInfo(
             "[CEF] Window-open request disposition=\(request.disposition) " +
@@ -3253,6 +3273,10 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
 
     func browser(_ browser: CefBrowser, didRequestNewTab url: URL?) -> Bool {
         guard let url else { return false }
+        if ExternalApplicationURLPolicy.shouldOpenExternally(url) {
+            presentExternalApplicationPrompt(for: url)
+            return true
+        }
         guard BrowserWindowOpenPolicy.shouldHandleNewTabInApp(for: url) else {
             // CEF must continue this request so its subsequent popup creation
             // retains the originating page and shared browser session.
@@ -3260,6 +3284,92 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         }
         onOpenURLInNewTab?(url, true)
         return true
+    }
+
+    private func presentExternalApplicationPrompt(for url: URL) {
+        guard pendingExternalApplicationURL == nil else { return }
+        pendingExternalApplicationURL = url
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            guard let applicationURL = NSWorkspace.shared.urlForApplication(toOpen: url) else {
+                self.pendingExternalApplicationURL = nil
+                self.presentExternalApplicationUnavailableAlert(for: url)
+                return
+            }
+
+            let applicationName = FileManager.default.displayName(atPath: applicationURL.path)
+            let alert = NSAlert()
+            alert.alertStyle = .informational
+            alert.messageText = NSLocalizedString(
+                "externalApplication.openPrompt.title",
+                value: "Open another application?",
+                comment: "External application link prompt - Title shown before a website opens a custom URL scheme in another macOS application"
+            )
+            alert.informativeText = String(
+                format: NSLocalizedString(
+                    "externalApplication.openPrompt.message",
+                    value: "This page wants to open a link in %@.",
+                    comment: "External application link prompt - Explanation; placeholder is the installed macOS application name"
+                ),
+                applicationName
+            )
+            alert.addButton(withTitle: NSLocalizedString(
+                "externalApplication.openPrompt.openButton",
+                value: "Open App",
+                comment: "External application link prompt - Button allowing the custom URL scheme to open in its installed application"
+            ))
+            alert.addButton(withTitle: NSLocalizedString(
+                "externalApplication.openPrompt.cancelButton",
+                value: "Cancel",
+                comment: "External application link prompt - Button preventing the custom URL scheme from opening another application"
+            ))
+
+            let completion: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+                guard let self else { return }
+                self.pendingExternalApplicationURL = nil
+                guard response == .alertFirstButtonReturn else { return }
+                guard NSWorkspace.shared.open(url) else {
+                    self.presentExternalApplicationUnavailableAlert(for: url)
+                    return
+                }
+                AppLogInfo("[ExternalApplication] Opened scheme=\(url.scheme?.lowercased() ?? "unknown")")
+            }
+            if let window = self.hostView.window {
+                alert.beginSheetModal(for: window, completionHandler: completion)
+            } else {
+                completion(alert.runModal())
+            }
+        }
+    }
+
+    private func presentExternalApplicationUnavailableAlert(for url: URL) {
+        let scheme = url.scheme?.lowercased() ?? ""
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = NSLocalizedString(
+            "externalApplication.unavailable.title",
+            value: "Application not found",
+            comment: "External application link error - Title shown when no installed application can handle a custom URL scheme"
+        )
+        alert.informativeText = String(
+            format: NSLocalizedString(
+                "externalApplication.unavailable.message",
+                value: "No installed application can open %@ links.",
+                comment: "External application link error - Explanation; placeholder is the custom URL scheme name"
+            ),
+            scheme
+        )
+        alert.addButton(withTitle: NSLocalizedString(
+            "externalApplication.unavailable.dismissButton",
+            value: "OK",
+            comment: "External application link error - Button dismissing the missing application message"
+        ))
+        if let window = hostView.window {
+            alert.beginSheetModal(for: window)
+        } else {
+            alert.runModal()
+        }
     }
 
     func browserDidGainFocus(_ browser: CefBrowser) {
@@ -5133,6 +5243,11 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     ) {
         guard let destination = navigationAction.request.url else {
             decisionHandler(.allow)
+            return
+        }
+        if ExternalApplicationURLPolicy.shouldOpenExternally(destination) {
+            presentExternalApplicationPrompt(for: destination)
+            decisionHandler(.cancel)
             return
         }
         if navigationAction.targetFrame == nil,

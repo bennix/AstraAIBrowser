@@ -3,9 +3,9 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 80)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.80/Astra-Browser-build80.dmg)
+[Download Astra 1.0 (build 81)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.81/Astra-Browser-build81.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.80)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.81)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
@@ -31,6 +31,7 @@ and accepted by Apple's notarization service.
 - YouTube video pages expose a native sidebar digest action that uses available captions or audiovisual analysis to produce full-video chapters, evidence, timestamps, and explicit uncertainty through ZenMux.
 - X and Twitter pages expose a native bookmark archive action beside the address bar and in the sidebar. Collection runs in the current signed-in tab without opening background tabs, supports pause, resume, and stop, and preserves full visible post details, image references, and link-only video records. The resulting Markdown can stay local or be sent to ZenMux for classification after explicit confirmation.
 - Opening About Astra Browser checks the signed GitHub Releases channel for updates; downloads remain protected by Sparkle Ed25519 verification and Apple code signing.
+- Website links for installed macOS applications, including Tencent Meeting SSO links, are intercepted before Chromium error handling and opened through Launch Services after explicit confirmation.
 - Public web pages expose native bilingual immersive translation with progressive inline writeback, redraw recovery, selected-text translation, a target-language picker, and the configured ZenMux engine.
 - Selected text can be translated or looked up from the webpage context menu in one pointer-anchored card that updates in place, supports copying translated text, and saves dictionary results to a persistent Vocabulary Book with Markdown export.
 - YouTube and other WebKit media pages support HTML element fullscreen.

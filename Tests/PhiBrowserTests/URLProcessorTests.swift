@@ -65,6 +65,32 @@ final class URLProcessorTests: XCTestCase {
         XCTAssertEqual(components.queryItems?.first?.value, "浏览器 AI")
     }
 
+    func testExternalApplicationSchemeIsPreservedForLaunchServices() {
+        let input = "wemeet://auth/sso?sso_auth_code=redacted"
+
+        XCTAssertTrue(URLProcessor.isURL(input))
+        XCTAssertEqual(URLProcessor.processUserInput(input), input)
+        XCTAssertTrue(ExternalApplicationURLPolicy.shouldOpenExternally(URL(string: input)!))
+    }
+
+    func testBrowserOwnedAndExecutableSchemesAreNotExternalApplications() {
+        for rawURL in [
+            "https://example.com",
+            "http://example.com",
+            "file:///tmp/example",
+            "javascript:alert(1)",
+            "data:text/plain,hello",
+            "chrome://settings",
+            "chrome-search://local-ntp/local-ntp.html",
+            "astra://memory/",
+        ] {
+            XCTAssertFalse(
+                ExternalApplicationURLPolicy.shouldOpenExternally(URL(string: rawURL)!),
+                "Browser-owned scheme must not be handed to Launch Services: \(rawURL)"
+            )
+        }
+    }
+
     func testOriginNavigationComparisonTreatsWWWAndRootSlashAsEquivalent() {
         XCTAssertTrue(
             URLProcessor.areEquivalentForOriginNavigation(

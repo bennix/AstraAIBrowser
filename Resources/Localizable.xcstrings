@@ -34021,6 +34021,90 @@
         }
       }
     },
+    "externalApplication.openPrompt.cancelButton" : {
+      "comment" : "External application link prompt - Button preventing the custom URL scheme from opening another application",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "externalApplication.openPrompt.message" : {
+      "comment" : "External application link prompt - Explanation; placeholder is the installed macOS application name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This page wants to open a link in %@."
+          }
+        }
+      }
+    },
+    "externalApplication.openPrompt.openButton" : {
+      "comment" : "External application link prompt - Button allowing the custom URL scheme to open in its installed application",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Open App"
+          }
+        }
+      }
+    },
+    "externalApplication.openPrompt.title" : {
+      "comment" : "External application link prompt - Title shown before a website opens a custom URL scheme in another macOS application",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Open another application?"
+          }
+        }
+      }
+    },
+    "externalApplication.unavailable.dismissButton" : {
+      "comment" : "External application link error - Button dismissing the missing application message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "OK"
+          }
+        }
+      }
+    },
+    "externalApplication.unavailable.message" : {
+      "comment" : "External application link error - Explanation; placeholder is the custom URL scheme name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No installed application can open %@ links."
+          }
+        }
+      }
+    },
+    "externalApplication.unavailable.title" : {
+      "comment" : "External application link error - Title shown when no installed application can handle a custom URL scheme",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Application not found"
+          }
+        }
+      }
+    },
     "feedback.form.additionalInfoSection.title" : {
       "comment" : "Feedback form - Section header for optional additional information",
       "extractionState" : "extracted_with_value",
