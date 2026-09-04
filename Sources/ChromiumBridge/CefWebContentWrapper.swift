@@ -1067,6 +1067,8 @@ final class SystemMediaWebView: WKWebView {
 
     static func menuItemIdentifier(for action: WebSelectionAction) -> NSUserInterfaceItemIdentifier {
         switch action {
+        case .savePrompt:
+            return NSUserInterfaceItemIdentifier("AstraMenuItemIdentifierSavePrompt")
         case .translate:
             return NSUserInterfaceItemIdentifier("AstraMenuItemIdentifierTranslateSelection")
         case .lookUpWord:
@@ -1116,6 +1118,7 @@ final class SystemMediaWebView: WKWebView {
 
     private static func selector(for action: WebSelectionAction) -> Selector {
         switch action {
+        case .savePrompt: return #selector(SystemMediaWebView.saveSelectedPrompt(_:))
         case .translate: return #selector(SystemMediaWebView.translateSelectedText(_:))
         case .lookUpWord: return #selector(SystemMediaWebView.lookUpSelectedWord(_:))
         case .addToVocabulary: return #selector(SystemMediaWebView.addSelectedWordToVocabulary(_:))
@@ -1143,6 +1146,12 @@ final class SystemMediaWebView: WKWebView {
     @objc func addSelectedWordToVocabulary(_ sender: NSMenuItem) {
         readSelectedText { [weak self] selection in
             self?.onSelectionAction?(.addToVocabulary, selection)
+        }
+    }
+
+    @objc func saveSelectedPrompt(_ sender: NSMenuItem) {
+        readSelectedText { [weak self] selection in
+            self?.onSelectionAction?(.savePrompt, selection)
         }
     }
 
@@ -3446,7 +3455,13 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         }
     }
 
+    func browserShouldCancelSetFocus(_ browser: CefBrowser) -> Bool {
+        didRequestClose || hostView.window == nil || hostView.isHiddenOrHasHiddenAncestor
+    }
+
     func browserDidGainFocus(_ browser: CefBrowser) {
+        // A late callback from the outgoing surface must not undo a tab switch.
+        guard !browserShouldCancelSetFocus(browser) else { return }
         isFocused = true
         onActivate?()
     }

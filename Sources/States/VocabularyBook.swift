@@ -11,9 +11,12 @@ enum WebSelectionAction: Int, CaseIterable {
     case translate
     case lookUpWord
     case addToVocabulary
+    case savePrompt
 
     var contextMenuTitle: String {
         switch self {
+        case .savePrompt:
+            return NSLocalizedString("promptLibrary.selection.save", value: "Save as AI Prompt", comment: "Webpage selection - Save selected text in the local prompt library")
         case .translate:
             return NSLocalizedString(
                 "translation.selection.contextMenuAction",
@@ -210,6 +213,15 @@ extension BrowserState {
     @MainActor
     func handleWebSelectionAction(_ action: WebSelectionAction, text: String, in tab: Tab) {
         switch action {
+        case .savePrompt:
+            let content = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !content.isEmpty else { return }
+            do {
+                try PromptLibraryStore.shared.save(SavedPrompt(title: String(content.prefix(60)), category: "", content: content, sourceURL: tab.url))
+                OverlayToastCenter.shared.show(title: NSLocalizedString("promptLibrary.saved", value: "Saved to Prompt Library", comment: "Webpage selection - Prompt saved successfully; open the library in the AI sidebar to edit"), duration: 3, in: self)
+            } catch {
+                OverlayToastCenter.shared.show(title: NSLocalizedString("promptLibrary.saveFailed", value: "Could not save prompt", comment: "Prompt library - Save failure toast"), message: error.localizedDescription, duration: 6, in: self)
+            }
         case .translate:
             translateSelectedText(text, in: tab)
         case .lookUpWord:

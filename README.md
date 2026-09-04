@@ -3,9 +3,9 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 85)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.85/Astra-Browser-build85.dmg)
+[Download Astra 1.0 (build 86)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.86/Astra-Browser-build86.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.85)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.86)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
@@ -22,6 +22,7 @@ and accepted by Apple's notarization service.
 - Do Not Track is enabled by default, applies to Chromium and WebKit request paths and JavaScript surfaces, and can be changed from General settings.
 - Explicit HTTP pages use Astra's existing in-app compatibility engine when the embedded Chromium network stack cannot reach a legacy server, while HTTPS browsing keeps its normal Chromium path.
 - Integrated AI workspace for browsing and task assistance.
+- A local prompt library saves selected webpage text and sent prompts, then supports task categories, search, reuse, editing, bulk deletion, and portable JSON import or export.
 - ZenMux page vision and up to five removable image attachments with thumbnail previews.
 - ZenMux can verify current claims with bounded Google and DuckDuckGo search plus public-page fetching, while treating retrieved content as untrusted data and blocking private-network targets.
 - ZenMux requires a question, separate object list, explicit accounting basis, time rule, scope and exclusions, and purpose before research begins. It searches short entities before action and responsible-site queries, preserves source terminology and reporting dates, prevents overlapping accounts from being added, and returns an auditable object comparison table behind automated quality gates.

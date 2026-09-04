@@ -395,6 +395,8 @@ final class ZenMuxChatSession: ObservableObject {
             imageAttachments: outgoingAttachments
         ))
         isSending = true
+        do { try PromptLibraryStore.shared.archiveSentText(typedInput) }
+        catch { errorMessage = error.localizedDescription }
         defer {
             isSending = false
             activityDescription = nil
@@ -1503,6 +1505,7 @@ struct ZenMuxChatView: View {
     @State private var composerFocusRequest = UUID()
     @State private var isComposerExpanded = false
     @State private var isCapturingVisiblePage = false
+    @State private var isPromptLibraryPresented = false
 
     var body: some View {
         Group {
@@ -1619,8 +1622,19 @@ struct ZenMuxChatView: View {
                     }
 
                     ForEach(session.messages) { message in
-                        ZenMuxMessageView(message: message)
-                            .id(message.id)
+                        VStack(alignment: .trailing, spacing: 4) {
+                            ZenMuxMessageView(message: message)
+                            if message.role == .user {
+                                HStack {
+                                    Spacer()
+                                    Button(NSLocalizedString("promptLibrary.reuse", value: "Use again", comment: "Sent user message - Append this prompt to the composer")) {
+                                        session.draft += session.draft.isEmpty ? message.content : "\n\n" + message.content
+                                        composerFocusRequest = UUID()
+                                    }
+                                    Button(PromptLibraryView.title) { isPromptLibraryPresented = true }
+                                }.buttonStyle(.borderless).font(.caption)
+                            }
+                        }.id(message.id)
                     }
 
                     if session.isSending {
@@ -1655,6 +1669,19 @@ struct ZenMuxChatView: View {
     private var composer: some View {
         VStack(spacing: 8) {
             Divider()
+            HStack {
+                Button { isPromptLibraryPresented = true } label: {
+                    Label(PromptLibraryView.title, systemImage: "text.book.closed")
+                }
+                .popover(isPresented: $isPromptLibraryPresented) {
+                    PromptLibraryView(draft: session.draft) { content in
+                        session.draft += session.draft.isEmpty ? content : "\n\n" + content
+                        isPromptLibraryPresented = false
+                        composerFocusRequest = UUID()
+                    }
+                }
+                Spacer()
+            }
             if !session.imageAttachments.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {

@@ -14,6 +14,8 @@
 		3703C9822F69558C00E7CF6D /* BrowserState+ToggleAI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3703C9812F69558C00E7CF6D /* BrowserState+ToggleAI.swift */; };
 		A11CE0023000000000000001 /* ImmersiveTranslation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0013000000000000001 /* ImmersiveTranslation.swift */; };
 		A11CE0023000000000000002 /* VocabularyBook.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0013000000000000002 /* VocabularyBook.swift */; };
+		A11CE0023000000000000091 /* PromptLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0013000000000000091 /* PromptLibrary.swift */; };
+		A11CE0023000000000000092 /* PromptLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0013000000000000092 /* PromptLibraryView.swift */; };
 		A11CE0023000000000000003 /* SelectionCardController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0013000000000000003 /* SelectionCardController.swift */; };
 		A11CE0023000000000000004 /* VocabularyBookWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0013000000000000004 /* VocabularyBookWindowController.swift */; };
 		A11CE0023000000000000005 /* XBookmarkArchiveWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0013000000000000005 /* XBookmarkArchiveWindowController.swift */; };
@@ -656,6 +658,8 @@
 		3703C9812F69558C00E7CF6D /* BrowserState+ToggleAI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BrowserState+ToggleAI.swift"; sourceTree = "<group>"; };
 		A11CE0013000000000000001 /* ImmersiveTranslation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersiveTranslation.swift; sourceTree = "<group>"; };
 		A11CE0013000000000000002 /* VocabularyBook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyBook.swift; sourceTree = "<group>"; };
+		A11CE0013000000000000091 /* PromptLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/States/PromptLibrary.swift; sourceTree = SOURCE_ROOT; };
+		A11CE0013000000000000092 /* PromptLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/UserInterface/Chat/PromptLibraryView.swift; sourceTree = SOURCE_ROOT; };
 		A11CE0013000000000000003 /* SelectionCardController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionCardController.swift; sourceTree = "<group>"; };
 		A11CE0013000000000000004 /* VocabularyBookWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyBookWindowController.swift; sourceTree = "<group>"; };
 		A11CE0013000000000000005 /* XBookmarkArchiveWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XBookmarkArchiveWindowController.swift; sourceTree = "<group>"; };
@@ -2521,6 +2525,8 @@
 				3703C9812F69558C00E7CF6D /* BrowserState+ToggleAI.swift */,
 				A11CE0013000000000000001 /* ImmersiveTranslation.swift */,
 				A11CE0013000000000000002 /* VocabularyBook.swift */,
+				A11CE0013000000000000091 /* PromptLibrary.swift */,
+				A11CE0013000000000000092 /* PromptLibraryView.swift */,
 				EAD000000000000000000011 /* ReaderExtractionService.swift */,
 				EAD000000000000000000019 /* ReaderAccessibilityExtractor.swift */,
 				EAD000000000000000000025 /* ReaderExportService.swift */,
@@ -3258,6 +3264,8 @@
 				3703C9822F69558C00E7CF6D /* BrowserState+ToggleAI.swift in Sources */,
 				A11CE0023000000000000001 /* ImmersiveTranslation.swift in Sources */,
 				A11CE0023000000000000002 /* VocabularyBook.swift in Sources */,
+				A11CE0023000000000000091 /* PromptLibrary.swift in Sources */,
+				A11CE0023000000000000092 /* PromptLibraryView.swift in Sources */,
 				A11CE0023000000000000003 /* SelectionCardController.swift in Sources */,
 				A11CE0023000000000000004 /* VocabularyBookWindowController.swift in Sources */,
 				A11CE0023000000000000005 /* XBookmarkArchiveWindowController.swift in Sources */,
@@ -3580,7 +3588,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10085;
+				CURRENT_PROJECT_VERSION = 10086;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -4043,7 +4051,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10085;
+				CURRENT_PROJECT_VERSION = 10086;
 				DEVELOPMENT_TEAM = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -4097,7 +4105,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10085;
+				CURRENT_PROJECT_VERSION = 10086;
 				DEVELOPMENT_TEAM = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";

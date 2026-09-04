@@ -1,0 +1,27 @@
+diff --git a/Sources/CefKit/BrowserClient.swift b/Sources/CefKit/BrowserClient.swift
+--- a/Sources/CefKit/BrowserClient.swift
++++ b/Sources/CefKit/BrowserClient.swift
+@@ -703,6 +703,23 @@
+             }
+             return RV_CONTINUE
+         }
++        resourceHandler.pointee.on_protocol_execution = { handlerSelf, browser, frame, request, allowOSExecution in
++            // Keep OS execution behind the application's existing consent prompt.
++            allowOSExecution?.pointee = 0
++            cefRelease(browser.map(UnsafeMutableRawPointer.init))
++            cefRelease(frame.map(UnsafeMutableRawPointer.init))
++            guard let request else { return }
++            let urlString = CefStringUtil.takingUserFree(request.pointee.get_url?(request)) ?? ""
++            cefRelease(UnsafeMutableRawPointer(request))
++            guard let url = URL(string: urlString),
++                  let client = BrowserClient.owner(handlerSelf.map(UnsafeMutableRawPointer.init)) else { return }
++            // This callback runs on CEF's IO thread; only immutable URL data crosses over.
++            Task { @MainActor [weak client] in
++                guard let browser = client?.browser else { return }
++                _ = browser.delegate?.browser(browser, decidePolicyForNavigation: url,
++                                              isRedirect: false, userGesture: false)
++            }
++        }
+         resourceRequestPointer = resourceHandler
+
+         let handler = cefAllocate(cef_request_handler_t.self, owner: self)

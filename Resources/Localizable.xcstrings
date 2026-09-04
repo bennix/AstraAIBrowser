@@ -1,6 +1,26 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "promptLibrary.reuse" : {"comment":"Sent user message - Append this prompt to the composer","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Use again"}}}},
+    "promptLibrary.selectAll" : {"comment":"Prompt library - Select every currently filtered prompt","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Select results"}}}},
+    "promptLibrary.deleteSelected" : {"comment":"Prompt library - Delete all checked prompts","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Delete selected"}}}},
+    "promptLibrary.import" : {"comment":"Prompt library - Import and merge prompts from a JSON file","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Import JSON"}}}},
+    "promptLibrary.export" : {"comment":"Prompt library - Export checked prompts, or all prompts when none are checked","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Export JSON"}}}},
+    "promptLibrary.empty" : {"comment":"Prompt library - Empty or filtered list guidance","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"No matching prompts. Create one here or save selected webpage text."}}}},
+    "promptLibrary.title" : {"comment":"AI sidebar - Saved prompt library title and button","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Prompt Library"}}}},
+    "promptLibrary.search" : {"comment":"Prompt library - Search title, category and content","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Search prompts"}}}},
+    "promptLibrary.filter" : {"comment":"Prompt library - Task category filter","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Task"}}}},
+    "promptLibrary.all" : {"comment":"Prompt library - Show all categories","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"All tasks"}}}},
+    "promptLibrary.name" : {"comment":"Prompt library editor - Prompt title","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Name"}}}},
+    "promptLibrary.category" : {"comment":"Prompt library editor - Editable category, such as Writing or Research","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Task category (e.g. Writing)"}}}},
+    "promptLibrary.new" : {"comment":"Prompt library - Create an empty prompt","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"New"}}}},
+    "promptLibrary.fromDraft" : {"comment":"Prompt library - Copy the AI composer draft into the editor","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"From draft"}}}},
+    "promptLibrary.delete" : {"comment":"Prompt library - Delete selected saved prompt","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Delete"}}}},
+    "promptLibrary.save" : {"comment":"Prompt library - Persist edited prompt","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Save"}}}},
+    "promptLibrary.use" : {"comment":"Prompt library - Insert prompt into AI draft without sending","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Insert"}}}},
+    "promptLibrary.selection.save" : {"comment":"Webpage selection - Save selected text in the local prompt library","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Save as AI Prompt"}}}},
+    "promptLibrary.saved" : {"comment":"Webpage selection - Prompt saved successfully; open the library in the AI sidebar to edit","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Saved to Prompt Library"}}}},
+    "promptLibrary.saveFailed" : {"comment":"Prompt library - Save failure toast","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Could not save prompt"}}}},
     "" : {
 
     },

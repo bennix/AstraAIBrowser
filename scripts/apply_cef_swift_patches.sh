@@ -15,17 +15,19 @@ patches=(
   "$repository_root/patches/cefswift/support-embedded-profile-and-popovers.patch"
   "$repository_root/patches/cefswift/forward-mouse-release-flags.patch"
   "$repository_root/patches/cefswift/configure-do-not-track.patch"
+  "$repository_root/patches/cefswift/forward-external-protocol.patch"
 )
 targets=(
   "$cef_swift_root/Sources/CefKit/CefBrowser.swift"
   "$cef_swift_root/Sources/CefKit/CefBrowser.swift"
-  "$cef_swift_root/Sources/CefKit/BrowserClient.swift"
+  "$cef_swift_root/Sources/CefKit/CefConfiguration.swift"
   "$cef_swift_root/Sources/CefKit/CefRuntime.swift"
   "$cef_swift_root/Sources/CefKit/CefConfiguration.swift"
   "$cef_swift_root/Sources/CefKit/CefBrowser.swift"
   "$cef_swift_root/Sources/CefKit/CefChromeBrowser.swift"
   "$cef_swift_root/Sources/CefSwiftUI/CefMetalHostView+Input.swift"
-  "$cef_swift_root/Sources/CefKit/CefConfiguration.swift"
+  "$cef_swift_root/Sources/CefKit/BrowserClient.swift"
+  "$cef_swift_root/Sources/CefKit/BrowserClient.swift"
 )
 markers=(
   "public func captureVisiblePageScreenshot"
@@ -37,6 +39,7 @@ markers=(
   "public func activate()"
   "eventType: NSEvent.EventType? = nil"
   "final class CefDoNotTrackPolicy"
+  "resourceHandler.pointee.on_protocol_execution"
 )
 
 applied_any=false
