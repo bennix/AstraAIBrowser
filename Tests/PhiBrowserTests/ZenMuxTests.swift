@@ -491,6 +491,63 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertFalse(String(data: data, encoding: .utf8)?.contains("temp/chat-completions") == true)
     }
 
+    func testDocumentAttachmentsPreserveBytesAndNamesInBothProtocols() throws {
+        for (ext, mimeType) in ZenMuxAttachment.documentMIMETypes {
+            let bytes = Data("document fixture".utf8)
+            let attachment = ZenMuxAttachment(filename: "report.\(ext)", mimeType: mimeType, data: bytes)
+            let message = ZenMuxChatRequestMessage(role: "user", contentParts: [attachment.requestPart])
+            let encoded = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(message)) as? [String: Any])
+            let parts = try XCTUnwrap(encoded["content"] as? [[String: Any]])
+            XCTAssertEqual(parts[0]["type"] as? String, "file")
+            let file = try XCTUnwrap(parts[0]["file"] as? [String: Any])
+            XCTAssertEqual(file["filename"] as? String, "report.\(ext)")
+            XCTAssertEqual(file["file_data"] as? String, attachment.dataURL)
+            XCTAssertNil(parts[0]["image_url"])
+
+            let vertex = try APIClient.makeZenMuxVertexChatRequestData(model: .geminiFlash, messages: [message])
+            let object = try XCTUnwrap(JSONSerialization.jsonObject(with: vertex) as? [String: Any])
+            let contents = try XCTUnwrap(object["contents"] as? [[String: Any]])
+            let vertexParts = try XCTUnwrap(contents[0]["parts"] as? [[String: Any]])
+            let inline = try XCTUnwrap(vertexParts[1]["inlineData"] as? [String: Any])
+            XCTAssertEqual(inline["mimeType"] as? String, mimeType)
+            XCTAssertEqual(inline["data"] as? String, bytes.base64EncodedString())
+        }
+    }
+
+    func testSourceFilesAreLoadedAsTextWithoutExecution() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        for ext in ["py", "swift", "c", "csv"] {
+            let url = directory.appendingPathComponent("sample.\(ext)")
+            let source = "print(\"sample\")\n"
+            try source.write(to: url, atomically: true, encoding: .utf8)
+            let attachment = try ZenMuxAttachment.load(from: url)
+            XCTAssertFalse(attachment.isImage)
+            XCTAssertEqual(attachment.requestPart.type, "text")
+            XCTAssertTrue(try XCTUnwrap(attachment.requestPart.text).contains("sample.\(ext)"))
+            XCTAssertEqual(String(data: attachment.data, encoding: .utf8), source)
+        }
+        let invalid = directory.appendingPathComponent("invalid.py")
+        try Data([0, 255, 128]).write(to: invalid)
+        XCTAssertThrowsError(try ZenMuxAttachment.load(from: invalid))
+        let oversized = directory.appendingPathComponent("large.txt")
+        try Data(repeating: 65, count: ZenMuxAttachment.maximumTextBytes + 1).write(to: oversized)
+        XCTAssertThrowsError(try ZenMuxAttachment.load(from: oversized))
+    }
+
+    func testFileDragPasteboardKeepsAllSelectedFileURLs() {
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        let urls = ["report.pdf", "table.xls", "table.xlsx", "notes.docx", "main.swift"].map {
+            URL(fileURLWithPath: "/tmp/\($0)")
+        }
+        XCTAssertTrue(pasteboard.writeObjects(urls.map { $0 as NSURL }))
+        XCTAssertEqual(ZenMuxAttachmentPasteboardReader.fileURLs(from: pasteboard), urls)
+        XCTAssertEqual(ZenMuxAttachmentPasteboardReader.sources(from: pasteboard).count, urls.count)
+        XCTAssertTrue(urls.allSatisfy(ZenMuxAttachment.supports))
+    }
+
     func testVertexTranslationRequestDoesNotExposeBrowserTools() throws {
         let data = try APIClient.makeZenMuxVertexChatRequestData(
             model: .geminiFlash,
@@ -622,7 +679,7 @@ final class ZenMuxTests: XCTestCase {
         let source = try XCTUnwrap(Data(base64Encoded:
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9YP8b1sAAAAASUVORK5CYII="
         ))
-        let attachment = try ZenMuxImageAttachment.prepare(
+        let attachment = try ZenMuxAttachment.prepare(
             data: source,
             filename: "coin.png"
         )
@@ -631,7 +688,7 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertTrue(["image/png", "image/jpeg"].contains(attachment.mimeType))
         XCTAssertLessThanOrEqual(
             attachment.data.count,
-            ZenMuxImageAttachment.maximumEncodedBytes
+            ZenMuxAttachment.maximumEncodedBytes
         )
         XCTAssertTrue(attachment.dataURL.hasPrefix("data:image/"))
     }
@@ -639,51 +696,51 @@ final class ZenMuxTests: XCTestCase {
     func testImageAttachmentSelectionIsLimitedToFiveAndSupportsRemoval() {
         let session = ZenMuxChatSession()
         let candidates = (0..<7).map { index in
-            ZenMuxImageAttachment(
+            ZenMuxAttachment(
                 filename: "image-\(index).png",
                 mimeType: "image/png",
                 data: Data([UInt8(index)])
             )
         }
 
-        session.addImageAttachments(candidates)
+        session.addAttachments(candidates)
 
-        XCTAssertEqual(session.imageAttachments.count, 5)
+        XCTAssertEqual(session.attachments.count, 5)
         XCTAssertTrue(session.canSend)
-        session.beginLoadingImageAttachments()
+        session.beginLoadingAttachments()
         XCTAssertFalse(session.canSend)
-        session.finishLoadingImageAttachments()
+        session.finishLoadingAttachments()
         XCTAssertTrue(session.canSend)
-        let removedID = session.imageAttachments[2].id
-        session.removeImageAttachment(id: removedID)
-        XCTAssertEqual(session.imageAttachments.count, 4)
-        XCTAssertFalse(session.imageAttachments.contains { $0.id == removedID })
+        let removedID = session.attachments[2].id
+        session.removeAttachment(id: removedID)
+        XCTAssertEqual(session.attachments.count, 4)
+        XCTAssertFalse(session.attachments.contains { $0.id == removedID })
     }
 
     func testVisiblePageDataURLUsesImageAttachmentPipeline() throws {
         let pngData = try XCTUnwrap(Data(base64Encoded:
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9YP8b1sAAAAASUVORK5CYII="
         ))
-        let attachment = try ZenMuxImageAttachment.prepare(
+        let attachment = try ZenMuxAttachment.prepare(
             dataURL: "data:image/png;base64,\(pngData.base64EncodedString())",
             filename: "visible-page.png",
             origin: .visiblePage
         )
         let session = ZenMuxChatSession()
 
-        session.addImageAttachments([attachment])
+        session.addAttachments([attachment])
 
-        XCTAssertEqual(session.imageAttachments.count, 1)
-        XCTAssertEqual(session.imageAttachments[0].filename, "visible-page.png")
-        XCTAssertEqual(session.imageAttachments[0].origin, .visiblePage)
-        XCTAssertTrue(session.imageAttachments[0].dataURL.hasPrefix("data:image/"))
-        session.removeImageAttachment(id: attachment.id)
-        XCTAssertTrue(session.imageAttachments.isEmpty)
+        XCTAssertEqual(session.attachments.count, 1)
+        XCTAssertEqual(session.attachments[0].filename, "visible-page.png")
+        XCTAssertEqual(session.attachments[0].origin, .visiblePage)
+        XCTAssertTrue(session.attachments[0].dataURL.hasPrefix("data:image/"))
+        session.removeAttachment(id: attachment.id)
+        XCTAssertTrue(session.attachments.isEmpty)
         XCTAssertEqual(ZenMuxChatVisionContext.visiblePageCaptureAction.kind, .inspectVisualPage)
     }
 
     func testVisiblePageDataURLRejectsNonImagePayloads() {
-        XCTAssertThrowsError(try ZenMuxImageAttachment.prepare(
+        XCTAssertThrowsError(try ZenMuxAttachment.prepare(
             dataURL: "data:text/plain;base64,SGVsbG8=",
             filename: "visible-page.png"
         ))
@@ -699,7 +756,7 @@ final class ZenMuxTests: XCTestCase {
         imageItem.setData(imageData, forType: .png)
         XCTAssertTrue(pasteboard.writeObjects([imageItem]))
 
-        let sources = ZenMuxImagePasteboardReader.sources(from: pasteboard)
+        let sources = ZenMuxAttachmentPasteboardReader.sources(from: pasteboard)
         XCTAssertEqual(sources.count, 1)
         let attachment = try sources[0].load()
         XCTAssertTrue(attachment.filename.hasPrefix("pasted-image-"))
@@ -707,7 +764,7 @@ final class ZenMuxTests: XCTestCase {
 
         pasteboard.clearContents()
         pasteboard.setString("plain text", forType: .string)
-        XCTAssertTrue(ZenMuxImagePasteboardReader.sources(from: pasteboard).isEmpty)
+        XCTAssertTrue(ZenMuxAttachmentPasteboardReader.sources(from: pasteboard).isEmpty)
     }
 
     func testWebCredentialStoreAcceptsOnlyCanonicalHTTPSOrigins() {

@@ -159,6 +159,15 @@ struct ZenMuxToolCall: Codable, Equatable {
 }
 
 struct ZenMuxChatContentPart: Encodable, Equatable {
+    struct File: Encodable, Equatable {
+        let filename: String
+        let fileData: String
+
+        enum CodingKeys: String, CodingKey {
+            case filename
+            case fileData = "file_data"
+        }
+    }
     struct ImageURL: Encodable, Equatable {
         let url: String
         let detail: String
@@ -167,11 +176,13 @@ struct ZenMuxChatContentPart: Encodable, Equatable {
     let type: String
     let text: String?
     let imageURL: ImageURL?
+    var file: File? = nil
 
     enum CodingKeys: String, CodingKey {
         case type
         case text
         case imageURL = "image_url"
+        case file
     }
 
     static func text(_ value: String) -> Self {
@@ -184,6 +195,11 @@ struct ZenMuxChatContentPart: Encodable, Equatable {
             text: nil,
             imageURL: .init(url: dataURL, detail: "high")
         )
+    }
+
+    static func document(filename: String, dataURL: String) -> Self {
+        .init(type: "file", text: nil, imageURL: nil,
+              file: .init(filename: filename, fileData: dataURL))
     }
 }
 
@@ -3538,6 +3554,10 @@ class APIClient {
                 } else if value.type == "image_url", let dataURL = value.imageURL?.url {
                     let image = try vertexInlineImage(from: dataURL)
                     parts.append(.image(mimeType: image.mimeType, data: image.data))
+                } else if value.type == "file", let file = value.file {
+                    let document = try vertexInlineImage(from: file.fileData, requiredPrefix: "data:")
+                    parts.append(.text("Attached file: \(file.filename)"))
+                    parts.append(.image(mimeType: document.mimeType, data: document.data))
                 }
             }
             return parts
@@ -3545,9 +3565,10 @@ class APIClient {
     }
 
     private static func vertexInlineImage(
-        from dataURL: String
+        from dataURL: String,
+        requiredPrefix: String = "data:image/"
     ) throws -> (mimeType: String, data: String) {
-        guard dataURL.hasPrefix("data:image/"),
+        guard dataURL.hasPrefix(requiredPrefix),
               let separator = dataURL.range(of: ";base64,"),
               separator.lowerBound > dataURL.startIndex else {
             throw ZenMuxAPIError.invalidResponse
