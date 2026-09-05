@@ -40,6 +40,36 @@ func rejects(_ url: URL) -> Bool {
     catch { return true }
 }
 let source = "print(\"sample\")\n"
+let requiredFormats = [
+    "pdf", "doc", "docx", "docm", "dot", "dotx", "dotm", "rtf",
+    "xls", "xlsx", "xlsm", "xlsb", "xlt", "xltx", "xltm",
+    "ppt", "pptx", "pptm", "pps", "ppsx", "ppsm", "pot", "potx", "potm",
+    "odt", "ods", "odp"
+]
+for ext in requiredFormats {
+    let url = directory.appendingPathComponent("file.\(ext.uppercased())")
+    check(ZenMuxAttachment.supports(url), "Missing Office/PDF format: \(ext)")
+    check(ZenMuxAttachment.allowedContentTypes.contains { $0 == UTType(filenameExtension: ext) }, "Picker excluded \(ext)")
+}
+if let path = ProcessInfo.processInfo.environment["ASTRA_ATTACHMENT_FIXTURE"] {
+    let url = URL(fileURLWithPath: path)
+    let original = try Data(contentsOf: url)
+    let attachment = try ZenMuxAttachment.load(from: url)
+    check(attachment.data == original, "Real document bytes changed")
+    check(attachment.filename == url.lastPathComponent, "Real document name changed")
+    check(attachment.requestPart.type == "file", "Real document treated as text")
+    let vertex = try JSONSerialization.jsonObject(with: VertexProbe.encode(attachment.requestPart)) as! [[String: Any]]
+    let inline = vertex[1]["inlineData"] as! [String: Any]
+    check(inline["data"] as? String == original.base64EncodedString(), "Real document lost in Vertex conversion")
+    let pasteboard = NSPasteboard.withUniqueName()
+    defer { pasteboard.releaseGlobally() }
+    check(pasteboard.writeObjects([url as NSURL]), "Real document drag pasteboard")
+    let sources = ZenMuxAttachmentPasteboardReader.sources(from: pasteboard)
+    check(sources.count == 1, "Real document drag not recognized")
+    let dropped = try sources[0].load()
+    check(dropped.data == original, "Dropped document bytes changed")
+    print("PASS: supplied document loaded through Finder pasteboard and encoded without byte changes (\(original.count) bytes)")
+}
 for ext in ["py", "swift", "c", "csv", "md", "json"] {
     let url = directory.appendingPathComponent("sample.\(ext)")
     try source.write(to: url, atomically: true, encoding: .utf8)

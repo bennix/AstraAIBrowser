@@ -5,16 +5,16 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <title>Astra Browser</title>
         <item>
             <title>1.0</title>
-            <pubDate>Sun, 06 Sep 2026 07:02:32 +0900</pubDate>
-            <link>https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.94</link>
-            <sparkle:version>10094</sparkle:version>
+            <pubDate>Sun, 06 Sep 2026 07:27:40 +0900</pubDate>
+            <link>https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.95</link>
+            <sparkle:version>10095</sparkle:version>
             <sparkle:shortVersionString>1.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.94/Astra-Browser-build94.dmg" length="275053565" type="application/octet-stream" sparkle:edSignature="TfUMQe2OlAuycS8tRzilrt8ngYujXPmTdr7w1mXvuhlOzxWRVbvIMRetFtUB5+cXkqDiDtBX8lvFXY87tLtzCg=="></enclosure>
+            <enclosure url="https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.95/Astra-Browser-build95.dmg" length="275061616" type="application/octet-stream" sparkle:edSignature="STpLZDvWYUMikWp3GAhpruoX2liUl/zYVZT3MXJ1821zMyXXAQ/DoRSw48Yic9Jp4aBfL8HH9/NdUlPA1xPpDg=="></enclosure>
         </item>
     </channel>
 </rss><!-- sparkle-signatures:
-edSignature: rfp7Y42J2uXWAttuLzZVex7+vjON25Ddq54x362eZO7pqs8GneR1Kf7JwYhp550DFh6dez4UenNnj50kIqHQCw==
+edSignature: Tcwc6LSfT+OaXrOnnxleIimu1kPvag4Jt4rsxAH9tdiG4NcI4MyCL9wWTJcolQ0fwsWPp03uTN6jmg4jkf1nAQ==
 length: 1226
 -->

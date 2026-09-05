@@ -10,6 +10,7 @@ import JavaScriptCore
 import LocalAuthentication
 import Security
 import XCTest
+import UniformTypeIdentifiers
 @testable import Phi
 
 final class ZenMuxTests: XCTestCase {
@@ -546,6 +547,21 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertEqual(ZenMuxAttachmentPasteboardReader.fileURLs(from: pasteboard), urls)
         XCTAssertEqual(ZenMuxAttachmentPasteboardReader.sources(from: pasteboard).count, urls.count)
         XCTAssertTrue(urls.allSatisfy(ZenMuxAttachment.supports))
+    }
+
+    func testOfficeFamiliesAreAvailableToPickerAndDragImport() throws {
+        let formats = [
+            "pdf", "doc", "docx", "docm", "dot", "dotx", "dotm", "rtf",
+            "xls", "xlsx", "xlsm", "xlsb", "xlt", "xltx", "xltm",
+            "ppt", "pptx", "pptm", "pps", "ppsx", "ppsm", "pot", "potx", "potm",
+            "odt", "ods", "odp",
+        ]
+        for ext in formats {
+            let url = URL(fileURLWithPath: "/tmp/Attachment.\(ext.uppercased())")
+            XCTAssertTrue(ZenMuxAttachment.supports(url), ext)
+            let type = try XCTUnwrap(UTType(filenameExtension: ext))
+            XCTAssertTrue(ZenMuxAttachment.allowedContentTypes.contains(type), ext)
+        }
     }
 
     func testVertexTranslationRequestDoesNotExposeBrowserTools() throws {

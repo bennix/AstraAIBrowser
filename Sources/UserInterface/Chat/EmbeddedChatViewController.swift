@@ -32,8 +32,30 @@ struct ZenMuxAttachment: Identifiable, Equatable, Sendable {
         "pdf": "application/pdf",
         "doc": "application/msword",
         "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "docm": "application/vnd.ms-word.document.macroEnabled.12",
+        "dot": "application/msword",
+        "dotx": "application/vnd.openxmlformats-officedocument.wordprocessingml.template",
+        "dotm": "application/vnd.ms-word.template.macroEnabled.12",
+        "rtf": "application/rtf",
         "xls": "application/vnd.ms-excel",
         "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "xlsm": "application/vnd.ms-excel.sheet.macroEnabled.12",
+        "xlsb": "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
+        "xlt": "application/vnd.ms-excel",
+        "xltx": "application/vnd.openxmlformats-officedocument.spreadsheetml.template",
+        "xltm": "application/vnd.ms-excel.template.macroEnabled.12",
+        "ppt": "application/vnd.ms-powerpoint",
+        "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "pptm": "application/vnd.ms-powerpoint.presentation.macroEnabled.12",
+        "pps": "application/vnd.ms-powerpoint",
+        "ppsx": "application/vnd.openxmlformats-officedocument.presentationml.slideshow",
+        "ppsm": "application/vnd.ms-powerpoint.slideshow.macroEnabled.12",
+        "pot": "application/vnd.ms-powerpoint",
+        "potx": "application/vnd.openxmlformats-officedocument.presentationml.template",
+        "potm": "application/vnd.ms-powerpoint.template.macroEnabled.12",
+        "odt": "application/vnd.oasis.opendocument.text",
+        "ods": "application/vnd.oasis.opendocument.spreadsheet",
+        "odp": "application/vnd.oasis.opendocument.presentation",
     ]
     static let textExtensions: Set<String> = [
         "txt", "md", "markdown", "csv", "tsv", "json", "xml", "html", "htm",
@@ -107,14 +129,15 @@ struct ZenMuxAttachment: Identifiable, Equatable, Sendable {
               (values.fileSize ?? 0) <= maximumSourceBytes else {
             throw ZenMuxAttachmentError.fileTooLarge
         }
-        guard supports(url) else { throw ZenMuxAttachmentError.invalidFile }
+        guard supports(url) else { throw ZenMuxAttachmentError.unsupportedFormat }
         let ext = url.pathExtension.lowercased()
         let isImage = UTType(filenameExtension: ext)?.conforms(to: .image) == true
         let limit = isImage ? maximumSourceBytes :
             (documentMIMETypes[ext] != nil ? maximumDocumentBytes : maximumTextBytes)
         guard (values.fileSize ?? 0) <= limit else { throw ZenMuxAttachmentError.fileTooLarge }
         let data = try Data(contentsOf: url)
-        guard !data.isEmpty, data.count <= limit else { throw ZenMuxAttachmentError.invalidFile }
+        guard !data.isEmpty else { throw ZenMuxAttachmentError.emptyFile }
+        guard data.count <= limit else { throw ZenMuxAttachmentError.fileTooLarge }
         if isImage { return try prepare(data: data, filename: url.lastPathComponent) }
         if let mimeType = documentMIMETypes[ext] {
             return .init(filename: url.lastPathComponent, mimeType: mimeType, data: data)
@@ -122,7 +145,7 @@ struct ZenMuxAttachment: Identifiable, Equatable, Sendable {
         // Decode text without lossy replacement; never execute attached source files.
         let hasUTF16BOM = data.starts(with: [0xFF, 0xFE]) || data.starts(with: [0xFE, 0xFF])
         guard let text = String(data: data, encoding: hasUTF16BOM ? .utf16 : .utf8),
-              !text.contains("\0") else { throw ZenMuxAttachmentError.invalidFile }
+              !text.contains("\0") else { throw ZenMuxAttachmentError.invalidTextEncoding }
         let utf8 = Data(text.utf8)
         guard utf8.count <= maximumTextBytes else { throw ZenMuxAttachmentError.fileTooLarge }
         return .init(filename: url.lastPathComponent, mimeType: "text/plain", data: utf8)
@@ -284,6 +307,9 @@ enum ZenMuxChatVisionContext {
 }
 
 enum ZenMuxAttachmentError: LocalizedError, Sendable {
+    case unsupportedFormat
+    case emptyFile
+    case invalidTextEncoding
     case invalidFile
     case invalidImage
     case fileTooLarge
@@ -292,6 +318,24 @@ enum ZenMuxAttachmentError: LocalizedError, Sendable {
 
     var errorDescription: String? {
         switch self {
+        case .unsupportedFormat:
+            return NSLocalizedString(
+                "chat.zenMux.attachments.unsupportedFormat",
+                value: "Unsupported attachment format. Choose an image, PDF, Word, Excel, PowerPoint, text, or source-code file.",
+                comment: "Chat attachments - Unsupported filename extension"
+            )
+        case .emptyFile:
+            return NSLocalizedString(
+                "chat.zenMux.attachments.emptyFile",
+                value: "This file is empty. Choose a file that contains data.",
+                comment: "Chat attachments - Selected file contains zero bytes"
+            )
+        case .invalidTextEncoding:
+            return NSLocalizedString(
+                "chat.zenMux.attachments.invalidTextEncoding",
+                value: "This text or source-code file could not be decoded. Save it as UTF-8 or UTF-16 and try again.",
+                comment: "Chat attachments - Text decoding failure; not used for Office or PDF files"
+            )
         case .invalidFile:
             return NSLocalizedString(
                 "chat.zenMux.attachments.invalidFileError",
@@ -1916,7 +1960,7 @@ struct ZenMuxChatView: View {
     private var addFilesTooltip: String {
         NSLocalizedString(
             "chat.zenMux.attachments.addFilesTooltip",
-            value: "Attach images, PDF, Word, Excel, or source code",
+            value: "Attach images, PDF, Word, Excel, PowerPoint, or source code",
             comment: "Chat attachments - File picker button tooltip"
         )
     }
@@ -2043,7 +2087,7 @@ struct ZenMuxChatView: View {
         )
         panel.message = NSLocalizedString(
             "chat.zenMux.attachments.filesPickerMessage",
-            value: "Choose up to 5 files: images, PDF, DOC/DOCX, XLS/XLSX, text, or source code. Documents up to 10 MB; text/code up to 500 KB.",
+            value: "Choose up to 5 files: images, PDF, Word, Excel, PowerPoint (including templates and macro-enabled documents), OpenDocument, text, or source code. Documents up to 10 MB; text/code up to 500 KB.",
             comment: "Chat attachments - File picker format and size guidance"
         )
 
