@@ -134,6 +134,10 @@ enum BrowserAutomationInteractionPolicy {
 }
 
 enum BrowserWindowOpenPolicy {
+    static func requiresSourceContext(_ url: URL?) -> Bool {
+        url?.scheme?.lowercased() == "blob" || isIdentityProviderURL(url)
+    }
+
     static func isIdentityProviderURL(_ url: URL?) -> Bool {
         guard url?.scheme?.lowercased() == "https",
               let host = url?.host?.lowercased() else { return false }
@@ -154,19 +158,23 @@ enum BrowserWindowOpenPolicy {
     }
 
     static func action(for request: CefWindowOpenRequest) -> CefWindowOpenAction {
+        // Blob URLs need their creator's context; identity flows need window.opener.
         // OAuth and identity-provider flows use a real popup plus window.opener
         // to deliver the authorization result back to the relying page. Moving
         // that popup into an unrelated app tab breaks the opener relationship
         // and causes sites to restart verification indefinitely.
         if !request.isSourceOffscreen,
-           isIdentityProviderURL(request.targetURL) {
+           requiresSourceContext(request.targetURL) {
             return .allowNativePopup
+        }
+        if request.targetURL?.scheme?.lowercased() == "blob" {
+            return .openInCurrentBrowser
         }
         return request.targetURL == nil ? .deny : .handled
     }
 
     static func shouldHandleNewTabInApp(for url: URL) -> Bool {
-        !isIdentityProviderURL(url)
+        !requiresSourceContext(url)
     }
 }
 
@@ -3343,9 +3351,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             "target=\(request.targetURL?.absoluteString ?? "nil") action=\(action)"
         )
         if action == .allowNativePopup,
-           BrowserWindowOpenPolicy.isIdentityProviderURL(request.targetURL),
-           let host = request.targetURL?.host {
-            AppLogInfo("[CEF] Preserving native identity popup for host=\(host)")
+           BrowserWindowOpenPolicy.requiresSourceContext(request.targetURL) {
+            AppLogInfo("[CEF] Preserving source context for native popup")
             prepareToIntegrateNextNativePopup()
         }
         if action == .handled, let url = request.targetURL {
@@ -5339,6 +5346,10 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             decisionHandler(.cancel)
             return
         }
+        if navigationAction.shouldPerformDownload {
+            decisionHandler(.download)
+            return
+        }
         if navigationAction.targetFrame?.isMainFrame == true,
            BrowserOutwardRequestPolicy.needsCurrentHeaders(navigationAction.request) {
             decisionHandler(.cancel)
@@ -5346,7 +5357,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             return
         }
         if navigationAction.targetFrame == nil,
-           BrowserWindowOpenPolicy.isIdentityProviderURL(destination) {
+           BrowserWindowOpenPolicy.requiresSourceContext(destination) {
             // Let WKUIDelegate create an Astra-owned popup so OAuth retains
             // window.opener and the current profile's persistent data store.
             decisionHandler(.allow)
@@ -5358,6 +5369,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             return
         }
         if navigationAction.targetFrame?.isMainFrame == true,
+           destination.scheme?.lowercased() != "blob",
            !shouldUsePersistentWebKit(for: destination) {
             decisionHandler(.cancel)
             DispatchQueue.main.async { [weak self] in
@@ -5375,7 +5387,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
         guard let destination = navigationAction.request.url else { return nil }
-        if BrowserWindowOpenPolicy.isIdentityProviderURL(destination) {
+        if BrowserWindowOpenPolicy.requiresSourceContext(destination) {
             let popupHost = SystemMediaPopupHost(
                 configuration: configuration,
                 onSearchSelectedText: { [weak self] query in
@@ -5395,6 +5407,19 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         }
         onOpenURLInNewTab?(destination, true)
         return nil
+    }
+
+    func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
+        downloadsManager?.beginWebKitDownload(download)
+    }
+
+    func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
+        downloadsManager?.beginWebKitDownload(download)
+    }
+
+    func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse,
+                 decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        decisionHandler(navigationResponse.canShowMIMEType ? .allow : .download)
     }
 
     func userContentController(

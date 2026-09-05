@@ -7,6 +7,7 @@ import AppKit
 import CefKit
 import Combine
 import Darwin
+import WebKit
 
 /// Download item state enumeration matching Chromium's DownloadItem::DownloadState
 enum DownloadState: Int {
@@ -59,7 +60,7 @@ class DownloadItem: ObservableObject, Identifiable {
     }
 
     var isAppManagedDownload: Bool {
-        isCEFDownload || isMediaDownload
+        isCEFDownload || isMediaDownload || id.hasPrefix("webkit-")
     }
 
     // MARK: - Safety State (delegates to DownloadSafetyComputation)
@@ -222,8 +223,8 @@ class DownloadItem: ObservableObject, Identifiable {
         self.targetFilePath = destination.path
     }
 
-    init(mediaID: UUID, fileName: String, pageURL: URL, mimeType: String) {
-        self.id = "media-\(mediaID.uuidString)"
+    init(mediaID: UUID, fileName: String, pageURL: URL, mimeType: String, idPrefix: String = "media") {
+        self.id = "\(idPrefix)-\(mediaID.uuidString)"
         self.fileName = fileName
         self.url = pageURL.absoluteString
         self.mimeType = mimeType
@@ -1196,6 +1197,68 @@ private final class MediaDownloadCoordinator {
 }
 
 class DownloadsManager: ObservableObject {
+    private final class WebKitTransfer: NSObject, WKDownloadDelegate {
+        weak var manager: DownloadsManager?
+        let download: WKDownload
+        let id = UUID()
+        var item: DownloadItem?
+        var destination: URL?
+        var isFinished = false
+
+        init(download: WKDownload, manager: DownloadsManager) {
+            self.download = download
+            self.manager = manager
+        }
+
+        func download(_ download: WKDownload, decideDestinationUsing response: URLResponse,
+                      suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
+            guard let manager else { completionHandler(nil); return }
+            let destination = manager.uniqueDownloadDestination(suggestedName: suggestedFilename)
+            self.destination = destination
+            let item = DownloadItem(mediaID: id, fileName: destination.lastPathComponent,
+                                    pageURL: response.url ?? URL(string: "about:blank")!,
+                                    mimeType: response.mimeType ?? "application/octet-stream", idPrefix: "webkit")
+            self.item = item
+            item.targetFilePath = destination.path
+            manager.downloads.insert(item, at: 0)
+            manager.updateTotalProgress()
+            manager.downloadEventPublisher.send(DownloadEvent(eventType: .created, downloadItem: item))
+            completionHandler(destination)
+        }
+
+        func downloadDidFinish(_ download: WKDownload) {
+            if let item, let destination {
+                let size = (try? FileManager.default.attributesOfItem(atPath: destination.path)[.size] as? NSNumber)?.int64Value ?? 0
+                item.updateMediaProgress(receivedBytes: size, totalBytes: size, speed: 0)
+                item.finishMediaDownload(at: destination)
+                finish(.completed)
+            }
+        }
+
+        func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
+            let wasCancelled = (error as NSError).code == NSURLErrorCancelled
+            item?.failMediaDownload(cancelled: wasCancelled)
+            finish(wasCancelled ? .cancelled : .interrupted)
+        }
+
+        func finish(_ event: DownloadEventType) {
+            guard !isFinished else { return }
+            isFinished = true
+            if let item {
+                manager?.downloadEventPublisher.send(DownloadEvent(eventType: event, downloadItem: item))
+            }
+            manager?.updateTotalProgress()
+            manager?.webKitTransfers.removeValue(forKey: id)
+        }
+    }
+
+    private var webKitTransfers: [UUID: WebKitTransfer] = [:]
+
+    func beginWebKitDownload(_ download: WKDownload) {
+        let transfer = WebKitTransfer(download: download, manager: self)
+        webKitTransfers[transfer.id] = transfer
+        download.delegate = transfer
+    }
     weak var browserState: BrowserState?
     
     @Published var downloads: [DownloadItem] = []
@@ -1461,7 +1524,8 @@ class DownloadsManager: ObservableObject {
         let stem = destination.deletingPathExtension().lastPathComponent
         let pathExtension = destination.pathExtension
         var suffix = 2
-        while FileManager.default.fileExists(atPath: destination.path) {
+        while FileManager.default.fileExists(atPath: destination.path)
+            || downloads.contains(where: { $0.state == .inProgress && $0.targetFilePath == destination.path }) {
             let candidate = pathExtension.isEmpty ? "\(stem) \(suffix)" : "\(stem) \(suffix).\(pathExtension)"
             destination = directory.appendingPathComponent(candidate)
             suffix += 1
@@ -1668,6 +1732,12 @@ class DownloadsManager: ObservableObject {
     }
     
     func cancelDownload(_ item: DownloadItem) {
+        if let transfer = webKitTransfers.values.first(where: { $0.item?.id == item.id }) {
+            transfer.download.cancel { _ in }
+            item.failMediaDownload(cancelled: true)
+            transfer.finish(.cancelled)
+            return
+        }
         if item.isMediaDownload {
             MainActor.assumeIsolated {
                 mediaDownloadCoordinator.cancel(item)
@@ -1678,6 +1748,9 @@ class DownloadsManager: ObservableObject {
     }
     
     func removeDownload(_ item: DownloadItem) {
+        if item.id.hasPrefix("webkit-"), item.state == .inProgress {
+            cancelDownload(item)
+        }
         if item.isAppManagedDownload {
             if item.isMediaDownload, item.state == .inProgress {
                 MainActor.assumeIsolated {

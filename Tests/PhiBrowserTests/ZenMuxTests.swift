@@ -1252,6 +1252,18 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertEqual(BrowserWindowOpenPolicy.action(for: request), .allowNativePopup)
     }
 
+    func testBlobPopupPreservesItsCreatingContext() {
+        let url = URL(string: "blob:http://127.0.0.1:5173/6e8579f1-82b9-49e3-bd3a-1313a170b666")!
+        let request = CefWindowOpenRequest(
+            targetURL: url,
+            disposition: .newForegroundTab,
+            userGesture: true
+        )
+        XCTAssertEqual(BrowserWindowOpenPolicy.action(for: request), .allowNativePopup)
+        XCTAssertFalse(BrowserWindowOpenPolicy.shouldHandleNewTabInApp(for: url))
+        XCTAssertTrue(BrowserWindowOpenPolicy.requiresSourceContext(url))
+    }
+
     func testRegularPopupStaysInAstraTab() {
         let request = CefWindowOpenRequest(
             targetURL: URL(string: "https://example.com/popup")!,

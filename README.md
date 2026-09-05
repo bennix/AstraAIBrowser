@@ -3,9 +3,9 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 86)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.86/Astra-Browser-build86.dmg)
+[Download Astra 1.0 (build 87)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.87/Astra-Browser-build87.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.86)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.87)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
@@ -35,6 +35,7 @@ and accepted by Apple's notarization service.
 - Opening About Astra Browser checks the signed GitHub Releases channel for updates; downloads remain protected by Sparkle Ed25519 verification and Apple code signing.
 - Website links for installed macOS applications, including Tencent Meeting SSO links, are intercepted before Chromium error handling and opened through Launch Services after explicit confirmation.
 - Public web pages expose native bilingual immersive translation with progressive inline writeback, redraw recovery, selected-text translation, a target-language picker, and the configured ZenMux engine.
+- WebKit pages preserve source context for temporary Blob URLs and route Blob-backed card downloads into Astra's native download list.
 - Selected text can be translated or looked up from the webpage context menu in one pointer-anchored card that updates in place, supports copying translated text, and saves dictionary results to a persistent Vocabulary Book with Markdown export.
 - YouTube and other WebKit media pages support HTML element fullscreen.
 - Mainland and H.264/AAC-first video sites use an in-app system media engine when the bundled Chromium codec set is insufficient, while YouTube keeps its Chromium VP9/AV1 path. X uses a persistent system WebKit session for reliable macOS media playback.
