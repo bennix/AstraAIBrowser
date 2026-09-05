@@ -20,7 +20,7 @@ protocol BrowserAutomationProviding: AnyObject {
 
 protocol ImmersiveTranslationProviding: AnyObject {
     @MainActor
-    func immersiveTranslationSnapshot() async throws -> ImmersiveTranslationPageSnapshot
+    func immersiveTranslationSnapshot(translatedOnly: Bool) async throws -> ImmersiveTranslationPageSnapshot
 
     @MainActor
     func applyImmersiveTranslations(
@@ -4009,11 +4009,12 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         return await evaluateJavaScriptResult(operation: operation, timeout: 5)
     }
 
-    func immersiveTranslationSnapshot() async throws -> ImmersiveTranslationPageSnapshot {
+    func immersiveTranslationSnapshot(translatedOnly: Bool = false) async throws -> ImmersiveTranslationPageSnapshot {
         let allowsSmokeTestPage = CommandLine.arguments.contains(
             "--cef-immersive-translation-smoke"
         )
         let prepareOperation = #"""
+        const translatedOnly = \#(translatedOnly ? "true" : "false");
         const allowsSmokeTestPage = \#(allowsSmokeTestPage ? "true" : "false");
         const canonical = (value) => {
           try {
@@ -4031,6 +4032,11 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
 
         if (globalThis.__phiImmersiveTranslationSession ||
             document.querySelector('[data-phi-immersive-translation]')) {
+          for (const record of globalThis.__phiImmersiveTranslationSession?.sources.values() || []) {
+            if (record.replacement !== undefined && record.node?.nodeValue === record.replacement) {
+              record.node.nodeValue = record.original;
+            }
+          }
           document.querySelectorAll('[data-phi-immersive-translation]').forEach((node) => node.remove());
           document.querySelectorAll('[data-phi-translation-source-wrapper]').forEach((wrapper) => {
             wrapper.replaceWith(...wrapper.childNodes);
@@ -4061,6 +4067,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
           sessionID = `phi-${Date.now()}-${Math.random().toString(16).slice(2)}`;
         }
         const session = {
+          translatedOnly,
           id: sessionID,
           pageURL: canonical(location.href),
           sources: new Map(),
@@ -4091,16 +4098,23 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             ...session.semanticRecords.values(),
             ...session.standaloneRecords
           ].sort((left, right) => left.order - right.order);
+          if (translatedOnly) {
+            for (const element of document.querySelectorAll('input[placeholder],textarea[placeholder]')) {
+              if (element.matches('input[type="password"],input[type="hidden"]') || !isVisible(element)) continue;
+              const node = element.getAttributeNode('placeholder');
+              if (node?.value) records.push({ node, text: node.value, isAttribute: true });
+            }
+          }
           const elementOccurrences = new Map();
           const textOccurrences = new Map();
           let totalCharacters = 0;
           for (const record of records) {
             if (session.segments.length >= 500 || totalCharacters >= 100000) break;
             const text = normalize(record.parts ? record.parts.join(' ') : record.text);
-            const visibilityElement = record.isTextNode
+            const visibilityElement = record.isAttribute ? record.node.ownerElement : record.isTextNode
               ? record.node.parentElement
               : record.node;
-            if (!visibilityElement || !record.node.isConnected || text.length < 2 ||
+            if (!visibilityElement || !visibilityElement.isConnected || text.length < 2 ||
                 text.length > 1800 || !/[\p{L}\p{N}]/u.test(text) ||
                 !isVisible(visibilityElement)) continue;
             const id = `phi-translation-${sessionID}-${session.segments.length}`;
@@ -4112,6 +4126,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
               text,
               occurrence,
               isHeading: record.isHeading === true,
+              isAttribute: record.isAttribute === true,
               isTextNode: record.isTextNode === true
             });
             session.segments.push({ id, text });
@@ -4145,7 +4160,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             if (!parent || parent.closest(excludedSelector)) continue;
             const text = normalize(textNode.nodeValue);
             if (!text || text.length > 1800 || !/[\p{L}\p{N}]/u.test(text)) continue;
-            const owner = parent.closest(readableSelector);
+            const owner = translatedOnly ? null : parent.closest(readableSelector);
             if (owner) {
               let record = session.semanticRecords.get(owner);
               if (!record) {
@@ -4332,7 +4347,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
               occurrence += 1;
               continue;
             }
-            return wrapTextSource(textNode, id);
+            return session.translatedOnly ? textNode : wrapTextSource(textNode, id);
           }
           return null;
         };
@@ -4349,6 +4364,22 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
           const record = session.sources.get(translation.id);
           if (!record) {
             missingRecords += 1;
+            continue;
+          }
+          if (session.translatedOnly) {
+            let node = record.node;
+            if (record.isTextNode && !node?.isConnected) {
+              node = findTextSource(record, translation.id);
+              if (node) record.node = node;
+            }
+            if (((node instanceof Text && node.isConnected) ||
+                 (record.isAttribute && node instanceof Attr && node.ownerElement?.isConnected)) &&
+                (normalize(node.nodeValue) === record.text || node.nodeValue === record.replacement)) {
+              record.original ??= node.nodeValue;
+              record.replacement = translation.text;
+              node.nodeValue = translation.text;
+              applied += 1;
+            }
             continue;
           }
           const existing = document.querySelector(
@@ -4467,6 +4498,11 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
 
     func removeImmersiveTranslations() async {
         let operation = #"""
+        for (const record of globalThis.__phiImmersiveTranslationSession?.sources.values() || []) {
+          if (record.replacement !== undefined && record.node?.nodeValue === record.replacement) {
+            record.node.nodeValue = record.original;
+          }
+        }
         document.querySelectorAll('[data-phi-immersive-translation]').forEach((node) => node.remove());
         document.querySelectorAll('[data-phi-translation-source-wrapper]').forEach((wrapper) => {
           wrapper.replaceWith(...wrapper.childNodes);

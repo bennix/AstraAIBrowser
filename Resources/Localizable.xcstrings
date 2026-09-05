@@ -1,6 +1,8 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "translation.popover.automaticDisplay" : {"comment":"Immersive translation - Opt in to automatic translated-only webpage display","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Automatically display pages in this language"}}}},
+    "translation.popover.displayLanguageNotice" : {"comment":"Immersive translation - Explain automatic display, model transmission and unchanged browser language signals","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Browser language signals still follow the exit region. When enabled, opened pages are translated through ZenMux and shown as translated text. Original text appears while translation is loading."}}}},
     "promptLibrary.reuse" : {"comment":"Sent user message - Append this prompt to the composer","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Use again"}}}},
     "promptLibrary.selectAll" : {"comment":"Prompt library - Select every currently filtered prompt","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Select results"}}}},
     "promptLibrary.deleteSelected" : {"comment":"Prompt library - Delete all checked prompts","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Delete selected"}}}},

@@ -304,6 +304,7 @@ struct SidebarBottomBarSwiftUI: View {
 }
 
 struct ImmersiveTranslationPopover: View {
+    @AppStorage(ImmersiveTranslationPreferences.automaticDisplayKey) private var automaticDisplay = true
     @Environment(\.dismiss) private var dismiss
     @Binding var translationState: ImmersiveTranslationState
     @Binding var language: ImmersiveTranslationLanguage
@@ -339,6 +340,27 @@ struct ImmersiveTranslationPopover: View {
                 }
             }
             .disabled(isBusy || isActive)
+
+            Toggle(isOn: $automaticDisplay) {
+                Text(NSLocalizedString(
+                    "translation.popover.automaticDisplay",
+                    value: "Automatically display pages in this language",
+                    comment: "Immersive translation - Opt in to automatic translated-only webpage display"
+                ))
+            }
+            .disabled(isBusy || isActive)
+            .onChange(of: language) { _, value in
+                ImmersiveTranslationPreferences.saveLanguage(value)
+            }
+
+            Text(NSLocalizedString(
+                "translation.popover.displayLanguageNotice",
+                value: "Browser language signals still follow the exit region. When enabled, opened pages are translated through ZenMux and shown as translated text. Original text appears while translation is loading.",
+                comment: "Immersive translation - Explain automatic display, model transmission and unchanged browser language signals"
+            ))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
 
             if !isActive {
                 Text(NSLocalizedString(

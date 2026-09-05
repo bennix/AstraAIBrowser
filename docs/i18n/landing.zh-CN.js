@@ -38,7 +38,7 @@
     "features.signedUpdates.body": "打开“关于 Astra Browser”即会检查 GitHub Releases 更新。更新源与 DMG 均使用 Sparkle Ed25519 签名校验，并继续验证 Apple 代码签名。",
     "features.promptLibrary.title": "本地提示词管理器",
     "features.promptLibrary.body": "可将网页划词内容保存为提示词，并自动收藏已发送的提示词。所有内容仅保存在本机，支持按任务分类、搜索、复用、编辑、批量删除及 JSON 导入导出。",
-    "download.summary": "Build 87 保留临时 Blob 地址的来源页面上下文，并将卡片中的 Blob 文件交给 Astra 原生下载管理器保存。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 88 默认将网页显示为简体中文，失败时尝试英语，同时保持与公网出口地区一致的网页语言信号。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

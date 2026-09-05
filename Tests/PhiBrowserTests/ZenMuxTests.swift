@@ -307,6 +307,16 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertEqual(ImmersiveTranslationPreferences.loadProvider(from: defaults), .zenMux)
     }
 
+    func testAutomaticTranslatedDisplayDefaultsOnAndCanBeDisabled() {
+        let suiteName = "test.immersiveTranslation.automaticDisplay.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertTrue(ImmersiveTranslationPreferences.automaticDisplayEnabled(from: defaults))
+        defaults.set(false, forKey: ImmersiveTranslationPreferences.automaticDisplayKey)
+        XCTAssertFalse(ImmersiveTranslationPreferences.automaticDisplayEnabled(from: defaults))
+    }
+
     func testYouTubeWithoutTranscriptCannotBePresentedAsKnownVideoContent() throws {
         let instruction = try XCTUnwrap(ZenMuxChatSession.youtubeEvidenceInstruction(
             pageURL: "https://www.youtube.com/shorts/dQw4w9WgXcQ",

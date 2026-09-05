@@ -64,7 +64,17 @@ class Tab: WebContentRepresentable {
     @Published private(set) var cachedFaviconData: Data?
     @Published private(set) var liveFaviconData: Data?
     @Published private(set) var liveFaviconRevision: Int = 0
-    @Published private(set) var isLoading = false
+    @Published private(set) var isLoading = false {
+        didSet {
+            if isLoading && !oldValue {
+                immersiveTranslationTask?.cancel()
+                immersiveTranslationTask = nil
+                immersiveTranslationOperationID = nil
+                immersiveTranslationState = .inactive
+                automaticTranslationSuppressed = false
+            }
+        }
+    }
     @Published private(set) var loadingProgress: CGFloat = 1
     @Published private(set) var canGoBack: Bool = false
     @Published private(set) var canGoForward: Bool = false
@@ -95,6 +105,7 @@ class Tab: WebContentRepresentable {
                 immersiveTranslationTask = nil
                 immersiveTranslationOperationID = nil
                 immersiveTranslationState = .inactive
+                automaticTranslationSuppressed = false
                 selectionTranslationTask?.cancel()
                 selectionTranslationTask = nil
                 selectionTranslationOperationID = nil
@@ -131,6 +142,7 @@ class Tab: WebContentRepresentable {
     @Published var immersiveTranslationState: ImmersiveTranslationState = .inactive
     var immersiveTranslationTask: Task<Void, Never>?
     var immersiveTranslationOperationID: UUID?
+    var automaticTranslationSuppressed = false
     var selectionTranslationTask: Task<Void, Never>?
     var selectionTranslationOperationID: UUID?
     var wordLookupTask: Task<Void, Never>?
