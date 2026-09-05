@@ -156,11 +156,69 @@ enum XSpamShieldListPolicy {
     }
 }
 
+struct XSpamShieldRule: Codable, Identifiable, Equatable, Sendable {
+    var id = UUID()
+    var pattern: String
+    var isRegex: Bool
+    var enabled = true
+
+    // Deliberately restrict repetition and grouping to keep timeline scans bounded.
+    static func isValid(_ pattern: String, regex: Bool) -> Bool {
+        guard !pattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              pattern.utf8.count <= 256 else { return false }
+        guard regex else { return true }
+        guard !pattern.contains(where: { "(){}|".contains($0) }),
+              pattern.filter({ "*+?".contains($0) }).count <= 1,
+              pattern.range(of: #"\\[0-9]"#, options: .regularExpression) == nil else { return false }
+        return (try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])) != nil
+    }
+
+    func matches(_ text: String) -> Bool {
+        guard enabled, Self.isValid(pattern, regex: isRegex) else { return false }
+        let bounded = String(text.prefix(4_000))
+        guard isRegex else { return bounded.range(of: pattern, options: [.caseInsensitive]) != nil }
+        guard let expression = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return false }
+        let deadline = ProcessInfo.processInfo.systemUptime + 0.005
+        var found = false
+        expression.enumerateMatches(in: bounded, options: [.reportProgress], range: NSRange(bounded.startIndex..., in: bounded)) { match, _, stop in
+            if match != nil { found = true; stop.pointee = true }
+            if ProcessInfo.processInfo.systemUptime > deadline { stop.pointee = true }
+        }
+        return found
+    }
+}
+
 actor XSpamShieldStore {
     static let shared = XSpamShieldStore()
 
     private static let refreshInterval: TimeInterval = 6 * 60 * 60
     private static let hiddenHandlesKey = "privacy.xSpamShield.hiddenHandles"
+    private static let rulesKey = "privacy.xSpamShield.customRules"
+
+    func rules() -> [XSpamShieldRule] {
+        guard let data = userDefaults.data(forKey: Self.rulesKey),
+              let rules = try? JSONDecoder().decode([XSpamShieldRule].self, from: data) else { return [] }
+        return Array(rules.prefix(50))
+    }
+
+    func saveRules(_ rules: [XSpamShieldRule]) {
+        guard rules.count <= 50,
+              rules.allSatisfy({ XSpamShieldRule.isValid($0.pattern, regex: $0.isRegex) }),
+              let data = try? JSONEncoder().encode(rules) else { return }
+        userDefaults.set(data, forKey: Self.rulesKey)
+    }
+
+    func contentMatches(_ posts: [[String: String]]) -> [XSpamShieldMatch] {
+        let rules = rules()
+        var seen = Set<String>()
+        return posts.prefix(100).compactMap { post in
+            let handle = XSpamShieldListPolicy.Snapshot.normalizedHandle(post["handle"] ?? "")
+            guard !handle.isEmpty, !seen.contains(handle),
+                  rules.contains(where: { $0.matches(post["text"] ?? "") }) else { return nil }
+            seen.insert(handle)
+            return XSpamShieldMatch(handle: handle, label: "custom-rule", isHidden: hiddenHandles().contains(handle))
+        }
+    }
 
     private let fileManager: FileManager
     private let cacheDirectory: URL
@@ -430,7 +488,9 @@ enum XSpamShieldWebPolicy {
         undoLabel: String,
         hiddenMessage: String,
         signInMessage: String,
-        blockFailedMessage: String
+        blockFailedMessage: String,
+        rulesLabel: String = NSLocalizedString("privacy.xSpamShield.rulesButton", value: "Manage Guard rules in Settings", comment: "X Guard - Settings button tooltip"),
+        customLabel: String = NSLocalizedString("privacy.xSpamShield.customMatch", value: "Matched your rule", comment: "X Guard - Badge on a post matching a user rule")
     ) -> String {
         let guardText = javaScriptLiteral(guardLabel)
         let junkText = javaScriptLiteral(junkLabel)
@@ -517,6 +577,13 @@ enum XSpamShieldWebPolicy {
                 conic-gradient(#1687c9 calc(var(--p,0)*1%),#d7e6f0 0)}
             </style><div class="pill" role="button"><span class="shield">✓</span><span class="text" aria-live="polite"></span></div>`;
             root.querySelector('.pill')?.addEventListener('click', () => { void blockDiscovered(); });
+            const settings = document.createElement('button');
+            settings.textContent = '⚙';
+            settings.title = \(javaScriptLiteral(rulesLabel));
+            settings.setAttribute('aria-label', settings.title);
+            settings.style.cssText = 'border:0;background:transparent;font-size:18px;cursor:pointer;color:#1687c9';
+            settings.addEventListener('click', (event) => { event.stopPropagation(); handler.postMessage({ type: 'settings' }); });
+            root.querySelector('.pill').appendChild(settings);
             (document.body || document.documentElement).appendChild(host);
             return root;
           };
@@ -623,7 +690,7 @@ enum XSpamShieldWebPolicy {
                 ? 'user_id=' + encodeURIComponent(userId)
                 : 'screen_name=' + encodeURIComponent(handle)
             });
-            if (response.ok || response.status === 403) return;
+            if (response.ok) return;
             if (response.status === 401) throw new Error('auth');
             if (response.status === 429) throw new Error('rate');
             throw new Error('block');
@@ -689,7 +756,9 @@ enum XSpamShieldWebPolicy {
               article.setAttribute('data-astra-x-hidden', 'true');
               return;
             }
-            if (article.querySelector('[data-astra-x-spam-badge]')) return;
+            const existing = article.querySelector('[data-astra-x-spam-badge]');
+            if (existing?.getAttribute('data-astra-x-spam-badge') === match.handle) return;
+            existing?.remove();
             const anchor = article.querySelector('[data-testid="User-Name"]') || article.firstElementChild;
             if (!anchor?.parentNode) return;
             const host = document.createElement('span');
@@ -701,6 +770,7 @@ enum XSpamShieldWebPolicy {
                 border:1px solid #ffd1d1;color:#b42318;font:700 12px -apple-system,BlinkMacSystemFont,sans-serif}
               button{border:0;border-radius:999px;background:#d92d20;color:white;padding:4px 9px;font:700 12px -apple-system,BlinkMacSystemFont,sans-serif;cursor:pointer}
             </style><span class="badge"><span>\(junkText)</span><button>\(hideText)</button></span>`;
+            if (match.label === 'custom-rule') root.querySelector('.badge > span').textContent = \(javaScriptLiteral(customLabel));
             root.querySelector('button')?.addEventListener('click', (event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -710,21 +780,21 @@ enum XSpamShieldWebPolicy {
           };
 
           const apply = (matches) => {
+            matched.clear();
             for (const match of matches || []) {
               const handle = normalize(match.handle);
-              const previous = matched.get(handle);
               matched.set(handle, {
                 ...match,
                 handle,
-                isHidden: blockedHandles.has(handle) || previous?.isHidden || match.isHidden
+                isHidden: blockedHandles.has(handle) || match.isHidden
               });
             }
             document.querySelectorAll('article').forEach((article) => {
               const handle = authorHandle(article);
-              if (!handle) return;
+              if (!handle || handle === selfHandle()) return;
               articleHandles.set(article, handle);
               const match = matched.get(handle);
-              if (!match) return;
+              if (!match) { article.querySelector('[data-astra-x-spam-badge]')?.remove(); return; }
               decorate(article, match);
             });
             if (!blocking) updateStatus();
@@ -734,25 +804,31 @@ enum XSpamShieldWebPolicy {
           const scan = () => {
             scanTimer = null;
             const handles = [];
+            const posts = [];
             const seen = new Set();
             document.querySelectorAll('article').forEach((article) => {
               const handle = authorHandle(article);
+              if (handle && posts.length < 100) posts.push({handle, text: (article.querySelector('[data-testid="tweetText"]')?.textContent || '').slice(0, 4000)});
               if (handle && !seen.has(handle)) {
                 seen.add(handle);
                 captureUserId(article, handle);
                 handles.push(handle);
               }
             });
-            if (handles.length) handler.postMessage({ type: 'scan', handles });
+            if (handles.length) handler.postMessage({ type: 'scan', handles, posts });
             else if (!blocking) updateStatus();
           };
           const scheduleScan = () => {
             if (scanTimer) return;
             scanTimer = setTimeout(scan, 220);
           };
-          new MutationObserver(scheduleScan).observe(document.documentElement, { childList: true, subtree: true });
+          const owned = (node) => node.nodeType === 1 && (node.matches('[id^="astra-x-spam-shield-"],[data-astra-x-spam-badge]') || node.closest('[id^="astra-x-spam-shield-"],[data-astra-x-spam-badge]'));
+          new MutationObserver((records) => {
+            if (records.some((record) => !owned(record.target) && [...record.addedNodes, ...record.removedNodes].some((node) => !owned(node)))) scheduleScan();
+          }).observe(document.documentElement, { childList: true, subtree: true });
           updateStatus();
           scheduleScan();
+          setInterval(scheduleScan, 5000);
         })();
         """
     }

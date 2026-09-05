@@ -40,6 +40,35 @@ func rejects(_ url: URL) -> Bool {
     catch { return true }
 }
 let source = "print(\"sample\")\n"
+func officeFixture(_ ext: String, _ members: [String: String]) throws -> URL {
+    let folder = directory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    for (name, xml) in members {
+        let url = folder.appendingPathComponent(name)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try xml.write(to: url, atomically: true, encoding: .utf8)
+    }
+    let url = directory.appendingPathComponent(UUID().uuidString + "." + ext)
+    let zip = Process()
+    zip.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+    zip.currentDirectoryURL = folder
+    zip.arguments = ["-qr", url.path, "."]
+    try zip.run(); zip.waitUntilExit()
+    check(zip.terminationStatus == 0, "Fixture ZIP failed")
+    return url
+}
+let docx = try officeFixture("docx", ["word/document.xml": "<w:document xmlns:w='urn:w'><w:p><w:r><w:t>Document words</w:t></w:r></w:p></w:document>"])
+check(try ZenMuxAttachment.load(from: docx).requestPart.text!.contains("Document words"), "DOCX text missing")
+let xlsx = try officeFixture("xlsx", [
+    "xl/sharedStrings.xml": "<sst><si><t>Revenue</t></si></sst>",
+    "xl/worksheets/sheet1.xml": "<worksheet><row><c r='A1' t='s'><v>0</v></c><c r='B1'><v>42</v></c></row></worksheet>"
+])
+let sheetText = try ZenMuxAttachment.load(from: xlsx).requestPart.text!
+check(sheetText.contains("A1: Revenue") && sheetText.contains("B1: 42"), "Shared strings/cell references missing")
+let malicious = try officeFixture("pptx", ["ppt/slides/slide1.xml": "<!DOCTYPE x [<!ENTITY secret 'injected'>]><x>&secret;</x>"])
+check(rejects(malicious), "XML entities accepted")
+let emptyOffice = try officeFixture("docx", ["word/document.xml": "<document/>"])
+check(rejects(emptyOffice), "Empty Office text accepted")
 let requiredFormats = [
     "pdf", "doc", "docx", "docm", "dot", "dotx", "dotm", "rtf",
     "xls", "xlsx", "xlsm", "xlsb", "xlt", "xltx", "xltm",
@@ -53,22 +82,22 @@ for ext in requiredFormats {
 }
 if let path = ProcessInfo.processInfo.environment["ASTRA_ATTACHMENT_FIXTURE"] {
     let url = URL(fileURLWithPath: path)
-    let original = try Data(contentsOf: url)
     let attachment = try ZenMuxAttachment.load(from: url)
-    check(attachment.data == original, "Real document bytes changed")
+    check(attachment.mimeType == "text/plain", "Office document was not normalized to text")
     check(attachment.filename == url.lastPathComponent, "Real document name changed")
-    check(attachment.requestPart.type == "file", "Real document treated as text")
+    check(attachment.requestPart.type == "text", "Office document sent as unsupported native file")
+    check(attachment.requestPart.text!.contains("Python"), "Supplied PPTX text was not extracted")
     let vertex = try JSONSerialization.jsonObject(with: VertexProbe.encode(attachment.requestPart)) as! [[String: Any]]
-    let inline = vertex[1]["inlineData"] as! [String: Any]
-    check(inline["data"] as? String == original.base64EncodedString(), "Real document lost in Vertex conversion")
+    check(vertex[0]["text"] as? String == attachment.requestPart.text, "Extracted text lost in Vertex conversion")
+    check(vertex[0]["inlineData"] == nil, "Office MIME leaked to Vertex")
     let pasteboard = NSPasteboard.withUniqueName()
     defer { pasteboard.releaseGlobally() }
     check(pasteboard.writeObjects([url as NSURL]), "Real document drag pasteboard")
     let sources = ZenMuxAttachmentPasteboardReader.sources(from: pasteboard)
     check(sources.count == 1, "Real document drag not recognized")
     let dropped = try sources[0].load()
-    check(dropped.data == original, "Dropped document bytes changed")
-    print("PASS: supplied document loaded through Finder pasteboard and encoded without byte changes (\(original.count) bytes)")
+    check(dropped.data == attachment.data, "Drop extraction differs from file picker")
+    print("PASS: supplied PPTX extracted into model-readable text through picker and Finder (\(attachment.data.count) bytes)")
 }
 for ext in ["py", "swift", "c", "csv", "md", "json"] {
     let url = directory.appendingPathComponent("sample.\(ext)")
@@ -86,6 +115,12 @@ for (ext, mime) in ZenMuxAttachment.documentMIMETypes {
     let url = directory.appendingPathComponent("report.\(ext)")
     let bytes = Data("transport fixture".utf8)
     try bytes.write(to: url)
+    if ext != "pdf" {
+        check(rejects(url), "Invalid Office container accepted")
+        let historical = ZenMuxAttachment(filename: url.lastPathComponent, mimeType: mime, data: bytes)
+        check(historical.requestPart.type == "text", "Raw Office history poisoned the request")
+        continue
+    }
     let attachment = try ZenMuxAttachment.load(from: url)
     let object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(attachment.requestPart)) as! [String: Any]
     let file = object["file"] as! [String: Any]
@@ -120,7 +155,6 @@ check(pasteboard.writeObjects(urls.map { $0 as NSURL }), "Write drag pasteboard"
 check(ZenMuxAttachmentPasteboardReader.fileURLs(from: pasteboard) == urls, "Multi-file drop lost URLs")
 let sources = ZenMuxAttachmentPasteboardReader.sources(from: pasteboard)
 check(sources.count == 5, "Multi-file paste lost files")
-for source in sources { _ = try source.load() }
 pasteboard.clearContents()
 pasteboard.setString("ordinary text", forType: .string)
 check(ZenMuxAttachmentPasteboardReader.sources(from: pasteboard).isEmpty, "Text paste intercepted")

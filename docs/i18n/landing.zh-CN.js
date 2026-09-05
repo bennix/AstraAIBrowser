@@ -38,7 +38,7 @@
     "features.signedUpdates.body": "打开“关于 Astra Browser”即会检查 GitHub Releases 更新。更新源与 DMG 均使用 Sparkle Ed25519 签名校验，并继续验证 Apple 代码签名。",
     "features.promptLibrary.title": "本地提示词管理器",
     "features.promptLibrary.body": "可将网页划词内容保存为提示词，并自动收藏已发送的提示词。所有内容仅保存在本机，支持按任务分类、搜索、复用、编辑、批量删除及 JSON 导入导出。",
-    "download.summary": "Build 95 补齐 PowerPoint、Office 模板、宏文档及 OpenDocument 附件支持，并修复 PPTX 拖入侧边 AI 后被误判为文本的问题。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 96 会先将 Office 附件转换为 AI 模型可读的文本，并为 X Guard 增加用户管理的关键词和安全正则规则。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

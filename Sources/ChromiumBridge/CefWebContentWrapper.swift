@@ -5538,11 +5538,16 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
               let type = payload["type"] as? String else { return }
 
         switch type {
+        case "settings":
+            NSApp.sendAction(#selector(AppController.showGuardSettings(_:)), to: nil, from: nil)
         case "scan":
             guard let rawHandles = payload["handles"] as? [String] else { return }
             let handles = Array(rawHandles.prefix(500))
+            let posts = Array((payload["posts"] as? [[String: String]] ?? []).prefix(100))
             Task { @MainActor [weak self, weak webView] in
-                let matches = await XSpamShieldStore.shared.matches(handles: handles)
+                let publicMatches = await XSpamShieldStore.shared.matches(handles: handles)
+                let customMatches = await XSpamShieldStore.shared.contentMatches(posts)
+                let matches = publicMatches + customMatches.filter { custom in !publicMatches.contains { $0.handle == custom.handle } }
                 guard let self,
                       let webView,
                       webView === self.systemMediaWebView,

@@ -37,3 +37,23 @@ Blocking is opt-in: it starts only when the user clicks Guard or Block. Requests
 run sequentially with a short delay so X rate limits are less likely to trip.
 If the page has no X session, the UI shows a sign-in toast instead of sending
 block requests.
+# Custom content rules
+
+The Guard gear opens General Settings. Users can add, disable, or delete up to
+50 case-insensitive keywords or restricted regular expressions. Rules persist
+in the existing shield store. Matching posts stay visible with a badge and join
+the existing one-click block queue. Saving or matching a rule never blocks an
+account automatically. The signed-in user's own posts are excluded.
+
+ZenMux receives only the user's rule description through APIClient and returns
+a draft pattern. The configured model is used. Validation and an explicit Add
+rule action are required; generated text is never executed as JavaScript.
+
+Patterns are limited to 256 UTF-8 bytes, without groups, alternation, braces,
+backreferences, or more than one repetition operator. Regex matching uses a
+progress-cancellation deadline and bounded post text. Rules are checked again
+during timeline scans, including a five-second refresh for settings changes.
+Guard's own DOM mutations do not retrigger scanning. HTTP 403 is a block failure,
+not proof of success.
+
+Run `node scripts/check_guard_rules.cjs` for matcher and injected-script checks.

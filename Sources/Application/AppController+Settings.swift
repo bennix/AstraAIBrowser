@@ -167,6 +167,11 @@ extension AppController {
     }
 
     @MainActor
+    @objc func showGuardSettings(_ sender: Any?) {
+        showSettings(pane: .general).window?.orderFront(self)
+    }
+
+    @MainActor
     @objc func showPreferences(_ sender: Any?) {
         let controller = showSettings()
         controller.window?.orderFront(self)

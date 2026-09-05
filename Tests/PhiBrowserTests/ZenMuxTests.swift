@@ -496,6 +496,11 @@ final class ZenMuxTests: XCTestCase {
         for (ext, mimeType) in ZenMuxAttachment.documentMIMETypes {
             let bytes = Data("document fixture".utf8)
             let attachment = ZenMuxAttachment(filename: "report.\(ext)", mimeType: mimeType, data: bytes)
+            if ext != "pdf" {
+                XCTAssertEqual(attachment.requestPart.type, "text")
+                XCTAssertTrue(attachment.requestPart.text?.contains("Attachment unavailable") == true)
+                continue
+            }
             let message = ZenMuxChatRequestMessage(role: "user", contentParts: [attachment.requestPart])
             let encoded = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(message)) as? [String: Any])
             let parts = try XCTUnwrap(encoded["content"] as? [[String: Any]])
@@ -1541,7 +1546,7 @@ final class ZenMuxTests: XCTestCase {
 
         XCTAssertTrue(script.contains("MutationObserver"))
         XCTAssertTrue(script.contains("astraXSpamShield"))
-        XCTAssertTrue(script.contains("handler.postMessage({ type: 'scan', handles })"))
+        XCTAssertTrue(script.contains("handler.postMessage({ type: 'scan', handles, posts })"))
         XCTAssertFalse(script.contains("x.zuoluo.tv"))
         XCTAssertFalse(script.contains("XMLHttpRequest"))
     }
@@ -1564,6 +1569,21 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertTrue(script.contains("done + '/' + total"))
         XCTAssertTrue(script.contains("addEventListener('click'"))
         XCTAssertFalse(script.contains("pointer-events:none"))
+    }
+
+    func testGuardRulesPersistAndOnlyMarkMatches() async throws {
+        let suite = "GuardRuleTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = XSpamShieldStore(userDefaults: defaults)
+        await store.saveRules([XSpamShieldRule(pattern: "sale", isRegex: false)])
+        let restored = XSpamShieldStore(userDefaults: defaults)
+        let matches = await restored.contentMatches([["handle": "example", "text": "SALE today"]])
+        XCTAssertEqual(matches, [XSpamShieldMatch(handle: "example", label: "custom-rule", isHidden: false)])
+        await restored.saveRules([])
+        let removed = await restored.contentMatches([["handle": "example", "text": "SALE today"]])
+        XCTAssertTrue(removed.isEmpty)
+        XCTAssertFalse(XSpamShieldRule.isValid("(a+)+$", regex: true))
     }
 
     func testXImageZoomOnlySupportsXHosts() {
