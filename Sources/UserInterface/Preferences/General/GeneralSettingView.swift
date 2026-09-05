@@ -627,21 +627,18 @@ private struct AppearanceSectionView: View {
 
 private struct WebpageDisplayLanguagesView: View {
     @State private var languages = ImmersiveTranslationPreferences.loadDisplayLanguages()
-    @AppStorage(ImmersiveTranslationPreferences.automaticDisplayKey) private var enabled = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Toggle(isOn: $enabled) {
-                Text(NSLocalizedString(
-                    "settings.general.webLanguages.title",
-                    value: "Use preferred webpage display languages",
-                    comment: "General language settings - Enable automatic webpage display using an ordered language list"
-                ))
-            }
             Text(NSLocalizedString(
-                "settings.general.webLanguages.explanation",
-                value: "The first language is preferred. If translation fails, Astra tries the next language. Changes apply when pages next load. Browser language signals still follow the exit region. Page text is translated through your configured ZenMux model.",
-                comment: "General language settings - Explain language priority, activation timing, outward language and ZenMux processing"
+                "settings.general.webLanguages.preferredTitle",
+                value: "Preferred webpage languages",
+                comment: "General language settings - Ordered language preferences"
+            ))
+            Text(NSLocalizedString(
+                "settings.general.webLanguages.manualOnlyExplanation",
+                value: "Saving language preferences does not translate pages. Use Translate Page to request translation. Websites may use their own account language settings.",
+                comment: "General language settings - Distinguish language preferences from explicit translation"
             ))
             .font(.system(size: 11))
             .themedForeground(.textTertiary)

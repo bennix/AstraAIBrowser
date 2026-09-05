@@ -1,0 +1,38 @@
+diff --git a/Sources/CefKit/BrowserClient.swift b/Sources/CefKit/BrowserClient.swift
+--- a/Sources/CefKit/BrowserClient.swift
++++ b/Sources/CefKit/BrowserClient.swift
+@@ -3,2 +3,21 @@
+ import Foundation
++
++/// Destination-specific language negotiation shared by native browser adapters.
++public enum CefNativeSiteLanguagePolicy {
++    public static let mainlandDomains = [
++        "cn", "xn--fiqs8s", "baidu.com", "bilibili.com", "zhihu.com",
++        "weibo.com", "qq.com", "163.com", "126.com", "taobao.com",
++        "tmall.com", "jd.com", "douban.com", "csdn.net"
++    ]
++
++    public static func prefersChinese(_ url: URL?) -> Bool {
++        guard let url, ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
++              let host = url.host?.lowercased() else { return false }
++        let normalized = host.trimmingCharacters(in: CharacterSet(charactersIn: "."))
++        return mainlandDomains.contains { normalized == $0 || normalized.hasSuffix("." + $0) }
++    }
++
++    public static let acceptLanguage = "zh-CN,zh;q=0.9,en;q=0.8"
++}
++
+ /// Process-wide request policy used from CEF's IO thread.
+@@ -694,3 +712,10 @@
+-            guard CefDoNotTrackPolicy.shared.isEnabled() else { return RV_CONTINUE }
+-            let urlString = CefStringUtil.takingUserFree(request.pointee.get_url?(request)) ?? ""
++            let urlString = CefStringUtil.takingUserFree(request.pointee.get_url?(request)) ?? ""
++            if CefNativeSiteLanguagePolicy.prefersChinese(URL(string: urlString)) {
++                CefStringUtil.withCefString("Accept-Language") { name in
++                    CefStringUtil.withCefString(CefNativeSiteLanguagePolicy.acceptLanguage) { value in
++                        request.pointee.set_header_by_name?(request, name, value, 1)
++                    }
++                }
++            }
++            guard CefDoNotTrackPolicy.shared.isEnabled() else { return RV_CONTINUE }
+             guard let scheme = URL(string: urlString)?.scheme?.lowercased(),

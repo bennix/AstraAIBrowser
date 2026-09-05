@@ -395,7 +395,9 @@ enum BrowserOutwardRequestPolicy {
         }
         var result = request
         result.setValue(
-            FingerprintPrivacyPolicy.acceptLanguageList(for: locale),
+            CefNativeSiteLanguagePolicy.prefersChinese(request.url)
+                ? CefNativeSiteLanguagePolicy.acceptLanguage
+                : FingerprintPrivacyPolicy.acceptLanguageList(for: locale),
             forHTTPHeaderField: "Accept-Language"
         )
         if doNotTrackEnabled {
@@ -1124,11 +1126,14 @@ enum FingerprintPrivacyPolicy {
           if ("deviceMemory" in (globalThis.Navigator?.prototype || {})) {
             replaceGetter(globalThis.Navigator.prototype, "deviceMemory", 8);
           }
-          replaceGetter(globalThis.Navigator?.prototype, "language", "\#(outwardLocaleValue)");
+          const mainlandDomains = "\#(CefNativeSiteLanguagePolicy.mainlandDomains.joined(separator: ","))".split(",");
+          const host = location.hostname.toLowerCase().replace(/\.$/, "");
+          const nativeChinese = mainlandDomains.some(domain => host === domain || host.endsWith("." + domain));
+          replaceGetter(globalThis.Navigator?.prototype, "language", nativeChinese ? "zh-CN" : "\#(outwardLocaleValue)");
           replaceGetter(
             globalThis.Navigator?.prototype,
             "languages",
-            Object.freeze("\#(outwardLanguages)".split(","))
+            Object.freeze(nativeChinese ? ["zh-CN", "zh", "en"] : "\#(outwardLanguages)".split(","))
           );
           replaceGetter(globalThis.Screen?.prototype, "colorDepth", 24);
           replaceGetter(globalThis.Screen?.prototype, "pixelDepth", 24);

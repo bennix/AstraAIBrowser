@@ -119,14 +119,6 @@ enum ImmersiveTranslationState: Equatable {
 }
 
 enum ImmersiveTranslationPreferences {
-    static let automaticDisplayKey = "immersiveTranslation.automaticDisplay"
-    static var automaticDisplayEnabled: Bool {
-        automaticDisplayEnabled(from: .standard)
-    }
-    static func automaticDisplayEnabled(from defaults: UserDefaults = .standard) -> Bool {
-        defaults.object(forKey: automaticDisplayKey) == nil
-            || defaults.bool(forKey: automaticDisplayKey)
-    }
     private static let languageKey = "immersiveTranslation.targetLanguage"
     private static let displayLanguagesKey = "immersiveTranslation.displayLanguages"
     private static let providerKey = "immersiveTranslation.provider"
@@ -233,22 +225,6 @@ enum ImmersiveTranslationError: LocalizedError {
 }
 
 extension BrowserState {
-    @MainActor
-    func translateFocusedPageAutomatically() {
-        guard ImmersiveTranslationPreferences.automaticDisplayEnabled,
-              !AgentSpaceManager.shared.isAgentSpace(spaceId),
-              let tab = focusingTab, !tab.isLoading,
-              Self.shouldOfferImmersiveTranslation(pageURL: tab.url, isIncognito: isIncognito,
-                                                   isOverviewActive: groupOverviewState != nil),
-              tab.immersiveTranslationState == .inactive,
-              !tab.automaticTranslationSuppressed else { return }
-        toggleImmersiveTranslation(
-            language: ImmersiveTranslationPreferences.loadDisplayLanguages()[0],
-            provider: .zenMux,
-            translatedOnly: true
-        )
-    }
-
     static func shouldOfferImmersiveTranslation(
         pageURL: String?,
         isIncognito: Bool,
@@ -315,7 +291,7 @@ extension BrowserState {
 
         ImmersiveTranslationPreferences.saveLanguage(language)
         ImmersiveTranslationPreferences.saveProvider(provider)
-        let translatedOnly = translatedOnly ?? ImmersiveTranslationPreferences.automaticDisplayEnabled
+        let translatedOnly = translatedOnly ?? false
         let requestedLanguages = translatedOnly
             ? [language] + ImmersiveTranslationPreferences.loadDisplayLanguages().filter { $0 != language }
             : [language]

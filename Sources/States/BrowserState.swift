@@ -560,19 +560,6 @@ class BrowserState {
             .store(in: &cancellables)
         _ = extensionManager
 
-        $focusingTab
-            .map { tab -> AnyPublisher<Void, Never> in
-                guard let tab else { return Empty().eraseToAnyPublisher() }
-                return Publishers.Merge(
-                    tab.$isLoading.removeDuplicates().map { _ in () },
-                    tab.$url.removeDuplicates().map { _ in () }
-                ).eraseToAnyPublisher()
-            }
-            .switchToLatest()
-            .debounce(for: .milliseconds(900), scheduler: DispatchQueue.main)
-            .sink { [weak self] in self?.translateFocusedPageAutomatically() }
-            .store(in: &cancellables)
-
         NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in

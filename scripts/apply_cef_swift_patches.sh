@@ -16,6 +16,7 @@ patches=(
   "$repository_root/patches/cefswift/forward-mouse-release-flags.patch"
   "$repository_root/patches/cefswift/configure-do-not-track.patch"
   "$repository_root/patches/cefswift/forward-external-protocol.patch"
+  "$repository_root/patches/cefswift/prefer-native-chinese.patch"
 )
 targets=(
   "$cef_swift_root/Sources/CefKit/CefBrowser.swift"
@@ -29,6 +30,7 @@ targets=(
   "$cef_swift_root/Sources/CefKit/BrowserClient.swift"
   "$cef_swift_root/Sources/CefKit/BrowserClient.swift"
 )
+targets+=("$cef_swift_root/Sources/CefKit/BrowserClient.swift")
 markers=(
   "public func captureVisiblePageScreenshot"
   "public func evaluateJavaScriptResult"
@@ -40,6 +42,7 @@ markers=(
   "eventType: NSEvent.EventType? = nil"
   "final class CefDoNotTrackPolicy"
   "resourceHandler.pointee.on_protocol_execution"
+  "public enum CefNativeSiteLanguagePolicy"
 )
 
 applied_any=false

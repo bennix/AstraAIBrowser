@@ -3,6 +3,17 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const source = fs.readFileSync(path.join(__dirname, '../Sources/States/ImmersiveTranslation.swift'), 'utf8');
+const browserStateSource = fs.readFileSync(path.join(__dirname, '../Sources/States/BrowserState.swift'), 'utf8');
+const translationPopoverSource = fs.readFileSync(path.join(__dirname, '../Sources/UserInterface/Sidebar/Bottom/SidebarBottomBar.swift'), 'utf8');
+if (source.includes('automaticDisplayKey') || source.includes('translateFocusedPageAutomatically')) {
+  throw new Error('Automatic translation remains enabled in the translation state');
+}
+if (browserStateSource.includes('translateFocusedPageAutomatically')) {
+  throw new Error('Tab loading still triggers automatic translation');
+}
+if (!translationPopoverSource.includes('translation.popover.manualOnlyNotice')) {
+  throw new Error('The translation popover does not explain explicit activation');
+}
 const start = source.indexOf('enum ImmersiveTranslationLanguage:');
 const end = source.indexOf('enum ImmersiveTranslationError:');
 if (start < 0 || end <= start) throw new Error('Could not locate production preferences');
