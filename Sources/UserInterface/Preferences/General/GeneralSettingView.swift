@@ -625,6 +625,95 @@ private struct AppearanceSectionView: View {
     }
 }
 
+private struct WebpageDisplayLanguagesView: View {
+    @State private var languages = ImmersiveTranslationPreferences.loadDisplayLanguages()
+    @AppStorage(ImmersiveTranslationPreferences.automaticDisplayKey) private var enabled = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Toggle(isOn: $enabled) {
+                Text(NSLocalizedString(
+                    "settings.general.webLanguages.title",
+                    value: "Use preferred webpage display languages",
+                    comment: "General language settings - Enable automatic webpage display using an ordered language list"
+                ))
+            }
+            Text(NSLocalizedString(
+                "settings.general.webLanguages.explanation",
+                value: "The first language is preferred. If translation fails, Astra tries the next language. Changes apply when pages next load. Browser language signals still follow the exit region. Page text is translated through your configured ZenMux model.",
+                comment: "General language settings - Explain language priority, activation timing, outward language and ZenMux processing"
+            ))
+            .font(.system(size: 11))
+            .themedForeground(.textTertiary)
+            .fixedSize(horizontal: false, vertical: true)
+
+            ForEach(Array(languages.enumerated()), id: \.element) { index, language in
+                HStack(spacing: 12) {
+                    Text(verbatim: "\(index + 1).")
+                        .monospacedDigit()
+                        .themedForeground(.textTertiary)
+                    Text(verbatim: language.displayName)
+                    Spacer()
+                    Button {
+                        languages.swapAt(index, index - 1)
+                    } label: {
+                        Image(systemName: "arrow.up")
+                    }
+                    .disabled(index == 0)
+                    .help(NSLocalizedString(
+                        "settings.general.webLanguages.moveUp", value: "Move up",
+                        comment: "General language settings - Raise a webpage display language's priority"
+                    ))
+                    Button {
+                        languages.swapAt(index, index + 1)
+                    } label: {
+                        Image(systemName: "arrow.down")
+                    }
+                    .disabled(index == languages.count - 1)
+                    .help(NSLocalizedString(
+                        "settings.general.webLanguages.moveDown", value: "Move down",
+                        comment: "General language settings - Lower a webpage display language's priority"
+                    ))
+                    Button {
+                        languages.remove(at: index)
+                    } label: {
+                        Image(systemName: "minus.circle")
+                    }
+                    .disabled(languages.count == 1)
+                    .help(NSLocalizedString(
+                        "settings.general.webLanguages.remove", value: "Remove language",
+                        comment: "General language settings - Remove a language while keeping at least one"
+                    ))
+                }
+                .controlSize(.small)
+            }
+
+            Menu {
+                ForEach(ImmersiveTranslationLanguage.allCases.filter { !languages.contains($0) }) { language in
+                    Button { languages.append(language) } label: {
+                        Text(verbatim: language.displayName)
+                    }
+                }
+            } label: {
+                Label(NSLocalizedString(
+                    "settings.general.webLanguages.add", value: "Add language",
+                    comment: "General language settings - Add another fallback webpage display language"
+                ), systemImage: "plus")
+            }
+            .disabled(languages.count == ImmersiveTranslationLanguage.allCases.count)
+        }
+        .padding(.vertical, 12)
+        .onChange(of: languages) { _, value in
+            ImmersiveTranslationPreferences.saveDisplayLanguages(value)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .receive(on: RunLoop.main)) { _ in
+            let saved = ImmersiveTranslationPreferences.loadDisplayLanguages()
+            if languages != saved { languages = saved }
+        }
+    }
+}
+
 private struct LanguageSectionView: View {
     @State private var selection = PhiPreferences.GeneralSettings.loadAppLanguagePreference()
     @State private var repairedStoredLanguage = false
@@ -672,6 +761,9 @@ private struct LanguageSectionView: View {
                     .pickerStyle(.menu)
                     .fixedSize()
                 }
+
+                Divider()
+                WebpageDisplayLanguagesView()
 
                 if requiresRelaunch {
                     Divider()

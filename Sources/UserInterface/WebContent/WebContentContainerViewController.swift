@@ -1114,8 +1114,11 @@ class WebContentContainerViewController: NSViewController {
         // old split-pane controller would stay mounted under the new tab's
         // focus, leaving the splitview on screen. Require the underlying
         // Chromium tab to match too.
+        let currentView = currentWebContentController?.view
         let alreadyShowingExactTab = identifier == currentTabIdentifier
             && currentWebContentController?.associatedTab?.guid == tab.guid
+            && currentView?.superview === contentContainer
+            && currentView?.isHidden == nativeOverlaySuppressesCurrentContent
 
         // Cancel a stale unpainted-tab switch BEFORE the early return below.
         // Focus can bounce back to the already-mounted tab while a pending

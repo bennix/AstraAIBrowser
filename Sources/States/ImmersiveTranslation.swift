@@ -128,7 +128,36 @@ enum ImmersiveTranslationPreferences {
             || defaults.bool(forKey: automaticDisplayKey)
     }
     private static let languageKey = "immersiveTranslation.targetLanguage"
+    private static let displayLanguagesKey = "immersiveTranslation.displayLanguages"
     private static let providerKey = "immersiveTranslation.provider"
+
+    static func loadDisplayLanguages(from defaults: UserDefaults = .standard) -> [ImmersiveTranslationLanguage] {
+        if let stored = defaults.stringArray(forKey: displayLanguagesKey) {
+            let languages = normalizedDisplayLanguages(stored.compactMap(ImmersiveTranslationLanguage.init(rawValue:)))
+            return languages
+        }
+        // Preserve the previous single-language preference until an ordered list is saved.
+        if let stored = defaults.string(forKey: languageKey),
+           let language = ImmersiveTranslationLanguage(rawValue: stored) {
+            return language == .simplifiedChinese ? [.simplifiedChinese, .english] : [language]
+        }
+        return [.simplifiedChinese, .english]
+    }
+
+    static func saveDisplayLanguages(
+        _ languages: [ImmersiveTranslationLanguage],
+        to defaults: UserDefaults = .standard
+    ) {
+        defaults.set(normalizedDisplayLanguages(languages).map(\.rawValue), forKey: displayLanguagesKey)
+    }
+
+    private static func normalizedDisplayLanguages(
+        _ languages: [ImmersiveTranslationLanguage]
+    ) -> [ImmersiveTranslationLanguage] {
+        var unique: [ImmersiveTranslationLanguage] = []
+        for language in languages where !unique.contains(language) { unique.append(language) }
+        return unique.isEmpty ? [.simplifiedChinese, .english] : unique
+    }
 
     static func loadLanguage(from defaults: UserDefaults = .standard) -> ImmersiveTranslationLanguage {
         defaults.string(forKey: languageKey)
@@ -140,6 +169,9 @@ enum ImmersiveTranslationPreferences {
         _ language: ImmersiveTranslationLanguage,
         to defaults: UserDefaults = .standard
     ) {
+        if defaults.object(forKey: displayLanguagesKey) == nil {
+            saveDisplayLanguages(loadDisplayLanguages(from: defaults), to: defaults)
+        }
         defaults.set(language.rawValue, forKey: languageKey)
     }
 
@@ -211,7 +243,7 @@ extension BrowserState {
               tab.immersiveTranslationState == .inactive,
               !tab.automaticTranslationSuppressed else { return }
         toggleImmersiveTranslation(
-            language: ImmersiveTranslationPreferences.loadLanguage(),
+            language: ImmersiveTranslationPreferences.loadDisplayLanguages()[0],
             provider: .zenMux,
             translatedOnly: true
         )
@@ -284,6 +316,9 @@ extension BrowserState {
         ImmersiveTranslationPreferences.saveLanguage(language)
         ImmersiveTranslationPreferences.saveProvider(provider)
         let translatedOnly = translatedOnly ?? ImmersiveTranslationPreferences.automaticDisplayEnabled
+        let requestedLanguages = translatedOnly
+            ? [language] + ImmersiveTranslationPreferences.loadDisplayLanguages().filter { $0 != language }
+            : [language]
         tab.immersiveTranslationTask?.cancel()
         let operationID = UUID()
         tab.immersiveTranslationOperationID = operationID
@@ -325,21 +360,21 @@ extension BrowserState {
                             "[ImmersiveTranslation] batch started index=\(batchIndex + 1) requested=\(batch.count)"
                         )
                         group.addTask { @MainActor in
-                            do {
-                                let translations = try await self.translateImmersiveBatch(
-                                    batch, language: language, provider: provider
-                                )
-                                return (batchIndex, translations)
-                            } catch {
+                            var lastError: Error = ImmersiveTranslationError.emptyPage
+                            for requestedLanguage in requestedLanguages {
                                 try Task.checkCancellation()
-                                guard translatedOnly, language == .simplifiedChinese,
-                                      !(error is ImmersiveTranslationError) else { throw error }
-                                AppLogInfo("[ImmersiveTranslation] retrying display batch in English")
-                                let translations = try await self.translateImmersiveBatch(
-                                    batch, language: .english, provider: provider
-                                )
-                                return (batchIndex, translations)
+                                do {
+                                    let translations = try await self.translateImmersiveBatch(
+                                        batch, language: requestedLanguage, provider: provider
+                                    )
+                                    return (batchIndex, translations)
+                                } catch {
+                                    try Task.checkCancellation()
+                                    guard !(error is ImmersiveTranslationError) else { throw error }
+                                    lastError = error
+                                }
                             }
+                            throw lastError
                         }
                     }
 

@@ -4,6 +4,7 @@
 // found in the LICENSE file.
 
 import AppKit
+import Combine
 import XCTest
 @testable import Phi
 
@@ -175,6 +176,22 @@ final class BrowserStateMultiSelectionTests: XCTestCase {
 
         state.toggleMultiSelection(for: state.tabs[1])
         XCTAssertFalse(state.multiSelection.isActive)
+    }
+
+    func testRepeatedFocusRepublishesForContentRecovery() throws {
+        let state = try makeState()
+        seed(state, guids: [1, 2])
+        state.focuseTab(state.tabs[0])
+
+        var focusedTabIDs: [Int] = []
+        let observation = state.$focusingTab
+            .dropFirst()
+            .sink { focusedTabIDs.append($0?.guid ?? -1) }
+
+        state.focuseTab(state.tabs[0])
+
+        XCTAssertEqual(focusedTabIDs, [1])
+        withExtendedLifetime(observation) {}
     }
 
     func testToggleActiveTabIsNoop() throws {

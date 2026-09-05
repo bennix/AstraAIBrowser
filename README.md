@@ -3,9 +3,9 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 88)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.88/Astra-Browser-build88.dmg)
+[Download Astra 1.0 (build 89)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.89/Astra-Browser-build89.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.88)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.89)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
@@ -36,6 +36,8 @@ and accepted by Apple's notarization service.
 - Website links for installed macOS applications, including Tencent Meeting SSO links, are intercepted before Chromium error handling and opened through Launch Services after explicit confirmation.
 - Public web pages expose native bilingual immersive translation with progressive inline writeback, redraw recovery, selected-text translation, a target-language picker, and the configured ZenMux engine.
 - Automatic webpage display defaults to Simplified Chinese with English fallback while outward language signals continue to follow the public egress region.
+- Repeated tab selections reconcile the visible content surface after rapid switches, loading transitions, or security-page focus handoffs.
+- General language settings provide an ordered webpage display language list with add, remove, and priority controls.
 - WebKit pages preserve source context for temporary Blob URLs and route Blob-backed card downloads into Astra's native download list.
 - Selected text can be translated or looked up from the webpage context menu in one pointer-anchored card that updates in place, supports copying translated text, and saves dictionary results to a persistent Vocabulary Book with Markdown export.
 - YouTube and other WebKit media pages support HTML element fullscreen.

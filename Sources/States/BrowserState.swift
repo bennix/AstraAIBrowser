@@ -1316,9 +1316,11 @@ class BrowserState {
             clearGroupOverview()
         }
         
-        if focusingTab?.guid == tab.guid {
-            return
-        }
+        // Re-publish an explicit selection even when the model already points
+        // at this tab. The Chromium child window and the AppKit controller can
+        // temporarily drift during rapid switches or security-page focus
+        // handoffs; treating a repeated click as a no-op prevents the content
+        // container from reconciling until the tab is closed.
         tabs.forEach {
             if $0.guid == tab.guid {
                 $0.setActive(true)
