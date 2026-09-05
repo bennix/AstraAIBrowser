@@ -689,6 +689,43 @@ final class FingerprintPrivacyPolicyTests: XCTestCase {
         XCTAssertFalse(BrowserOutwardRequestPolicy.needsCurrentHeaders(source))
     }
 
+    func testCanvasNavigationAppliesPreferredSessionLanguage() throws {
+        let source = try XCTUnwrap(URL(string: "https://elearning.fudan.edu.cn/dashboard?view=cards#main"))
+        let result = CanvasSessionLanguagePolicy.applying(
+            to: source,
+            preferredLanguage: "zh-Hans"
+        )
+        let components = try XCTUnwrap(URLComponents(url: result, resolvingAgainstBaseURL: false))
+
+        XCTAssertEqual(components.host, "elearning.fudan.edu.cn")
+        XCTAssertEqual(components.fragment, "main")
+        XCTAssertEqual(components.queryItems?.first(where: { $0.name == "view" })?.value, "cards")
+        XCTAssertEqual(
+            components.queryItems?.first(where: { $0.name == "session_locale" })?.value,
+            "zh-Hans"
+        )
+    }
+
+    func testCanvasNavigationReplacesStaleSessionLanguage() throws {
+        let source = try XCTUnwrap(
+            URL(string: "https://elearning.fudan.edu.cn/?session_locale=ja")
+        )
+        let result = CanvasSessionLanguagePolicy.applying(to: source, preferredLanguage: "en")
+        let components = try XCTUnwrap(URLComponents(url: result, resolvingAgainstBaseURL: false))
+        let localeItems = components.queryItems?.filter { $0.name == "session_locale" }
+
+        XCTAssertEqual(localeItems?.count, 1)
+        XCTAssertEqual(localeItems?.first?.value, "en")
+    }
+
+    func testCanvasNavigationLeavesOtherSitesUnchanged() throws {
+        let source = try XCTUnwrap(URL(string: "https://www.fudan.edu.cn/?language=ja"))
+        XCTAssertEqual(
+            CanvasSessionLanguagePolicy.applying(to: source, preferredLanguage: "zh-Hans"),
+            source
+        )
+    }
+
     func testDoNotTrackScriptMatchesEnabledState() throws {
         let context = try XCTUnwrap(JSContext())
         context.evaluateScript(Self.browserSurfaceTestEnvironment)

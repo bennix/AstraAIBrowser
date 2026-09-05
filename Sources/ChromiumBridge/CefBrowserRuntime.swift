@@ -452,6 +452,29 @@ enum BrowserOutwardRequestPolicy {
     }
 }
 
+enum CanvasSessionLanguagePolicy {
+    private static let supportedHosts = [
+        "elearning.fudan.edu.cn"
+    ]
+
+    static func applying(to url: URL, preferredLanguage: String) -> URL {
+        guard let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              let host = url.host?.lowercased(),
+              supportedHosts.contains(host),
+              !preferredLanguage.isEmpty,
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url
+        }
+
+        var queryItems = components.queryItems ?? []
+        queryItems.removeAll { $0.name == "session_locale" }
+        queryItems.append(URLQueryItem(name: "session_locale", value: preferredLanguage))
+        components.queryItems = queryItems
+        return components.url ?? url
+    }
+}
+
 enum CefBrowserDataPage: String, CaseIterable {
     case history = "chrome://history"
     case clearBrowsingData = "chrome://settings/clearBrowserData"

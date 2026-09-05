@@ -38,7 +38,7 @@
     "features.signedUpdates.body": "打开“关于 Astra Browser”即会检查 GitHub Releases 更新。更新源与 DMG 均使用 Sparkle Ed25519 签名校验，并继续验证 Apple 代码签名。",
     "features.promptLibrary.title": "本地提示词管理器",
     "features.promptLibrary.body": "可将网页划词内容保存为提示词，并自动收藏已发送的提示词。所有内容仅保存在本机，支持按任务分类、搜索、复用、编辑、批量删除及 JSON 导入导出。",
-    "download.summary": "Build 92 将网页翻译改为仅由用户明确触发。中国大陆网站优先请求原生中文页面，其他网站继续采用既有的对外语言策略。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 93 修复复旦 Canvas 会话语言覆盖浏览器偏好的问题，让网页按设置中的首选展示语言加载，且不触发 ZenMux 翻译。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

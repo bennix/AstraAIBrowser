@@ -1376,7 +1376,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         downloadsManager: DownloadsManager? = nil
     ) {
         self.urlString = urlString
-        self.pendingURL = Self.cefURL(for: urlString)
+        self.pendingURL = Self.initialNavigationURL(for: urlString)
         self.retainedProfile = profile
         self.profileId = profileId
         self.allowsCredentialStorage = allowsCredentialStorage
@@ -1494,6 +1494,16 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         }
         return URL(string: rawValue) ?? URL(string: URLProcessor.processUserInput(rawValue))
             ?? URL(string: "about:blank")!
+    }
+
+    private static func initialNavigationURL(for rawValue: String) -> URL {
+        let url = cefURL(for: rawValue)
+        let preferredLanguage = ImmersiveTranslationPreferences.loadDisplayLanguages().first?.rawValue
+            ?? ImmersiveTranslationLanguage.simplifiedChinese.rawValue
+        return CanvasSessionLanguagePolicy.applying(
+            to: url,
+            preferredLanguage: preferredLanguage
+        )
     }
 
     fileprivate func createBrowserIfNeeded() {
@@ -1921,7 +1931,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
 
     func navigate(toURL urlString: String) {
         self.urlString = urlString
-        let destination = Self.cefURL(for: urlString)
+        let destination = Self.initialNavigationURL(for: urlString)
         pendingURL = destination
         if shouldUsePersistentWebKit(for: destination) {
             if let systemMediaWebView {
