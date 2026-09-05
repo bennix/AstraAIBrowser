@@ -82,6 +82,8 @@ private struct ZenMuxConfigurationSectionView: View {
     @State private var apiKey: String = (try? ZenMuxCredentialStore.shared.loadAPIKey()) ?? ""
     @State private var revealsAPIKey = false
     @State private var status: Status?
+    @State private var configuredModels = PhiPreferences.AISettings.loadZenMuxModels()
+    @State private var modelDraft = ""
 
     @AppStorage(PhiPreferences.AISettings.zenMuxModelKey)
     private var modelRawValue = ZenMuxModel.geminiFlash.rawValue
@@ -92,9 +94,7 @@ private struct ZenMuxConfigurationSectionView: View {
     @AppStorage(PhiPreferences.AISettings.zenMuxResponseLanguageKey)
     private var responseLanguageRawValue = ZenMuxResponseLanguage.matchInput.rawValue
 
-    private var selectedModel: ZenMuxModel {
-        ZenMuxModel(rawValue: modelRawValue) ?? .geminiFlash
-    }
+    private var selectedModel: ZenMuxModel { ZenMuxModel(rawValue: modelRawValue) }
 
     private var isTesting: Bool {
         if case .testing = status { return true }
@@ -185,19 +185,7 @@ private struct ZenMuxConfigurationSectionView: View {
 
                 Divider()
 
-                zenMuxPickerRow(
-                    title: NSLocalizedString(
-                        "settings.ai.zenMux.modelTitle",
-                        value: "Model",
-                        comment: "ZenMux AI settings - Label for the model picker"
-                    ),
-                    selection: $modelRawValue
-                ) {
-                    ForEach(ZenMuxModel.allCases) { model in
-                        Text("\(model.displayName) — \(model.rawValue)")
-                            .tag(model.rawValue)
-                    }
-                }
+                modelConfiguration
 
                 Divider()
 
@@ -254,6 +242,105 @@ private struct ZenMuxConfigurationSectionView: View {
                 .padding(.vertical, 12)
             }
         }
+    }
+
+    private var modelConfiguration: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            zenMuxPickerRow(
+                title: NSLocalizedString(
+                    "settings.ai.zenMux.defaultModelTitle",
+                    value: "Default model",
+                    comment: "ZenMux AI settings - Label for the default model picker"
+                ),
+                selection: $modelRawValue
+            ) {
+                ForEach(configuredModels) { model in
+                    Text("\(model.displayName) — \(model.rawValue)")
+                        .tag(model.rawValue)
+                }
+            }
+
+            ForEach(configuredModels) { model in
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(model.displayName)
+                            .font(.system(size: 12, weight: .medium))
+                        Text(model.rawValue)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                    Spacer(minLength: 8)
+                    Button(role: .destructive) {
+                        removeModel(model)
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(configuredModels.count == 1)
+                    .help(NSLocalizedString(
+                        "settings.ai.zenMux.removeModelTooltip",
+                        value: "Remove model",
+                        comment: "ZenMux AI settings - Tooltip for removing a configured model"
+                    ))
+                }
+            }
+
+            HStack(spacing: 8) {
+                TextField(
+                    NSLocalizedString(
+                        "settings.ai.zenMux.modelIdentifierPlaceholder",
+                        value: "Provider model ID, for example openai/gpt-5",
+                        comment: "ZenMux AI settings - Placeholder for adding a model identifier"
+                    ),
+                    text: $modelDraft
+                )
+                .textFieldStyle(.roundedBorder)
+                Button(NSLocalizedString(
+                    "settings.ai.zenMux.addModelButton",
+                    value: "Add model",
+                    comment: "ZenMux AI settings - Button for adding a model identifier"
+                ), action: addModel)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(normalizedModelDraft.isEmpty)
+            }
+        }
+        .padding(.vertical, 12)
+        .onChange(of: modelRawValue) {
+            persistModels()
+        }
+    }
+
+    private var normalizedModelDraft: String {
+        modelDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func addModel() {
+        let identifier = normalizedModelDraft
+        guard !identifier.isEmpty else { return }
+        if !configuredModels.contains(where: { $0.rawValue == identifier }) {
+            configuredModels.append(ZenMuxModel(rawValue: identifier))
+        }
+        modelRawValue = identifier
+        modelDraft = ""
+        persistModels()
+    }
+
+    private func removeModel(_ model: ZenMuxModel) {
+        guard configuredModels.count > 1 else { return }
+        configuredModels.removeAll { $0 == model }
+        if modelRawValue == model.rawValue {
+            modelRawValue = configuredModels[0].rawValue
+        }
+        persistModels()
+    }
+
+    private func persistModels() {
+        PhiPreferences.AISettings.saveZenMuxModels(
+            configuredModels,
+            defaultModel: ZenMuxModel(rawValue: modelRawValue)
+        )
     }
 
     @ViewBuilder

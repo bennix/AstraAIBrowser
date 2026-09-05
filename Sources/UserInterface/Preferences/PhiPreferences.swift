@@ -234,15 +234,46 @@ extension PhiPreferences {
         }
 
         static let zenMuxModelKey = "zenMuxModel"
+        static let zenMuxModelsKey = "zenMuxModels"
         static let zenMuxInputLanguageKey = "zenMuxInputLanguage"
         static let zenMuxResponseLanguageKey = "zenMuxResponseLanguage"
 
         static func loadZenMuxModel(from defaults: UserDefaults = .standard) -> ZenMuxModel {
+            let models = loadZenMuxModels(from: defaults)
             guard let rawValue = defaults.string(forKey: zenMuxModelKey),
-                  let model = ZenMuxModel(rawValue: rawValue) else {
-                return .geminiFlash
+                  let model = models.first(where: { $0.rawValue == rawValue }) else {
+                return models.first ?? .geminiFlash
             }
             return model
+        }
+
+        static func loadZenMuxModels(from defaults: UserDefaults = .standard) -> [ZenMuxModel] {
+            guard let stored = defaults.stringArray(forKey: zenMuxModelsKey) else {
+                return ZenMuxModel.allCases
+            }
+            let models = normalizedZenMuxModels(stored)
+            return models.isEmpty ? ZenMuxModel.allCases : models
+        }
+
+        static func saveZenMuxModels(
+            _ models: [ZenMuxModel],
+            defaultModel: ZenMuxModel,
+            to defaults: UserDefaults = .standard
+        ) {
+            let normalized = normalizedZenMuxModels(models.map(\.rawValue))
+            let available = normalized.isEmpty ? ZenMuxModel.allCases : normalized
+            defaults.set(available.map(\.rawValue), forKey: zenMuxModelsKey)
+            let selected = available.contains(defaultModel) ? defaultModel : available[0]
+            defaults.set(selected.rawValue, forKey: zenMuxModelKey)
+        }
+
+        private static func normalizedZenMuxModels(_ identifiers: [String]) -> [ZenMuxModel] {
+            var seen = Set<String>()
+            return identifiers.compactMap { identifier in
+                let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty, seen.insert(trimmed).inserted else { return nil }
+                return ZenMuxModel(rawValue: trimmed)
+            }
         }
 
         static func loadZenMuxInputLanguage(

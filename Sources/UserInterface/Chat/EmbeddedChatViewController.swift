@@ -1506,6 +1506,8 @@ struct ZenMuxChatView: View {
     @State private var isComposerExpanded = false
     @State private var isCapturingVisiblePage = false
     @State private var isPromptLibraryPresented = false
+    @AppStorage(PhiPreferences.AISettings.zenMuxModelKey)
+    private var selectedModelRawValue = ZenMuxModel.geminiFlash.rawValue
 
     var body: some View {
         Group {
@@ -1555,7 +1557,7 @@ struct ZenMuxChatView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(verbatim: "ZenMux")
                     .font(.system(size: 13, weight: .semibold))
-                Text(PhiPreferences.AISettings.loadZenMuxModel().displayName)
+                Text(ZenMuxModel(rawValue: selectedModelRawValue).displayName)
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
@@ -2994,7 +2996,7 @@ private struct ZenMuxRichTextView: NSViewRepresentable {
         view.drawsBackground = false
         view.textContainerInset = .zero
         view.textContainer?.lineFragmentPadding = 0
-        view.textContainer?.widthTracksTextView = true
+        view.textContainer?.widthTracksTextView = false
         view.isHorizontallyResizable = false
         view.isVerticallyResizable = true
         return view
@@ -3002,6 +3004,14 @@ private struct ZenMuxRichTextView: NSViewRepresentable {
 
     func updateNSView(_ view: NSTextView, context: Context) {
         view.textStorage?.setAttributedString(attributedContent())
+        if let textContainer = view.textContainer {
+            view.layoutManager?.invalidateLayout(
+                forCharacterRange: NSRange(location: 0, length: view.string.utf16.count),
+                actualCharacterRange: nil
+            )
+            view.layoutManager?.ensureLayout(for: textContainer)
+        }
+        view.invalidateIntrinsicContentSize()
     }
 
     func sizeThatFits(
@@ -3010,6 +3020,7 @@ private struct ZenMuxRichTextView: NSViewRepresentable {
         context: Context
     ) -> CGSize? {
         let width = max(1, proposal.width ?? 240)
+        nsView.frame.size.width = width
         nsView.textContainer?.containerSize = CGSize(
             width: width,
             height: .greatestFiniteMagnitude

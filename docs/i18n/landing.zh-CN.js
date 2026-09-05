@@ -38,7 +38,7 @@
     "features.signedUpdates.body": "打开“关于 Astra Browser”即会检查 GitHub Releases 更新。更新源与 DMG 均使用 Sparkle Ed25519 签名校验，并继续验证 Apple 代码签名。",
     "features.promptLibrary.title": "本地提示词管理器",
     "features.promptLibrary.body": "可将网页划词内容保存为提示词，并自动收藏已发送的提示词。所有内容仅保存在本机，支持按任务分类、搜索、复用、编辑、批量删除及 JSON 导入导出。",
-    "download.summary": "Build 90 阻止过期的 Chromium 焦点、排队中的标签选择以及迟到的首屏回调覆盖用户最新的标签选择，并在动态网页重绘时保持已翻译文本。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 91 修复长篇 AI 消息的高度测量，避免正文与操作栏重叠，并在设置中加入可添加、删除和指定默认项的 ZenMux 模型列表。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

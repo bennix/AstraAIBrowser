@@ -188,6 +188,31 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertEqual(PhiPreferences.AISettings.loadZenMuxResponseLanguage(from: defaults), .matchInput)
     }
 
+    func testCustomModelsCanBeAddedRemovedAndSelectedAsDefault() {
+        let suiteName = "ZenMuxTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let custom = ZenMuxModel(rawValue: "openai/gpt-custom")
+        PhiPreferences.AISettings.saveZenMuxModels(
+            [.geminiFlash, custom, custom],
+            defaultModel: custom,
+            to: defaults
+        )
+        XCTAssertEqual(
+            PhiPreferences.AISettings.loadZenMuxModels(from: defaults),
+            [.geminiFlash, custom]
+        )
+        XCTAssertEqual(PhiPreferences.AISettings.loadZenMuxModel(from: defaults), custom)
+
+        PhiPreferences.AISettings.saveZenMuxModels(
+            [.geminiFlash],
+            defaultModel: custom,
+            to: defaults
+        )
+        XCTAssertEqual(PhiPreferences.AISettings.loadZenMuxModel(from: defaults), .geminiFlash)
+    }
+
     func testYouTubeVideoURLDetectionExcludesNonVideoPages() {
         XCTAssertTrue(APIClient.isYouTubeVideoURL("https://www.youtube.com/watch?v=dQw4w9WgXcQ"))
         XCTAssertTrue(APIClient.isYouTubeVideoURL("https://youtu.be/dQw4w9WgXcQ"))

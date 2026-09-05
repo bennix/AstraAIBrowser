@@ -8,18 +8,26 @@ import CryptoKit
 import Security
 import YouTubeTranscript
 
-enum ZenMuxModel: String, CaseIterable, Codable, Identifiable {
-    case geminiFlash = "google/gemini-3.7-flash"
-    case grok = "x-ai/grok-4.6"
-    case glm = "z-ai/glm-5.3"
+struct ZenMuxModel: RawRepresentable, CaseIterable, Codable, Hashable, Identifiable {
+    let rawValue: String
+
+    init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    static let geminiFlash = ZenMuxModel(rawValue: "google/gemini-3.7-flash")
+    static let grok = ZenMuxModel(rawValue: "x-ai/grok-4.6")
+    static let glm = ZenMuxModel(rawValue: "z-ai/glm-5.3")
+    static let allCases = [geminiFlash, grok, glm]
 
     var id: String { rawValue }
 
     var displayName: String {
-        switch self {
-        case .geminiFlash: return "Gemini 3.7 Flash"
-        case .grok: return "Grok 4.6"
-        case .glm: return "GLM 5.3"
+        switch rawValue {
+        case Self.geminiFlash.rawValue: return "Gemini 3.7 Flash"
+        case Self.grok.rawValue: return "Grok 4.6"
+        case Self.glm.rawValue: return "GLM 5.3"
+        default: return rawValue
         }
     }
 
