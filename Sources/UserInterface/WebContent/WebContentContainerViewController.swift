@@ -1103,6 +1103,9 @@ class WebContentContainerViewController: NSViewController {
     
     private func handleFocusingTabChanged(_ tab: Tab?) {
         guard let tab, let state = browserState else { return }
+        // Delivery is asynchronous; an older selection must not remount its
+        // surface over the user's latest selection.
+        guard state.focusingTab?.guid == tab.guid else { return }
 
         let identifier = state.getTabIdentifier(for: tab)
         // Skip if already showing this exact tab. Identifier alone can
@@ -2101,6 +2104,10 @@ class WebContentContainerViewController: NSViewController {
             // AppLogDebug("[FlickerFix][Mac] tabReadyToDisplay for different tab (pending=\(pending.tabId), received=\(tabId))")
             return
         }
+
+        // First paint (or its timeout) can arrive before the queued selection
+        // subscriber cancels this switch. Never promote an obsolete surface.
+        guard browserState?.focusingTab?.guid == tabId else { return }
 
         // Cancel timeout since we received the notification
         pendingNewTabTimeoutWorkItem?.cancel()

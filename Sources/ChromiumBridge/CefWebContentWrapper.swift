@@ -1336,6 +1336,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     private var doNotTrackPreferenceObserver: NSObjectProtocol?
 
     var onActivate: (() -> Void)?
+    var canReceiveFocus: (() -> Bool)?
     var onClose: (() -> Void)?
     var onMove: ((Int, Bool) -> Void)?
     var onOpenURLInNewTab: ((URL, Bool) -> Void)?
@@ -1984,6 +1985,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     }
 
     func focus() {
+        guard !didRequestClose, canReceiveFocus?() != false,
+              hostView.window != nil, !hostView.isHiddenOrHasHiddenAncestor else { return }
         if let systemMediaWebView {
             hostView.window?.makeFirstResponder(systemMediaWebView)
         } else {
@@ -3463,7 +3466,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     }
 
     func browserShouldCancelSetFocus(_ browser: CefBrowser) -> Bool {
-        didRequestClose || hostView.window == nil || hostView.isHiddenOrHasHiddenAncestor
+        didRequestClose || canReceiveFocus?() == false || hostView.window == nil || hostView.isHiddenOrHasHiddenAncestor
     }
 
     func browserDidGainFocus(_ browser: CefBrowser) {
@@ -4032,6 +4035,10 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
 
         if (globalThis.__phiImmersiveTranslationSession ||
             document.querySelector('[data-phi-immersive-translation]')) {
+          globalThis.__phiImmersiveTranslationSession?.redrawObserver?.disconnect();
+          for (const [node, record] of globalThis.__phiImmersiveTranslationSession?.redrawSources || []) {
+            if (node.nodeValue === record.replacement) node.nodeValue = record.original;
+          }
           for (const record of globalThis.__phiImmersiveTranslationSession?.sources.values() || []) {
             if (record.replacement !== undefined && record.node?.nodeValue === record.replacement) {
               record.node.nodeValue = record.original;
@@ -4352,6 +4359,49 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
           return null;
         };
         const candidates = Array.from(document.querySelectorAll(selector));
+        // Frameworks such as Canvas replace navigation nodes after hydration.
+        // Replay only already-translated text on changed subtrees; never scan
+        // the complete document for each mutation or observe our own writes.
+        if (session.translatedOnly && !session.redrawObserver && document.body) {
+          session.redrawSources = new Map();
+          session.translationCache = new Map();
+          const observerOptions = { childList: true, characterData: true, subtree: true };
+          const excluded = 'script,style,noscript,template,pre,code,textarea,select,option,' +
+            '[contenteditable="true"],[aria-hidden="true"]';
+          session.redrawObserver = new MutationObserver((mutations) => {
+            session.redrawObserver.disconnect();
+            try {
+              let remaining = 3000;
+              const replay = (node) => {
+                if (!node.isConnected || node.nodeType !== Node.TEXT_NODE ||
+                    node.parentElement?.closest(excluded)) return;
+                const replacement = session.translationCache.get(normalize(node.nodeValue));
+                if (replacement === undefined || replacement === node.nodeValue) return;
+                session.redrawSources.set(node, { original: node.nodeValue, replacement });
+                node.nodeValue = replacement;
+              };
+              for (const mutation of mutations) {
+                const roots = mutation.type === 'characterData' ? [mutation.target] : mutation.addedNodes;
+                for (const root of roots) {
+                  if (remaining-- <= 0) break;
+                  replay(root);
+                  if (root.nodeType !== Node.ELEMENT_NODE || root.matches(excluded)) continue;
+                  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+                  while (remaining-- > 0 && walker.nextNode()) replay(walker.currentNode);
+                }
+                if (remaining <= 0) break;
+              }
+              for (const node of session.redrawSources.keys()) {
+                if (!node.isConnected) session.redrawSources.delete(node);
+              }
+            } finally {
+              if (globalThis.__phiImmersiveTranslationSession === session) {
+                session.redrawObserver.observe(document.body, observerOptions);
+              }
+            }
+          });
+          session.redrawObserver.observe(document.body, observerOptions);
+        }
         const usedSources = new Set();
         let applied = 0;
         let existingMatches = 0;
@@ -4367,6 +4417,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             continue;
           }
           if (session.translatedOnly) {
+            session.translationCache?.set(record.text, translation.text);
             let node = record.node;
             if (record.isTextNode && !node?.isConnected) {
               node = findTextSource(record, translation.id);
@@ -4498,6 +4549,10 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
 
     func removeImmersiveTranslations() async {
         let operation = #"""
+        globalThis.__phiImmersiveTranslationSession?.redrawObserver?.disconnect();
+        for (const [node, record] of globalThis.__phiImmersiveTranslationSession?.redrawSources || []) {
+          if (node.nodeValue === record.replacement) node.nodeValue = record.original;
+        }
         for (const record of globalThis.__phiImmersiveTranslationSession?.sources.values() || []) {
           if (record.replacement !== undefined && record.node?.nodeValue === record.replacement) {
             record.node.nodeValue = record.original;

@@ -1,0 +1,20 @@
+<?xml version="1.0" standalone="yes"?><!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
+--><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Astra Browser</title>
+        <item>
+            <title>1.0</title>
+            <pubDate>Sat, 05 Sep 2026 21:00:51 +0900</pubDate>
+            <link>https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.90</link>
+            <sparkle:version>10090</sparkle:version>
+            <sparkle:shortVersionString>1.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.90/Astra-Browser-build90.dmg" length="281128445" type="application/octet-stream" sparkle:edSignature="7L21wOZakc/yl+i6BNu045A/srDddo9pEHOHTDIV0glPPfcQ1UkmTuVQU7sgH8DTzL/xRX6aURxtHvjmk1HACQ=="></enclosure>
+        </item>
+    </channel>
+</rss><!-- sparkle-signatures:
+edSignature: /XE9NbpTZWorVYNCdG/Djrs95dHbZY5AsKxbSLXQbsld010Ceyr8p7ccka5fPm6uht5uC52Svra80Qe28c8hCw==
+length: 1226
+-->

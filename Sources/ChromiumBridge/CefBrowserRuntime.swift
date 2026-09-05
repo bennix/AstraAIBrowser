@@ -2065,7 +2065,18 @@ private final class CefBrowserWindow: NSWindow {
         }
         wrapper.onActivate = { [weak state, weak tab] in
             guard let state, let tab else { return }
+            guard state.focusingTab?.guid != tab.guid else { return }
             state.focuseTab(tab)
+        }
+        // Selection changes before the asynchronous AppKit content swap. A
+        // still-visible outgoing child window must not reclaim tab selection.
+        wrapper.canReceiveFocus = { [weak state, weak tab] in
+            guard let state, let tab else { return false }
+            guard let selected = state.focusingTab else { return false }
+            if selected.guid == tab.guid { return true }
+            // Both panes in the selected split remain interactive.
+            guard let split = state.splitGroup(forTabId: selected.guid) else { return false }
+            return state.splitGroup(forTabId: tab.guid) == split
         }
         wrapper.onClose = { [weak self, weak state, weak tab] in
             guard let self, let state, let tab else { return }
