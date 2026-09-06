@@ -3,15 +3,16 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 96)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.96/Astra-Browser-build96.dmg)
+[Download Astra 1.0 (build 98)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.98/Astra-Browser-build98.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.96)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.98)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
 
 ## Highlights
 
+- Fixes ZenMux HTTP 400 errors in immersive translation and vocabulary lookup by omitting tool configuration from text-only requests.
 - Native macOS interface with tabs, spaces, profiles, downloads, and keyboard-first navigation.
 - Chromium 151 compatibility through the embedded CEF runtime.
 - Legacy `chrome://memory` and `phi://memory` links open Astra's local AI memory instead of Chromium's removed WebUI.
