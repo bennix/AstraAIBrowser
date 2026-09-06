@@ -8,6 +8,34 @@ import CefKit
 import CryptoKit
 import WebKit
 
+enum PageDistractionDismissal {
+    // Only invoke a site's existing close control. Never remove arbitrary
+    // dialogs, authentication challenges, or access-control elements.
+    static let script = #"""
+    if (!['zhihu.com', 'www.zhihu.com'].includes(location.hostname) ||
+        !/^\/(question|answer|p)\//.test(location.pathname)) return 'unsupported';
+    const visible = element => element && element.getClientRects().length > 0 &&
+      getComputedStyle(element).visibility !== 'hidden' &&
+      getComputedStyle(element).display !== 'none';
+    const dialogs = [...document.querySelectorAll('.Modal-wrapper')];
+    let closed = 0;
+    for (const dialog of dialogs.slice(0, 10)) {
+      if (!visible(dialog) || !dialog.querySelector('.SignFlow')) continue;
+      if (dialog.querySelector('iframe, .Captcha, .CaptchaView, [class*="captcha"], [class*="Captcha"], [class*="yidun"], [class*="geetest"]')) continue;
+      const close = dialog.querySelector('button.Modal-closeButton');
+      if (!visible(close) || close.disabled) continue;
+      close.click();
+      closed++;
+    }
+    if (!closed) return 'none';
+    // Give the site's close handler and exit transition time to restore its
+    // own scroll state. Do not overwrite global styles or install observers.
+    await new Promise(resolve => setTimeout(resolve, 400));
+    return dialogs.some(dialog => dialog.isConnected && visible(dialog) &&
+      dialog.querySelector('.SignFlow')) ? 'none' : 'closed';
+    """#
+}
+
 protocol PageContentProviding: AnyObject {
     @MainActor
     func pageContentContext() async -> String?
@@ -3512,6 +3540,10 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             SystemMediaCompatibilityPolicy.rememberDetectedMediaIncompatibility(for: detectedURL)
             switchCurrentPageToSystemMediaEngine(detectedURL)
         }
+    }
+
+    func dismissPageDistractions() async -> String {
+        await evaluateJavaScriptResult(operation: PageDistractionDismissal.script, timeout: 3) ?? "unavailable"
     }
 
     private func evaluateJavaScriptResult(

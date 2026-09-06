@@ -1,6 +1,11 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+"browser.distractions.action" : {"comment":"Address bar - Dismiss supported optional login prompts","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Clear Distractions"}}}},
+"browser.distractions.closed" : {"comment":"Address bar - Optional prompt was dismissed","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Login prompt closed. Page scrolling is managed by the website."}}}},
+"browser.distractions.unsupported" : {"comment":"Address bar - No supported site rule","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Currently supports dismissible login prompts on Zhihu article and question pages. No page changes made."}}}},
+"browser.distractions.none" : {"comment":"Address bar - No optional prompt could be dismissed","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"No dismissible prompt found, or the website kept it open. Verification and access restrictions are left untouched."}}}},
+"browser.distractions.unavailable" : {"comment":"Address bar - Page execution unavailable","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Could not check this page. Try again after it finishes loading."}}}},
     "chat.zenMux.attachments.officeExtractionFailed" : {"comment":"Chat attachments - Unsupported legacy, encrypted, or unreadable Office document","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Cannot extract this Office file. Export it as PDF or as an unencrypted DOCX, XLSX, or PPTX file and attach it again."}}}},
     "guard.rules.explanation" : {"comment":"Guard settings - Custom rules behavior","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Matching posts stay visible with a Guard badge. Only your click blocks accounts. Up to 50 rules; matching is case-insensitive."}}}},
     "guard.rules.delete" : {"comment":"Guard settings - Delete a custom rule","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Delete"}}}},

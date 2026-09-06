@@ -74,7 +74,11 @@ enum CefSecurityChallengeCompatibilityPolicy {
     /// one consistent set of native browser surfaces for the whole origin so
     /// a challenge opened after navigation sees the same fingerprint values.
     private static let inlineChallengeHosts = Set([
-        "developer.amd.com.cn"
+        "developer.amd.com.cn",
+        // Authentication can be reached through client-side navigation after
+        // document-start scripts have already run on the landing page.
+        "zenmux.ai",
+        "www.zenmux.ai"
     ])
 
     private static let authenticationPathSegments = Set([
@@ -130,7 +134,9 @@ enum CefSecurityChallengeCompatibilityPolicy {
     static let javaScript = #"""
     (() => {
       const inlineChallengeHosts = new Set([
-        "developer.amd.com.cn"
+        "developer.amd.com.cn",
+        "zenmux.ai",
+        "www.zenmux.ai"
       ]);
       const authenticationPathSegments = new Set([
         "auth", "authenticate", "authentication", "captcha", "challenge",

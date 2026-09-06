@@ -182,6 +182,7 @@ struct HeaderTrailingArea: View {
 
         var budget = width - Metrics.trailingPadding - Metrics.extensionMenuWidth
         if showChat { budget -= Metrics.chatSlot }
+        if !isInPlaceholderMode { budget -= Metrics.contextualActionSlot }
         if showImmersiveTranslation { budget -= Metrics.contextualActionSlot }
         if showXBookmarkDigest { budget -= Metrics.contextualActionSlot }
         if showYouTubeDigest { budget -= Metrics.contextualActionSlot }
@@ -256,6 +257,10 @@ struct HeaderTrailingArea: View {
         moreItems: [MoreMenuItem]
     ) -> some View {
         HStack(alignment: .center, spacing: 0) {
+            if !isInPlaceholderMode {
+                PageDistractionButton(browserState: browserState)
+                    .padding(.leading, 6)
+            }
             if showImmersiveTranslation {
                 immersiveTranslationButton
                     .padding(.leading, 6)

@@ -93,6 +93,21 @@ final class CefSecurityChallengeCompatibilityPolicyTests: XCTestCase {
         )
     }
 
+    func testZenMuxLandingPageKeepsNativeSurfacesBeforeClientSideLogin() throws {
+        for host in ["zenmux.ai", "www.zenmux.ai"] {
+            XCTAssertTrue(CefSecurityChallengeCompatibilityPolicy.shouldUseNativeBrowserSurfaces(host: host, path: "/"))
+            let context = try XCTUnwrap(JSContext())
+            context.evaluateScript("globalThis.top = globalThis; globalThis.location = { hostname: '\(host)', pathname: '/' };")
+            context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
+            context.evaluateScript("globalThis.location.pathname = '/login';")
+            XCTAssertEqual(context.evaluateScript("globalThis.__astraUsesNativeSecurityChallengeSurfaces === true")?.toBool(), true)
+            XCTAssertEqual(context.evaluateScript("globalThis.__astraFingerprintPrivacyInstalled === true")?.toBool(), false)
+            XCTAssertEqual(context.evaluateScript("globalThis.__astraAudioPrivacyInstalled === true")?.toBool(), false)
+            XCTAssertNil(context.exception)
+        }
+        XCTAssertFalse(CefSecurityChallengeCompatibilityPolicy.shouldUseNativeBrowserSurfaces(host: "zenmux.ai.example.org", path: "/"))
+    }
+
     func testLoginDocumentSkipsFingerprintWrappers() throws {
         let context = try XCTUnwrap(JSContext())
         var exception: JSValue?

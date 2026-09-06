@@ -13,6 +13,43 @@ enum HeaderExtensionLayout {
     static let itemSpacing: CGFloat = 2
 }
 
+struct PageDistractionButton: View {
+    let browserState: BrowserState?
+    var tab: Tab? = nil
+    @State private var isRunning = false
+    @State private var message: String?
+
+    var body: some View {
+        CircularIconButton(
+            systemName: "sparkles",
+            accessibilityLabel: NSLocalizedString("browser.distractions.action", value: "Clear Distractions", comment: "Address bar - Dismiss supported optional login prompts")
+        ) {
+            guard !isRunning, let browserState,
+                  let target = tab ?? browserState.focusingTab else { return }
+            isRunning = true
+            Task { @MainActor in
+                let result = await browserState.dismissPageDistractions(for: target)
+                isRunning = false
+                switch result {
+                case "closed":
+                    message = NSLocalizedString("browser.distractions.closed", value: "Login prompt closed. Page scrolling is managed by the website.", comment: "Address bar - Optional prompt was dismissed")
+                case "unsupported":
+                    message = NSLocalizedString("browser.distractions.unsupported", value: "Currently supports dismissible login prompts on Zhihu article and question pages. No page changes made.", comment: "Address bar - No supported site rule")
+                case "none":
+                    message = NSLocalizedString("browser.distractions.none", value: "No dismissible prompt found, or the website kept it open. Verification and access restrictions are left untouched.", comment: "Address bar - No optional prompt could be dismissed")
+                default:
+                    message = NSLocalizedString("browser.distractions.unavailable", value: "Could not check this page. Try again after it finishes loading.", comment: "Address bar - Page execution unavailable")
+                }
+            }
+        }
+        .disabled(isRunning)
+        .help(NSLocalizedString("browser.distractions.action", value: "Clear Distractions", comment: "Address bar - Dismiss supported optional login prompts"))
+        .popover(isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
+            Text(message ?? "").padding().frame(width: 280)
+        }
+    }
+}
+
 /// Small badge pill overlaid on an extension icon, mirroring Chrome's action
 /// badge. Colors come resolved from Chromium (see ExtensionManager.BadgeState).
 struct ExtensionBadge: View {

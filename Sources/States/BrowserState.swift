@@ -102,6 +102,13 @@ class BrowserState {
     }
 
     /// Tabs mirrored from Chromium, including their order.
+    func dismissPageDistractions(for tab: Tab) async -> String {
+        guard let wrapper = tab.webContentWrapper as? CefWebContentWrapper else {
+            return "unavailable"
+        }
+        return await wrapper.dismissPageDistractions()
+    }
+
     @Published var tabs: [Tab] = []
     /// Non-pinned tabs shown in the sidebar list.
     @Published var normalTabs: [Tab] = []

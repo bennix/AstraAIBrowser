@@ -21,6 +21,7 @@ class SideAddressBar: NSView {
     }
 
     private var containerView: HoverableView!
+    private lazy var distractionButton = NSHostingView(rootView: PageDistractionButton(browserState: nil))
     private lazy var copyURLButton: HoverableButtonNSView = {
         
         let config = HoverableButtonConfig(
@@ -131,6 +132,7 @@ class SideAddressBar: NSView {
         cancellables.forEach { $0.cancel() }
         cancellables.removeAll()
         extensionMenuHostingView.rootView = ExtensionPopoverButton(extensionManager: browserState.extensionManager)
+        distractionButton.rootView = PageDistractionButton(browserState: browserState)
 
         $currentTab
             .compactMap { $0 }
@@ -169,6 +171,7 @@ class SideAddressBar: NSView {
                     self.updateDisplayedURL(self.currentTab?.url)
                 }
                 self.copyURLButton.isHidden = isPlaceholder
+                self.distractionButton.isHidden = isPlaceholder
                 self.extensionMenuHostingView.isHidden = isPlaceholder
                 self.extensionIconsStackView.isHidden = isPlaceholder
                 self.updateReaderButtonVisibility()
@@ -318,6 +321,7 @@ class SideAddressBar: NSView {
         let pinnedIconsWidth = CGFloat(pinnedExtensionCount) * LayoutMetrics.extensionButtonWidth
         let pinnedIconsSpacing = CGFloat(max(0, pinnedExtensionCount - 1)) * LayoutMetrics.extensionButtonSpacing
         let rightControlsWidth = pinnedIconsWidth
+            + LayoutMetrics.extensionButtonWidth + LayoutMetrics.extensionButtonSpacing
             + pinnedIconsSpacing
             + LayoutMetrics.rightStackSpacing
             + LayoutMetrics.extensionButtonWidth
@@ -521,6 +525,10 @@ class SideAddressBar: NSView {
         }
         
         rightStackView.addArrangedSubview(extensionIconsStackView)
+        distractionButton.snp.makeConstraints { make in
+            make.size.equalTo(CGSize(width: 24, height: 24))
+        }
+        rightStackView.addArrangedSubview(distractionButton)
         rightStackView.addArrangedSubview(readerButton)
         rightStackView.addArrangedSubview(copyURLButton)
         rightStackView.addArrangedSubview(extensionMenuHostingView)
