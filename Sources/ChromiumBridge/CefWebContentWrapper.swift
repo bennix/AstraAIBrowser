@@ -1117,12 +1117,27 @@ final class SystemMediaWebView: WKWebView {
     var onSearchSelectedText: ((String) -> Void)?
     var onSelectionAction: ((WebSelectionAction, String) -> Void)?
 
-    override func menu(for event: NSEvent) -> NSMenu? {
-        let menu = super.menu(for: event)
-        if let menu {
-            routeSearchWebMenuItems(in: menu)
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        NotificationCenter.default.removeObserver(self, name: NSMenu.didBeginTrackingNotification, object: nil)
+        if window != nil {
+            // WebKit opens its menu from an internal content view, bypassing
+            // WKWebView.menu(for:). Route the actual menu when tracking starts.
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(contextMenuDidBeginTracking(_:)),
+                name: NSMenu.didBeginTrackingNotification,
+                object: nil
+            )
         }
-        return menu
+    }
+
+    @objc private func contextMenuDidBeginTracking(_ notification: Notification) {
+        guard let window, window.isKeyWindow, !isHiddenOrHasHiddenAncestor,
+              let responder = window.firstResponder as? NSView,
+              responder === self || responder.isDescendant(of: self),
+              let menu = notification.object as? NSMenu else { return }
+        routeSearchWebMenuItems(in: menu)
     }
 
     func routeSearchWebMenuItems(in menu: NSMenu) {

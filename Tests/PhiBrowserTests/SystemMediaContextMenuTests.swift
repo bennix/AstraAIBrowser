@@ -9,6 +9,10 @@ import XCTest
 @testable import Phi
 
 final class SystemMediaContextMenuTests: XCTestCase {
+    private final class MenuTestWindow: NSWindow {
+        override var isKeyWindow: Bool { true }
+    }
+
     private final class MenuTarget: NSObject {
         @objc func perform(_ sender: Any?) {}
     }
@@ -23,6 +27,46 @@ final class SystemMediaContextMenuTests: XCTestCase {
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             didFinish.fulfill()
         }
+    }
+
+    @MainActor
+    func testTrackedWebKitMenuAddsSelectionActionsOnlyForFocusedWebView() {
+        _ = NSApplication.shared
+        let window = MenuTestWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+            styleMask: [.titled], backing: .buffered, defer: false
+        )
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        let webView = SystemMediaWebView(frame: window.contentView!.bounds)
+        webView.onSelectionAction = { _, _ in }
+        window.contentView?.addSubview(webView)
+        window.makeFirstResponder(webView)
+
+        let menu = NSMenu()
+        let searchItem = NSMenuItem(title: "Search", action: nil, keyEquivalent: "")
+        searchItem.identifier = SystemMediaWebView.searchWebMenuItemIdentifier
+        menu.addItem(searchItem)
+        for _ in 0..<2 {
+            NotificationCenter.default.post(name: NSMenu.didBeginTrackingNotification, object: menu)
+        }
+        XCTAssertTrue(searchItem.target === webView)
+        for action in WebSelectionAction.allCases {
+            XCTAssertEqual(menu.items.filter {
+                $0.identifier == SystemMediaWebView.menuItemIdentifier(for: action)
+            }.count, 1)
+        }
+
+        let unrelatedMenu = NSMenu()
+        let unrelatedSearch = NSMenuItem(title: "Search", action: nil, keyEquivalent: "")
+        unrelatedSearch.identifier = SystemMediaWebView.searchWebMenuItemIdentifier
+        unrelatedMenu.addItem(unrelatedSearch)
+        let otherView = NSTextField(frame: .zero)
+        window.contentView?.addSubview(otherView)
+        window.makeFirstResponder(otherView)
+        NotificationCenter.default.post(name: NSMenu.didBeginTrackingNotification, object: unrelatedMenu)
+        XCTAssertEqual(unrelatedMenu.items.count, 1)
+        XCTAssertNil(unrelatedSearch.target)
     }
 
     @MainActor
