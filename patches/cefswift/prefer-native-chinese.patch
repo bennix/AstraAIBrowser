@@ -1,8 +1,10 @@
 diff --git a/Sources/CefKit/BrowserClient.swift b/Sources/CefKit/BrowserClient.swift
 --- a/Sources/CefKit/BrowserClient.swift
 +++ b/Sources/CefKit/BrowserClient.swift
-@@ -3,2 +3,21 @@
+@@ -3,3 +3,22 @@
  import Foundation
+-
++
 +
 +/// Destination-specific language negotiation shared by native browser adapters.
 +public enum CefNativeSiteLanguagePolicy {

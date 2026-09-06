@@ -299,6 +299,16 @@ private struct ZenMuxChatRequest: Encodable {
         case tools
         case toolChoice = "tool_choice"
     }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(model, forKey: .model)
+        try container.encode(messages, forKey: .messages)
+        if !tools.isEmpty {
+            try container.encode(tools, forKey: .tools)
+            try container.encode(toolChoice, forKey: .toolChoice)
+        }
+    }
 }
 
 private struct ZenMuxChatResponse: Decodable {
@@ -3133,12 +3143,9 @@ class APIClient {
         request.timeoutInterval = 120
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(
-            ZenMuxChatRequest(
-                model: model.rawValue,
-                messages: messages,
-                tools: Self.zenMuxTools(for: model)
-            )
+        request.httpBody = try Self.makeZenMuxChatRequestData(
+            model: model,
+            messages: messages
         )
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -3156,6 +3163,20 @@ class APIClient {
         return ZenMuxChatCompletion(
             content: content?.isEmpty == false ? content : nil,
             toolCalls: toolCalls
+        )
+    }
+
+    static func makeZenMuxChatRequestData(
+        model: ZenMuxModel,
+        messages: [ZenMuxChatRequestMessage],
+        includeTools: Bool = true
+    ) throws -> Data {
+        try JSONEncoder().encode(
+            ZenMuxChatRequest(
+                model: model.rawValue,
+                messages: messages,
+                tools: includeTools ? Self.zenMuxTools(for: model) : []
+            )
         )
     }
 
@@ -3495,8 +3516,10 @@ class APIClient {
         request.timeoutInterval = 120
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(
-            ZenMuxChatRequest(model: model.rawValue, messages: messages, tools: [])
+        request.httpBody = try Self.makeZenMuxChatRequestData(
+            model: model,
+            messages: messages,
+            includeTools: false
         )
         let (data, response) = try await URLSession.shared.data(for: request)
         try Self.validateZenMuxResponse(response, data: data)

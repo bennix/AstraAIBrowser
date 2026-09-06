@@ -569,6 +569,49 @@ final class ZenMuxTests: XCTestCase {
         }
     }
 
+    func testChatTranslationRequestOmitsToolConfiguration() throws {
+        for model in [ZenMuxModel.grok, .glm] {
+            let data = try APIClient.makeZenMuxChatRequestData(
+                model: model,
+                messages: [
+                    ZenMuxChatRequestMessage(role: "system", content: "Translate to Japanese"),
+                    ZenMuxChatRequestMessage(role: "user", content: "[]"),
+                ],
+                includeTools: false
+            )
+            let object = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: data) as? [String: Any]
+            )
+            XCTAssertNil(object["tools"])
+            XCTAssertNil(object["tool_choice"])
+            XCTAssertEqual(object["model"] as? String, model.rawValue)
+            let messages = try XCTUnwrap(object["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages.count, 2)
+            XCTAssertEqual(messages[0]["role"] as? String, "system")
+            XCTAssertEqual(messages[0]["content"] as? String, "Translate to Japanese")
+            XCTAssertEqual(messages[1]["role"] as? String, "user")
+            XCTAssertEqual(messages[1]["content"] as? String, "[]")
+        }
+    }
+
+    func testChatRequestPreservesAutomaticToolSelection() throws {
+        for model in [ZenMuxModel.grok, .glm] {
+            let data = try APIClient.makeZenMuxChatRequestData(
+                model: model,
+                messages: [ZenMuxChatRequestMessage(role: "user", content: "Inspect the page")]
+            )
+            let object = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: data) as? [String: Any]
+            )
+            XCTAssertEqual(object["tool_choice"] as? String, "auto")
+            let tools = try XCTUnwrap(object["tools"] as? [[String: Any]])
+            XCTAssertFalse(tools.isEmpty)
+            XCTAssertTrue(tools.contains {
+                ($0["function"] as? [String: Any])?["name"] as? String == "inspect_page"
+            })
+        }
+    }
+
     func testVertexTranslationRequestDoesNotExposeBrowserTools() throws {
         let data = try APIClient.makeZenMuxVertexChatRequestData(
             model: .geminiFlash,
