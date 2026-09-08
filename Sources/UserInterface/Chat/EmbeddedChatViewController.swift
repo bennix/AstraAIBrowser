@@ -104,6 +104,7 @@ struct ZenMuxAttachment: Identifiable, Equatable, Sendable {
     }
 
     var isImage: Bool { mimeType.hasPrefix("image/") }
+    var requiresFileInput: Bool { mimeType == "application/pdf" }
 
     var requestPart: ZenMuxChatContentPart {
         if isImage { return .image(dataURL: dataURL) }
@@ -590,11 +591,21 @@ final class ZenMuxChatSession: ObservableObject {
         guard !typedInput.isEmpty || !outgoingAttachments.isEmpty,
               !isSending, !isLoadingAttachments else { return }
         let model = PhiPreferences.AISettings.loadZenMuxModel()
-        guard !outgoingAttachments.contains(where: \.isImage) || model.supportsImageInput else {
+        let capabilities = PhiPreferences.AISettings.zenMuxCapabilities(for: model)
+        guard !outgoingAttachments.contains(where: \.isImage) || capabilities.supportsImageInput else {
             let format = NSLocalizedString(
                 "chat.zenMux.attachments.unsupportedModelError",
-                value: "%@ does not accept image input. Choose Gemini or Grok to send images.",
+                value: "%@ does not accept image input according to the ZenMux model catalog.",
                 comment: "ZenMux chat attachments - Error shown when the selected text-only model cannot receive attached images; placeholder is the model name"
+            )
+            errorMessage = String(format: format, model.displayName)
+            return
+        }
+        guard !outgoingAttachments.contains(where: \.requiresFileInput) || capabilities.supportsFileInput else {
+            let format = NSLocalizedString(
+                "chat.zenMux.attachments.unsupportedFileModelError",
+                value: "%@ does not accept PDF file input according to the ZenMux model catalog.",
+                comment: "ZenMux chat attachments - Error shown when the selected model cannot receive an attached PDF; placeholder is the model name"
             )
             errorMessage = String(format: format, model.displayName)
             return
@@ -632,7 +643,7 @@ final class ZenMuxChatSession: ObservableObject {
             let responseLanguage = PhiPreferences.AISettings.loadZenMuxResponseLanguage()
             let relevantMemories = await loadRelevantMemories(for: input)
             let currentPageImageDataURL: String?
-            if model.supportsImageInput,
+            if capabilities.supportsImageInput,
                !outgoingAttachments.contains(where: { $0.origin == .visiblePage }) {
                 activityDescription = NSLocalizedString(
                     "chat.zenMux.capturingPageStatus",
@@ -659,6 +670,7 @@ final class ZenMuxChatSession: ObservableObject {
                 : nil
             var requestMessages = makeRequestMessages(
                 model: model,
+                capabilities: capabilities,
                 pageContext: pageContext,
                 inputLanguage: inputLanguage,
                 responseLanguage: responseLanguage,
@@ -678,7 +690,8 @@ final class ZenMuxChatSession: ObservableObject {
                 let completion = try await APIClient.shared.sendZenMuxChat(
                     apiKey: apiKey,
                     model: model,
-                    messages: requestMessages
+                    messages: requestMessages,
+                    capabilities: capabilities
                 )
                 guard !completion.toolCalls.isEmpty else {
                     if remainingPostActionInspections > 0, let browserAutomation {
@@ -863,6 +876,7 @@ final class ZenMuxChatSession: ObservableObject {
 
     private func makeRequestMessages(
         model: ZenMuxModel,
+        capabilities: ZenMuxModelCapabilities,
         pageContext: ZenMuxPageContext,
         inputLanguage: ZenMuxInputLanguage,
         responseLanguage: ZenMuxResponseLanguage,
@@ -873,6 +887,7 @@ final class ZenMuxChatSession: ObservableObject {
     ) -> [ZenMuxChatRequestMessage] {
         var systemLines = Self.makeSystemPromptLines(
             model: model,
+            capabilities: capabilities,
             pageContext: pageContext,
             inputLanguage: inputLanguage,
             responseLanguage: responseLanguage,
@@ -1338,6 +1353,7 @@ final class ZenMuxChatSession: ObservableObject {
 
     static func makeSystemPromptLines(
         model: ZenMuxModel,
+        capabilities: ZenMuxModelCapabilities? = nil,
         pageContext: ZenMuxPageContext,
         inputLanguage: ZenMuxInputLanguage,
         responseLanguage: ZenMuxResponseLanguage,
@@ -1369,7 +1385,7 @@ final class ZenMuxChatSession: ObservableObject {
             "Do not claim that an action succeeded until its tool result confirms success.",
             responseLanguage.promptInstruction,
         ])
-        if model.supportsVisualBrowserControl {
+        if capabilities?.supportsImageInput ?? model.supportsVisualBrowserControl {
             systemLines.append(
                 "When DOM inspection cannot expose a requested target, use inspect_visual_page once, locate it in the returned viewport image, and call visual_click with normalized coordinates. Do not use visual clicks when a DOM ref or selector is available."
             )
@@ -1731,6 +1747,17 @@ struct ZenMuxChatView: View {
     @State private var isPromptLibraryPresented = false
     @AppStorage(PhiPreferences.AISettings.zenMuxModelKey)
     private var selectedModelRawValue = ZenMuxModel.geminiFlash.rawValue
+    @AppStorage(PhiPreferences.AISettings.zenMuxModelCapabilitiesKey)
+    private var modelCapabilitiesRawValue = "{}"
+
+    private var selectedModel: ZenMuxModel {
+        ZenMuxModel(rawValue: selectedModelRawValue)
+    }
+
+    private var selectedModelCapabilities: ZenMuxModelCapabilities {
+        _ = modelCapabilitiesRawValue
+        return PhiPreferences.AISettings.zenMuxCapabilities(for: selectedModel)
+    }
 
     var body: some View {
         Group {
@@ -1963,8 +1990,13 @@ struct ZenMuxChatView: View {
                     session.isSending
                         || session.isLoadingAttachments
                         || session.attachments.count >= ZenMuxAttachment.maximumCount
+                        || !selectedModelCapabilities.supportsImageInput
                 )
-                .help(captureVisiblePageTooltip)
+                .help(
+                    selectedModelCapabilities.supportsImageInput
+                        ? captureVisiblePageTooltip
+                        : imageInputUnavailableTooltip
+                )
 
                 ZStack(alignment: .topLeading) {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -2078,6 +2110,17 @@ struct ZenMuxChatView: View {
         )
     }
 
+    private var imageInputUnavailableTooltip: String {
+        String(
+            format: NSLocalizedString(
+                "chat.zenMux.attachments.imageInputUnavailableTooltip",
+                value: "%@ does not accept image input",
+                comment: "ZenMux chat attachments - Disabled image button tooltip; placeholder is the selected model name"
+            ),
+            selectedModel.displayName
+        )
+    }
+
     private var removeAttachmentAccessibilityLabel: String {
         NSLocalizedString(
             "chat.zenMux.attachments.removeFileAccessibilityLabel",
@@ -2184,7 +2227,15 @@ struct ZenMuxChatView: View {
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
-        panel.allowedContentTypes = ZenMuxAttachment.allowedContentTypes
+        panel.allowedContentTypes = ZenMuxAttachment.allowedContentTypes.filter { type in
+            if type.conforms(to: .image) {
+                return selectedModelCapabilities.supportsImageInput
+            }
+            if type.conforms(to: .pdf) {
+                return selectedModelCapabilities.supportsFileInput
+            }
+            return true
+        }
         panel.title = NSLocalizedString(
             "chat.zenMux.attachments.filesPickerTitle",
             value: "Attach Files",

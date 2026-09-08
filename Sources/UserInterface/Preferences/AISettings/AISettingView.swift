@@ -83,7 +83,10 @@ private struct ZenMuxConfigurationSectionView: View {
     @State private var revealsAPIKey = false
     @State private var status: Status?
     @State private var configuredModels = PhiPreferences.AISettings.loadZenMuxModels()
+    @State private var modelCapabilities = PhiPreferences.AISettings.loadZenMuxModelCapabilities()
     @State private var modelDraft = ""
+    @State private var isValidatingModel = false
+    @State private var modelValidationMessage: String?
 
     @AppStorage(PhiPreferences.AISettings.zenMuxModelKey)
     private var modelRawValue = ZenMuxModel.geminiFlash.rawValue
@@ -269,6 +272,19 @@ private struct ZenMuxConfigurationSectionView: View {
                             .font(.system(size: 10, design: .monospaced))
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
+                        if let capabilities = modelCapabilities[model.rawValue] {
+                            Text(capabilityDescription(capabilities))
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text(NSLocalizedString(
+                                "settings.ai.zenMux.modelCapabilitiesUnverified",
+                                value: "Capabilities not verified",
+                                comment: "ZenMux AI settings - Status for a configured model without catalog metadata"
+                            ))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                        }
                     }
                     Spacer(minLength: 8)
                     Button(role: .destructive) {
@@ -303,12 +319,27 @@ private struct ZenMuxConfigurationSectionView: View {
                 ), action: addModel)
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .disabled(normalizedModelDraft.isEmpty)
+                .disabled(
+                    normalizedModelDraft.isEmpty
+                        || apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || isValidatingModel
+                )
+                if isValidatingModel {
+                    ProgressView().controlSize(.small)
+                }
+            }
+            if let modelValidationMessage {
+                Text(modelValidationMessage)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 12)
         .onChange(of: modelRawValue) {
             persistModels()
+        }
+        .task {
+            await refreshModelCapabilitiesIfPossible()
         }
     }
 
@@ -318,18 +349,40 @@ private struct ZenMuxConfigurationSectionView: View {
 
     private func addModel() {
         let identifier = normalizedModelDraft
-        guard !identifier.isEmpty else { return }
-        if !configuredModels.contains(where: { $0.rawValue == identifier }) {
-            configuredModels.append(ZenMuxModel(rawValue: identifier))
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !identifier.isEmpty, !key.isEmpty, !isValidatingModel else { return }
+        isValidatingModel = true
+        modelValidationMessage = nil
+        Task { @MainActor in
+            defer { isValidatingModel = false }
+            do {
+                let model = ZenMuxModel(rawValue: identifier)
+                let entry = try await APIClient.shared.testZenMuxAPIKey(key, model: model)
+                if !configuredModels.contains(model) {
+                    configuredModels.append(model)
+                }
+                modelCapabilities[identifier] = entry.capabilities
+                modelRawValue = identifier
+                modelDraft = ""
+                persistModels()
+                modelValidationMessage = String(
+                    format: NSLocalizedString(
+                        "settings.ai.zenMux.modelVerified",
+                        value: "Verified %@",
+                        comment: "ZenMux AI settings - Confirmation that a model and its capabilities were found; placeholder describes input capabilities"
+                    ),
+                    capabilityDescription(entry.capabilities)
+                )
+            } catch {
+                modelValidationMessage = error.localizedDescription
+            }
         }
-        modelRawValue = identifier
-        modelDraft = ""
-        persistModels()
     }
 
     private func removeModel(_ model: ZenMuxModel) {
         guard configuredModels.count > 1 else { return }
         configuredModels.removeAll { $0 == model }
+        modelCapabilities[model.rawValue] = nil
         if modelRawValue == model.rawValue {
             modelRawValue = configuredModels[0].rawValue
         }
@@ -340,6 +393,36 @@ private struct ZenMuxConfigurationSectionView: View {
         PhiPreferences.AISettings.saveZenMuxModels(
             configuredModels,
             defaultModel: ZenMuxModel(rawValue: modelRawValue)
+        )
+        PhiPreferences.AISettings.saveZenMuxModelCapabilities(modelCapabilities)
+    }
+
+    private func refreshModelCapabilitiesIfPossible() async {
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else { return }
+        do {
+            let catalog = try await APIClient.shared.fetchZenMuxModelCatalog(key)
+            let configured = Set(configuredModels.map(\.rawValue))
+            for entry in catalog where configured.contains(entry.model.rawValue) {
+                modelCapabilities[entry.model.rawValue] = entry.capabilities
+            }
+            PhiPreferences.AISettings.saveZenMuxModelCapabilities(modelCapabilities)
+        } catch {
+            AppLogWarn("[ZenMux] Model capability refresh failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func capabilityDescription(_ capabilities: ZenMuxModelCapabilities) -> String {
+        let modalities = capabilities.inputModalities
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: ", ")
+        return String(
+            format: NSLocalizedString(
+                "settings.ai.zenMux.modelInputCapabilities",
+                value: "Inputs: %@",
+                comment: "ZenMux AI settings - Verified model input modalities; placeholder lists modalities such as Text and Image"
+            ),
+            modalities
         )
     }
 
@@ -408,7 +491,9 @@ private struct ZenMuxConfigurationSectionView: View {
         let model = selectedModel
         Task { @MainActor in
             do {
-                try await APIClient.shared.testZenMuxAPIKey(candidate, model: model)
+                let entry = try await APIClient.shared.testZenMuxAPIKey(candidate, model: model)
+                modelCapabilities[model.rawValue] = entry.capabilities
+                PhiPreferences.AISettings.saveZenMuxModelCapabilities(modelCapabilities)
                 status = .success
             } catch {
                 status = .failure(error.localizedDescription)

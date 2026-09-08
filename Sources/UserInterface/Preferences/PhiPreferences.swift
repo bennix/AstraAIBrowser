@@ -235,6 +235,7 @@ extension PhiPreferences {
 
         static let zenMuxModelKey = "zenMuxModel"
         static let zenMuxModelsKey = "zenMuxModels"
+        static let zenMuxModelCapabilitiesKey = "zenMuxModelCapabilities"
         static let zenMuxInputLanguageKey = "zenMuxInputLanguage"
         static let zenMuxResponseLanguageKey = "zenMuxResponseLanguage"
 
@@ -265,6 +266,42 @@ extension PhiPreferences {
             defaults.set(available.map(\.rawValue), forKey: zenMuxModelsKey)
             let selected = available.contains(defaultModel) ? defaultModel : available[0]
             defaults.set(selected.rawValue, forKey: zenMuxModelKey)
+
+            let allowed = Set(available.map(\.rawValue))
+            let capabilities = loadZenMuxModelCapabilities(from: defaults)
+                .filter { allowed.contains($0.key) }
+            saveZenMuxModelCapabilities(capabilities, to: defaults)
+        }
+
+        static func loadZenMuxModelCapabilities(
+            from defaults: UserDefaults = .standard
+        ) -> [String: ZenMuxModelCapabilities] {
+            guard let value = defaults.string(forKey: zenMuxModelCapabilitiesKey),
+                  let data = value.data(using: .utf8),
+                  let capabilities = try? JSONDecoder().decode(
+                    [String: ZenMuxModelCapabilities].self,
+                    from: data
+                  ) else { return [:] }
+            return capabilities
+        }
+
+        static func saveZenMuxModelCapabilities(
+            _ capabilities: [String: ZenMuxModelCapabilities],
+            to defaults: UserDefaults = .standard
+        ) {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            guard let data = try? encoder.encode(capabilities),
+                  let value = String(data: data, encoding: .utf8) else { return }
+            defaults.set(value, forKey: zenMuxModelCapabilitiesKey)
+        }
+
+        static func zenMuxCapabilities(
+            for model: ZenMuxModel,
+            from defaults: UserDefaults = .standard
+        ) -> ZenMuxModelCapabilities {
+            loadZenMuxModelCapabilities(from: defaults)[model.rawValue]
+                ?? model.defaultCapabilities
         }
 
         private static func normalizedZenMuxModels(_ identifiers: [String]) -> [ZenMuxModel] {

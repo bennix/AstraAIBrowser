@@ -628,6 +628,11 @@
       "extractionState" : "extracted_with_value",
       "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "Capture the visible page as an image attachment" } } }
     },
+    "chat.zenMux.attachments.imageInputUnavailableTooltip" : {
+      "comment" : "ZenMux chat attachments - Disabled image button tooltip; placeholder is the selected model name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "%@ does not accept image input" } } }
+    },
     "chat.zenMux.attachments.defaultPrompt" : {
       "comment" : "ZenMux chat attachments - Prompt used when images are sent without a typed message",
       "extractionState" : "extracted_with_value",
@@ -671,7 +676,12 @@
     "chat.zenMux.attachments.unsupportedModelError" : {
       "comment" : "ZenMux chat attachments - Error shown when the selected text-only model cannot receive attached images; placeholder is the model name",
       "extractionState" : "extracted_with_value",
-      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "%@ does not accept image input. Choose Gemini or Grok to send images." } } }
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "%@ does not accept image input according to the ZenMux model catalog." } } }
+    },
+    "chat.zenMux.attachments.unsupportedFileModelError" : {
+      "comment" : "ZenMux chat attachments - Error shown when the selected model cannot receive an attached PDF; placeholder is the model name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "new", "value" : "%@ does not accept PDF file input according to the ZenMux model catalog." } } }
     },
     "chat.zenMux.attachments.visiblePageCaptureError" : {
       "comment" : "ZenMux chat attachments - Error shown when the current browser viewport cannot be captured as an image attachment",
@@ -1198,6 +1208,42 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Model"
+          }
+        }
+      }
+    },
+    "settings.ai.zenMux.modelCapabilitiesUnverified" : {
+      "comment" : "ZenMux AI settings - Status for a configured model without catalog metadata",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Capabilities not verified"
+          }
+        }
+      }
+    },
+    "settings.ai.zenMux.modelInputCapabilities" : {
+      "comment" : "ZenMux AI settings - Verified model input modalities; placeholder lists modalities such as Text and Image",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Inputs: %@"
+          }
+        }
+      }
+    },
+    "settings.ai.zenMux.modelVerified" : {
+      "comment" : "ZenMux AI settings - Confirmation that a model and its capabilities were found; placeholder describes input capabilities",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Verified %@"
           }
         }
       }

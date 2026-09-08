@@ -112,6 +112,47 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertFalse(ZenMuxModel.glm.supportsImageInput)
     }
 
+    func testNewGeminiModelIdentifiersUseVertexAndVisualCapabilities() {
+        let model = ZenMuxModel(rawValue: "google/gemini-3.8-flash")
+
+        XCTAssertTrue(model.usesVertexAPI)
+        XCTAssertTrue(model.supportsImageInput)
+        XCTAssertTrue(model.supportsVisualBrowserControl)
+        XCTAssertTrue(model.supportsYouTubeVideoAnalysis)
+    }
+
+    func testZenMuxModelCatalogDecodesInputCapabilities() throws {
+        let data = Data(#"""
+        {
+          "object": "list",
+          "data": [
+            {
+              "id": "google/gemini-3.8-flash",
+              "display_name": "Google: Gemini 3.8 Flash",
+              "input_modalities": ["text", "image", "file"],
+              "output_modalities": ["text"],
+              "capabilities": { "reasoning": true }
+            },
+            {
+              "id": "deepseek/example",
+              "input_modalities": ["text"],
+              "output_modalities": ["text"]
+            }
+          ]
+        }
+        """#.utf8)
+
+        let catalog = try APIClient.decodeZenMuxModelCatalog(data)
+        XCTAssertEqual(catalog.count, 2)
+        XCTAssertEqual(catalog[0].model.rawValue, "google/gemini-3.8-flash")
+        XCTAssertEqual(catalog[0].displayName, "Google: Gemini 3.8 Flash")
+        XCTAssertTrue(catalog[0].capabilities.supportsImageInput)
+        XCTAssertTrue(catalog[0].capabilities.supportsFileInput)
+        XCTAssertTrue(catalog[0].capabilities.supportsReasoning)
+        XCTAssertFalse(catalog[1].capabilities.supportsImageInput)
+        XCTAssertFalse(catalog[1].capabilities.supportsFileInput)
+    }
+
     func testEncryptedCredentialRoundTripsWithoutPlaintextInJSON() throws {
         let keyData = SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) }
         let payload = ZenMuxCredentialStore.Payload(
@@ -212,6 +253,35 @@ final class ZenMuxTests: XCTestCase {
             to: defaults
         )
         XCTAssertEqual(PhiPreferences.AISettings.loadZenMuxModel(from: defaults), .geminiFlash)
+    }
+
+    func testVerifiedModelCapabilitiesPersistAndArePrunedWithModels() {
+        let suiteName = "ZenMuxCapabilitiesTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let custom = ZenMuxModel(rawValue: "google/gemini-3.8-flash")
+        let capabilities = ZenMuxModelCapabilities(
+            inputModalities: ["text", "image", "file"],
+            supportsReasoning: true
+        )
+
+        PhiPreferences.AISettings.saveZenMuxModelCapabilities(
+            [custom.rawValue: capabilities],
+            to: defaults
+        )
+        XCTAssertEqual(
+            PhiPreferences.AISettings.zenMuxCapabilities(for: custom, from: defaults),
+            capabilities
+        )
+
+        PhiPreferences.AISettings.saveZenMuxModels(
+            [.geminiFlash],
+            defaultModel: .geminiFlash,
+            to: defaults
+        )
+        XCTAssertTrue(
+            PhiPreferences.AISettings.loadZenMuxModelCapabilities(from: defaults).isEmpty
+        )
     }
 
     func testYouTubeVideoURLDetectionExcludesNonVideoPages() {
@@ -958,6 +1028,20 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertTrue(ZenMuxWebGrounding.isToolName("fetch_url"))
         XCTAssertTrue(ZenMuxWebGrounding.isToolName(ZenMuxResearch.toolName))
         XCTAssertFalse(ZenMuxWebGrounding.isToolName("inspect_page"))
+    }
+
+    func testVisualToolsFollowVerifiedModelCapabilities() {
+        let model = ZenMuxModel(rawValue: "provider/custom-model")
+        let textOnlyNames = APIClient.zenMuxToolNames(for: model, capabilities: .textOnly)
+        let visualNames = APIClient.zenMuxToolNames(
+            for: model,
+            capabilities: ZenMuxModelCapabilities(inputModalities: ["text", "image"])
+        )
+
+        XCTAssertFalse(textOnlyNames.contains("inspect_visual_page"))
+        XCTAssertFalse(textOnlyNames.contains("visual_click"))
+        XCTAssertTrue(visualNames.contains("inspect_visual_page"))
+        XCTAssertTrue(visualNames.contains("visual_click"))
     }
 
     func testResearchBriefRequiresQuestionAndSupportsBoundedOrUnlimitedTime() throws {

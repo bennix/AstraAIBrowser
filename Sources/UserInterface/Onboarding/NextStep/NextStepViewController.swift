@@ -732,7 +732,7 @@ private struct ZenMuxOnboardingSetupView: View {
         Task { @MainActor in
             do {
                 try ZenMuxCredentialStore.shared.saveAPIKey(candidate)
-                try await APIClient.shared.testZenMuxAPIKey(
+                _ = try await APIClient.shared.testZenMuxAPIKey(
                     candidate,
                     model: PhiPreferences.AISettings.loadZenMuxModel()
                 )

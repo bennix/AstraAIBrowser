@@ -8,7 +8,7 @@ import CryptoKit
 import Security
 import YouTubeTranscript
 
-struct ZenMuxModel: RawRepresentable, CaseIterable, Codable, Hashable, Identifiable {
+struct ZenMuxModel: RawRepresentable, CaseIterable, Codable, Hashable, Identifiable, Sendable {
     let rawValue: String
 
     init(rawValue: String) {
@@ -32,16 +32,63 @@ struct ZenMuxModel: RawRepresentable, CaseIterable, Codable, Hashable, Identifia
     }
 
     var supportsVisualBrowserControl: Bool {
-        self == .geminiFlash || self == .grok
+        defaultCapabilities.supportsImageInput
     }
 
     var supportsImageInput: Bool {
-        self == .geminiFlash || self == .grok
+        defaultCapabilities.supportsImageInput
     }
 
     var supportsYouTubeVideoAnalysis: Bool {
-        self == .geminiFlash
+        usesVertexAPI
     }
+
+    var usesVertexAPI: Bool {
+        rawValue.lowercased().hasPrefix("google/gemini-")
+    }
+
+    var defaultCapabilities: ZenMuxModelCapabilities {
+        if usesVertexAPI {
+            return .init(inputModalities: ["text", "image", "file", "video"])
+        }
+        if self == .grok {
+            return .init(inputModalities: ["text", "image"])
+        }
+        return .textOnly
+    }
+}
+
+struct ZenMuxModelCapabilities: Codable, Equatable, Sendable {
+    let inputModalities: [String]
+    let outputModalities: [String]
+    let supportsReasoning: Bool
+
+    init(
+        inputModalities: [String],
+        outputModalities: [String] = ["text"],
+        supportsReasoning: Bool = false
+    ) {
+        self.inputModalities = Self.normalized(inputModalities)
+        self.outputModalities = Self.normalized(outputModalities)
+        self.supportsReasoning = supportsReasoning
+    }
+
+    static let textOnly = ZenMuxModelCapabilities(inputModalities: ["text"])
+
+    var supportsImageInput: Bool { inputModalities.contains("image") }
+    var supportsFileInput: Bool { inputModalities.contains("file") }
+    var supportsVideoInput: Bool { inputModalities.contains("video") }
+    var supportsAudioInput: Bool { inputModalities.contains("audio") }
+
+    private static func normalized(_ values: [String]) -> [String] {
+        Array(Set(values.map { $0.lowercased() })).sorted()
+    }
+}
+
+struct ZenMuxModelCatalogEntry: Equatable, Sendable {
+    let model: ZenMuxModel
+    let displayName: String?
+    let capabilities: ZenMuxModelCapabilities
 }
 
 enum ZenMuxInputLanguage: String, CaseIterable, Identifiable {
@@ -569,7 +616,36 @@ private struct ZenMuxToolDefinition: Encodable {
 
 private struct ZenMuxModelsResponse: Decodable {
     struct Model: Decodable {
+        struct Capabilities: Decodable {
+            let reasoning: Bool?
+        }
+
         let id: String
+        let displayName: String?
+        let inputModalities: [String]?
+        let outputModalities: [String]?
+        let capabilities: Capabilities?
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case displayName = "display_name"
+            case inputModalities = "input_modalities"
+            case outputModalities = "output_modalities"
+            case capabilities
+        }
+
+        var catalogEntry: ZenMuxModelCatalogEntry {
+            let model = ZenMuxModel(rawValue: id)
+            return .init(
+                model: model,
+                displayName: displayName,
+                capabilities: .init(
+                    inputModalities: inputModalities ?? model.defaultCapabilities.inputModalities,
+                    outputModalities: outputModalities ?? ["text"],
+                    supportsReasoning: capabilities?.reasoning ?? false
+                )
+            )
+        }
     }
     let data: [Model]
 }
@@ -3105,7 +3181,15 @@ class APIClient {
     func testZenMuxAPIKey(
         _ apiKey: String,
         model: ZenMuxModel
-    ) async throws {
+    ) async throws -> ZenMuxModelCatalogEntry {
+        let models = try await fetchZenMuxModelCatalog(apiKey)
+        guard let entry = models.first(where: { $0.model == model }) else {
+            throw ZenMuxAPIError.modelUnavailable
+        }
+        return entry
+    }
+
+    func fetchZenMuxModelCatalog(_ apiKey: String) async throws -> [ZenMuxModelCatalogEntry] {
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { throw ZenMuxAPIError.invalidCredential }
 
@@ -3115,21 +3199,24 @@ class APIClient {
         let (data, response) = try await URLSession.shared.data(for: request)
         try Self.validateZenMuxResponse(response, data: data)
 
-        let models = try JSONDecoder().decode(ZenMuxModelsResponse.self, from: data)
-        guard models.data.contains(where: { $0.id == model.rawValue }) else {
-            throw ZenMuxAPIError.modelUnavailable
-        }
+        return try Self.decodeZenMuxModelCatalog(data)
+    }
+
+    static func decodeZenMuxModelCatalog(_ data: Data) throws -> [ZenMuxModelCatalogEntry] {
+        try JSONDecoder().decode(ZenMuxModelsResponse.self, from: data)
+            .data.map(\.catalogEntry)
     }
 
     func sendZenMuxChat(
         apiKey: String,
         model: ZenMuxModel,
-        messages: [ZenMuxChatRequestMessage]
+        messages: [ZenMuxChatRequestMessage],
+        capabilities: ZenMuxModelCapabilities? = nil
     ) async throws -> ZenMuxChatCompletion {
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { throw ZenMuxAPIError.invalidCredential }
 
-        if model == .geminiFlash {
+        if model.usesVertexAPI {
             return try await sendZenMuxVertexChat(
                 apiKey: key,
                 model: model,
@@ -3145,7 +3232,8 @@ class APIClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try Self.makeZenMuxChatRequestData(
             model: model,
-            messages: messages
+            messages: messages,
+            capabilities: capabilities
         )
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -3169,13 +3257,16 @@ class APIClient {
     static func makeZenMuxChatRequestData(
         model: ZenMuxModel,
         messages: [ZenMuxChatRequestMessage],
-        includeTools: Bool = true
+        includeTools: Bool = true,
+        capabilities: ZenMuxModelCapabilities? = nil
     ) throws -> Data {
         try JSONEncoder().encode(
             ZenMuxChatRequest(
                 model: model.rawValue,
                 messages: messages,
-                tools: includeTools ? Self.zenMuxTools(for: model) : []
+                tools: includeTools
+                    ? Self.zenMuxTools(for: model, capabilities: capabilities)
+                    : []
             )
         )
     }
@@ -3485,7 +3576,7 @@ class APIClient {
         model: ZenMuxModel,
         messages: [ZenMuxChatRequestMessage]
     ) async throws -> String {
-        if model == .geminiFlash {
+        if model.usesVertexAPI {
             guard let modelName = model.rawValue.split(separator: "/", maxSplits: 1).last else {
                 throw ZenMuxAPIError.modelUnavailable
             }
@@ -3604,13 +3695,21 @@ class APIClient {
         return (mimeType, encodedData)
     }
 
-    static func zenMuxToolNames(for model: ZenMuxModel) -> [String] {
-        zenMuxTools(for: model).map(\.function.name)
+    static func zenMuxToolNames(
+        for model: ZenMuxModel,
+        capabilities: ZenMuxModelCapabilities? = nil
+    ) -> [String] {
+        zenMuxTools(for: model, capabilities: capabilities).map(\.function.name)
     }
 
-    private static func zenMuxTools(for model: ZenMuxModel) -> [ZenMuxToolDefinition] {
-        zenMuxBrowserTools.filter {
-            model.supportsVisualBrowserControl || !visualBrowserToolNames.contains($0.function.name)
+    private static func zenMuxTools(
+        for model: ZenMuxModel,
+        capabilities: ZenMuxModelCapabilities? = nil
+    ) -> [ZenMuxToolDefinition] {
+        let supportsVisualInput = capabilities?.supportsImageInput
+            ?? model.supportsVisualBrowserControl
+        return zenMuxBrowserTools.filter {
+            supportsVisualInput || !visualBrowserToolNames.contains($0.function.name)
         } + zenMuxGroundingTools
     }
 
