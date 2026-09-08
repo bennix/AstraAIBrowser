@@ -38,7 +38,7 @@
     "features.signedUpdates.body": "打开“关于 Astra Browser”即会检查 GitHub Releases 更新。更新源与 DMG 均使用 Sparkle Ed25519 签名校验，并继续验证 Apple 代码签名。",
     "features.promptLibrary.title": "本地提示词管理器",
     "features.promptLibrary.body": "可将网页划词内容保存为提示词，并自动收藏已发送的提示词。所有内容仅保存在本机，支持按任务分类、搜索、复用、编辑、批量删除及 JSON 导入导出。",
-    "download.summary": "Build 99 恢复 BBC 等兼容模式网页的划词查询、划句翻译和加入生词本菜单，并保留 ZenMux HTTP 400 修复。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 100 会校验新添加的 ZenMux 模型，并根据所选模型的能力启用图像、PDF 和推理功能；Gemini 3.8 Flash 等 Gemini 系列模型现可正常接收图像。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

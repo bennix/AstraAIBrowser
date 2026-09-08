@@ -88,21 +88,43 @@ app_executable_path="$app_path/Contents/MacOS/$app_executable"
   >&2 echo "The app executable is missing: $app_executable_path"
   exit 66
 }
-if ! smoke_output="$(
-  "$app_executable_path" \
-    --cef-smoke-test \
-    '--astra-initial-url=data:text/html,<title>Astra%20Release%20Smoke</title><main>Astra%20release%20smoke</main>' \
-    2>&1
-)"; then
-  >&2 echo "The signed app failed its real-launch smoke test."
-  >&2 echo "$smoke_output"
-  exit 65
-fi
-if [[ "$smoke_output" != *"[cef-smoke] loaded title:"* ]]; then
+smoke_output_file="$(mktemp "${TMPDIR:-/tmp}/astra-release-smoke.XXXXXX")"
+smoke_pid=""
+cleanup_smoke() {
+  if [[ -n "${smoke_pid:-}" ]] && kill -0 "$smoke_pid" 2>/dev/null; then
+    kill "$smoke_pid" 2>/dev/null || true
+    wait "$smoke_pid" 2>/dev/null || true
+  fi
+  rm -f "$smoke_output_file"
+}
+trap cleanup_smoke EXIT INT TERM
+
+"$app_executable_path" \
+  --cef-smoke-test \
+  '--astra-initial-url=data:text/html,<title>Astra%20Release%20Smoke</title><main>Astra%20release%20smoke</main>' \
+  >"$smoke_output_file" 2>&1 &
+smoke_pid=$!
+
+smoke_completed=false
+for _ in {1..240}; do
+  if grep -Fq '[cef-smoke] loaded title:' "$smoke_output_file"; then
+    smoke_completed=true
+    break
+  fi
+  if ! kill -0 "$smoke_pid" 2>/dev/null; then
+    break
+  fi
+  sleep 0.25
+done
+
+smoke_output="$(<"$smoke_output_file")"
+if [[ "$smoke_completed" != true ]]; then
   >&2 echo "The signed app launched but did not complete its CEF smoke test."
   >&2 echo "$smoke_output"
   exit 65
 fi
+cleanup_smoke
+trap - EXIT INT TERM
 echo "$smoke_output"
 
 if [[ -z "$output_path" ]]; then
