@@ -147,6 +147,7 @@
 		37EA23AC2F6C010C00D3C4A9 /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = B02BEB612E3B2D5900E5859A /* Dependencies */; };
 		37EA25EF2F6D5A5A00D3C4A9 /* CommonMessageRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37EA25EE2F6D5A5A00D3C4A9 /* CommonMessageRouter.swift */; };
 		37EECF222F0F623A0022A176 /* EmbeddedChatViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37EECF212F0F623A0022A176 /* EmbeddedChatViewController.swift */; };
+		A7E1A9E22F0F623A0022A102 /* JevPageOperator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7E1A9E12F0F623A0022A101 /* JevPageOperator.swift */; };
 		A1A1000130A0000000000001 /* AIMemoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1000230A0000000000002 /* AIMemoryStore.swift */; };
 		A1A1000330A0000000000003 /* AstraMemorySchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1000430A0000000000004 /* AstraMemorySchemeHandler.swift */; };
 		37FA01012FDA000100000001 /* LocalStoreCompatibilityManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37FA01112FDA000100000001 /* LocalStoreCompatibilityManifest.swift */; };
@@ -801,6 +802,7 @@
 		37E9E91E2FC84DEA00815832 /* TabDataModelSchemaV6.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabDataModelSchemaV6.swift; sourceTree = "<group>"; };
 		37EA25EE2F6D5A5A00D3C4A9 /* CommonMessageRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommonMessageRouter.swift; sourceTree = "<group>"; };
 		37EECF212F0F623A0022A176 /* EmbeddedChatViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddedChatViewController.swift; sourceTree = "<group>"; };
+		A7E1A9E12F0F623A0022A101 /* JevPageOperator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JevPageOperator.swift; sourceTree = "<group>"; };
 		A1A1000230A0000000000002 /* AIMemoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIMemoryStore.swift; sourceTree = "<group>"; };
 		A1A1000430A0000000000004 /* AstraMemorySchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AstraMemorySchemeHandler.swift; sourceTree = "<group>"; };
 		37FA01112FDA000100000001 /* LocalStoreCompatibilityManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalStoreCompatibilityManifest.swift; sourceTree = "<group>"; };
@@ -2575,6 +2577,7 @@
 			isa = PBXGroup;
 			children = (
 				37EECF212F0F623A0022A176 /* EmbeddedChatViewController.swift */,
+				A7E1A9E12F0F623A0022A101 /* JevPageOperator.swift */,
 			);
 			path = Chat;
 			sourceTree = "<group>";
@@ -3284,6 +3287,7 @@
 				8E4FD9BF2EF7D98C007D97A4 /* ZeroSafeAreaHostingView.swift in Sources */,
 				CC450ACD2EA251D3004EE144 /* HoverableButton.swift in Sources */,
 				37EECF222F0F623A0022A176 /* EmbeddedChatViewController.swift in Sources */,
+				A7E1A9E22F0F623A0022A102 /* JevPageOperator.swift in Sources */,
 				CCEF2CF42E57079000FDDEB2 /* WebContentHeader.swift in Sources */,
 				377D21EC2F52C67300A68BE5 /* WebContentAddressBarMenu.swift in Sources */,
 				CC98F89C2E8BC71800DAD237 /* Settings.swift in Sources */,
@@ -3588,7 +3592,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10100;
+				CURRENT_PROJECT_VERSION = 10101;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -4051,7 +4055,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10100;
+				CURRENT_PROJECT_VERSION = 10101;
 				DEVELOPMENT_TEAM = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -4105,7 +4109,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10100;
+				CURRENT_PROJECT_VERSION = 10101;
 				DEVELOPMENT_TEAM = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";

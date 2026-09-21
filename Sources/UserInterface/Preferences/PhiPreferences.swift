@@ -238,6 +238,16 @@ extension PhiPreferences {
         static let zenMuxModelCapabilitiesKey = "zenMuxModelCapabilities"
         static let zenMuxInputLanguageKey = "zenMuxInputLanguage"
         static let zenMuxResponseLanguageKey = "zenMuxResponseLanguage"
+        static let zenMuxBrowserPolicyModelKey = "zenMuxBrowserPolicyModel"
+        static let defaultBrowserPolicyModelIdentifier = "typesafe/jev-1.13"
+
+        static func loadZenMuxBrowserPolicyModel(
+            from defaults: UserDefaults = .standard
+        ) -> String {
+            let stored = defaults.string(forKey: zenMuxBrowserPolicyModelKey)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return stored.isEmpty ? defaultBrowserPolicyModelIdentifier : stored
+        }
 
         static func loadZenMuxModel(from defaults: UserDefaults = .standard) -> ZenMuxModel {
             let models = loadZenMuxModels(from: defaults)

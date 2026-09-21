@@ -5046,6 +5046,9 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
           const isInputOrButton = (elementWindow.HTMLInputElement && element instanceof elementWindow.HTMLInputElement)
             || (elementWindow.HTMLButtonElement && element instanceof elementWindow.HTMLButtonElement);
           const inputType = isInputOrButton ? (element.type || 'text') : null;
+          const readableValue = inputType === 'password'
+            ? ''
+            : (('value' in element && typeof element.value === 'string') ? element.value : '').replace(/\\s+/g, ' ').trim().slice(0, 180);
           const descriptor = {
             index,
             ref,
@@ -5055,6 +5058,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             role: element.getAttribute('role'),
             type: inputType,
             label,
+            value: readableValue,
             href,
             frameDepth: documentDepth.get(element.ownerDocument) || 0,
             editor: isDesignModeBody ? 'designMode' : (element.isContentEditable ? 'contenteditable' : null),

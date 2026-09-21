@@ -228,6 +228,127 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertEqual(PhiPreferences.AISettings.loadZenMuxModel(from: defaults), .geminiFlash)
         XCTAssertEqual(PhiPreferences.AISettings.loadZenMuxInputLanguage(from: defaults), .automatic)
         XCTAssertEqual(PhiPreferences.AISettings.loadZenMuxResponseLanguage(from: defaults), .matchInput)
+        XCTAssertEqual(
+            PhiPreferences.AISettings.loadZenMuxBrowserPolicyModel(from: defaults),
+            "typesafe/jev-1.13"
+        )
+        defaults.set("  ", forKey: PhiPreferences.AISettings.zenMuxBrowserPolicyModelKey)
+        XCTAssertEqual(
+            PhiPreferences.AISettings.loadZenMuxBrowserPolicyModel(from: defaults),
+            "typesafe/jev-1.13"
+        )
+        defaults.set("typesafe/jev-preview", forKey: PhiPreferences.AISettings.zenMuxBrowserPolicyModelKey)
+        XCTAssertEqual(
+            PhiPreferences.AISettings.loadZenMuxBrowserPolicyModel(from: defaults),
+            "typesafe/jev-preview"
+        )
+    }
+
+    func testIndexedPagePolicyChoosesObservedControlsAndRejectsInvalidAnswers() throws {
+        let snapshot = try XCTUnwrap(JevPagePolicy.parseSnapshot(from: """
+        {"ok":true,"title":"Flights","url":"https://www.google.com/travel/flights","text":"Where from?","elements":[
+          {"index":0,"ref":"e-from","selector":"#from","tag":"input","role":"combobox","type":"text","label":"Where from?","value":"","disabled":false,"aria":{}},
+          {"index":1,"ref":"e-search","selector":"button.search","tag":"button","role":"button","type":"submit","label":"Search","value":"","disabled":false,"aria":{}},
+          {"index":2,"ref":"e-secret","selector":"#password","tag":"input","role":"","type":"password","label":"Password","value":"hidden","disabled":false,"aria":{}},
+          {"index":3,"ref":"e-london","selector":"#london","tag":"div","role":"option","type":"","label":"London","value":"London","disabled":false,"aria":{"selected":"false"}}
+        ]}
+        """))
+        let space = JevPagePolicy.actionSpace(for: snapshot)
+        XCTAssertEqual(space.targets["TYPE_TEXT"].map { Set($0.keys) }, Set(["0"]))
+        XCTAssertEqual(space.targets["CLICK"]?["1"]?.ref, "e-search")
+        XCTAssertNil(space.targets["CLICK"]?["2"])
+        XCTAssertEqual(space.targets["SELECT"]?["3"]?.ref, "e-london")
+
+        let body = try XCTUnwrap(JevPagePolicy.requestBody(
+            model: "typesafe/jev-1.13",
+            goal: "Find flights to London",
+            snapshot: snapshot,
+            history: []
+        ))
+        let request = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(request["model"] as? String, "typesafe/jev-1.13")
+        let questions = try XCTUnwrap(request["questions"] as? [String: Any])
+        XCTAssertNotNil(questions["operation"])
+        XCTAssertNotNil(questions["click_target"])
+        XCTAssertNotNil(questions["type_text_target"])
+        XCTAssertNotNil(questions["select_target"])
+
+        let click = try JevPagePolicy.interpret(
+            responseData: indexedChoiceResponse(
+                operation: "CLICK",
+                operationIDs: Set(space.operationDescriptions.keys),
+                targetKey: "click_target",
+                target: "1",
+                targetIDs: Set(space.targets["CLICK"]?.keys ?? [String: JevPagePolicy.Candidate]().keys)
+            ),
+            snapshot: snapshot
+        )
+        guard case .act(let action) = click.outcome else {
+            return XCTFail("Expected a click")
+        }
+        XCTAssertEqual(action.kind, BrowserAutomationAction.Kind.click)
+        XCTAssertEqual(action.ref, "e-search")
+        XCTAssertNil(action.text)
+
+        let typing = try JevPagePolicy.interpret(
+            responseData: indexedChoiceResponse(
+                operation: "TYPE_TEXT",
+                operationIDs: Set(space.operationDescriptions.keys),
+                targetKey: "type_text_target",
+                target: "0",
+                targetIDs: ["0"]
+            ),
+            snapshot: snapshot
+        )
+        guard case .type(let ref, _, _, let label, _) = typing.outcome else {
+            return XCTFail("Expected text entry")
+        }
+        XCTAssertEqual(ref, "e-from")
+        XCTAssertEqual(label, "Where from?")
+
+        XCTAssertThrowsError(try JevPagePolicy.interpret(
+            responseData: Data("{\"answers\":{\"operation\":{\"choice\":\"CLICK\",\"probabilities\":{\"CLICK\":1},\"confidence\":1}}}".utf8),
+            snapshot: snapshot
+        ))
+        XCTAssertEqual(JevPagePolicy.parseFieldText("{\"text\":\"London\"}"), "London")
+        XCTAssertNil(JevPagePolicy.parseFieldText("{\"text\":\"London\",\"extra\":true}"))
+        XCTAssertNil(JevPagePolicy.parseFieldText("{\"text\":null}"))
+    }
+
+    private func indexedChoiceResponse(
+        operation: String,
+        operationIDs: Set<String>,
+        targetKey: String,
+        target: String,
+        targetIDs: Set<String>
+    ) -> Data {
+        func distribution(_ ids: Set<String>, chosen: String) -> [String: Double] {
+            guard ids.count > 1 else { return [chosen: 1] }
+            let remainder = 0.3 / Double(ids.count - 1)
+            var values: [String: Double] = [:]
+            for id in ids {
+                values[id] = id == chosen ? 0.7 : remainder
+            }
+            return values
+        }
+        let body: [String: Any] = [
+            "model": "typesafe/jev-1.13",
+            "answers": [
+                "operation": [
+                    "type": "choice",
+                    "choice": operation,
+                    "probabilities": distribution(operationIDs, chosen: operation),
+                    "confidence": 0.8,
+                ],
+                targetKey: [
+                    "type": "choice",
+                    "choice": target,
+                    "probabilities": distribution(targetIDs, chosen: target),
+                    "confidence": 0.6,
+                ],
+            ],
+        ]
+        return try! JSONSerialization.data(withJSONObject: body)
     }
 
     func testCustomModelsCanBeAddedRemovedAndSelectedAsDefault() {
@@ -992,6 +1113,7 @@ final class ZenMuxTests: XCTestCase {
         )
         let prompt = lines.joined(separator: "\n")
 
+        XCTAssertTrue(prompt.contains("operate_page"))
         XCTAssertTrue(prompt.contains("web_search"))
         XCTAssertTrue(prompt.contains("fetch_url"))
         XCTAssertTrue(prompt.contains("Do not use navigate or open_tab to search or verify facts"))
@@ -1021,6 +1143,7 @@ final class ZenMuxTests: XCTestCase {
                 "\(model.rawValue) missing general_research"
             )
             XCTAssertTrue(names.contains("inspect_page"))
+            XCTAssertTrue(names.contains(JevPagePolicy.toolName))
         }
         XCTAssertNil(BrowserAutomationAction.Kind(rawValue: "web_search"))
         XCTAssertNil(BrowserAutomationAction.Kind(rawValue: "fetch_url"))

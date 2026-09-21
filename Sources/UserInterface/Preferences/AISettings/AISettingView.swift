@@ -91,6 +91,9 @@ private struct ZenMuxConfigurationSectionView: View {
     @AppStorage(PhiPreferences.AISettings.zenMuxModelKey)
     private var modelRawValue = ZenMuxModel.geminiFlash.rawValue
 
+    @AppStorage(PhiPreferences.AISettings.zenMuxBrowserPolicyModelKey)
+    private var browserPolicyModel = PhiPreferences.AISettings.defaultBrowserPolicyModelIdentifier
+
     @AppStorage(PhiPreferences.AISettings.zenMuxInputLanguageKey)
     private var inputLanguageRawValue = ZenMuxInputLanguage.automatic.rawValue
 
@@ -262,6 +265,31 @@ private struct ZenMuxConfigurationSectionView: View {
                         .tag(model.rawValue)
                 }
             }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(NSLocalizedString(
+                    "settings.ai.zenMux.indexedActionsTitle",
+                    value: "Indexed page actions",
+                    comment: "ZenMux AI settings - Label for the model that chooses page controls"
+                ))
+                .font(.system(size: 12, weight: .medium))
+                Text(NSLocalizedString(
+                    "settings.ai.zenMux.indexedActionsDescription",
+                    value: "Browser clicks, typing targets, selections, and scrolling use this ZenMux model. The built-in default is typesafe/jev-1.13. Text entered into fields still uses the default chat model above. You can replace this model ID later.",
+                    comment: "ZenMux AI settings - Explanation that indexed page actions use a separate ZenMux model while field text uses the chat model"
+                ))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                TextField(
+                    "",
+                    text: $browserPolicyModel,
+                    prompt: Text(verbatim: PhiPreferences.AISettings.defaultBrowserPolicyModelIdentifier)
+                )
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 12, design: .monospaced))
+            }
+            .padding(.vertical, 4)
 
             ForEach(configuredModels) { model in
                 HStack(spacing: 8) {

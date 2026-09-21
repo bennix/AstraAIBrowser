@@ -1308,6 +1308,42 @@
         }
       }
     },
+    "settings.ai.zenMux.indexedActionsTitle" : {
+      "comment" : "ZenMux AI settings - Label for the model that chooses page controls",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Indexed page actions"
+          }
+        }
+      }
+    },
+    "settings.ai.zenMux.indexedActionsDescription" : {
+      "comment" : "ZenMux AI settings - Explanation that indexed page actions use a separate ZenMux model while field text uses the chat model",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Browser clicks, typing targets, selections, and scrolling use this ZenMux model. The built-in default is typesafe/jev-1.13. Text entered into fields still uses the default chat model above. You can replace this model ID later."
+          }
+        }
+      }
+    },
+    "chat.browserControl.indexedActionStatus" : {
+      "comment" : "ZenMux chat - Status shown while an indexed page-action model chooses the next control",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Choosing the next page control…"
+          }
+        }
+      }
+    },
     "settings.ai.zenMux.sectionTitle" : {
       "comment" : "AI settings - Section title for configuring the ZenMux model provider",
       "extractionState" : "extracted_with_value",

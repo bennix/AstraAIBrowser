@@ -3207,11 +3207,41 @@ class APIClient {
             .data.map(\.catalogEntry)
     }
 
+    func sendZenMuxSystemOne(
+        apiKey: String,
+        body: Data
+    ) async throws -> Data {
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else { throw ZenMuxAPIError.invalidCredential }
+
+        let url = Self.zenMuxBaseURL.appendingPathComponent("systemone")
+        var lastStatus = 503
+        for attempt in 0..<3 {
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.timeoutInterval = 25
+            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = body
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if [429, 503, 529].contains(status), attempt < 2 {
+                lastStatus = status
+                try await Task.sleep(for: .milliseconds(500 * (1 << attempt)))
+                continue
+            }
+            try Self.validateZenMuxResponse(response, data: data)
+            return data
+        }
+        throw ZenMuxAPIError.server(statusCode: lastStatus, message: nil)
+    }
+
     func sendZenMuxChat(
         apiKey: String,
         model: ZenMuxModel,
         messages: [ZenMuxChatRequestMessage],
-        capabilities: ZenMuxModelCapabilities? = nil
+        capabilities: ZenMuxModelCapabilities? = nil,
+        includeTools: Bool = true
     ) async throws -> ZenMuxChatCompletion {
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { throw ZenMuxAPIError.invalidCredential }
@@ -3220,7 +3250,8 @@ class APIClient {
             return try await sendZenMuxVertexChat(
                 apiKey: key,
                 model: model,
-                messages: messages
+                messages: messages,
+                includeTools: includeTools
             )
         }
 
@@ -3233,6 +3264,7 @@ class APIClient {
         request.httpBody = try Self.makeZenMuxChatRequestData(
             model: model,
             messages: messages,
+            includeTools: includeTools,
             capabilities: capabilities
         )
 
@@ -3274,7 +3306,8 @@ class APIClient {
     private func sendZenMuxVertexChat(
         apiKey: String,
         model: ZenMuxModel,
-        messages: [ZenMuxChatRequestMessage]
+        messages: [ZenMuxChatRequestMessage],
+        includeTools: Bool
     ) async throws -> ZenMuxChatCompletion {
         guard let modelName = model.rawValue.split(separator: "/", maxSplits: 1).last else {
             throw ZenMuxAPIError.modelUnavailable
@@ -3289,7 +3322,8 @@ class APIClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try Self.makeZenMuxVertexChatRequestData(
             model: model,
-            messages: messages
+            messages: messages,
+            includeTools: includeTools
         )
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -3977,6 +4011,14 @@ class APIClient {
     }
 
     private static let zenMuxBrowserTools: [ZenMuxToolDefinition] = [
+        browserTool(
+            name: JevPagePolicy.toolName,
+            description: "Operate the current page toward one complete goal. The browser indexes visible controls and asks the configured ZenMux indexed-action model which operation and control to use. Text is written by the default ZenMux chat model only when the operation is text entry. Use this for clicks, typing, menu or list selection, and scrolling. Do not also choose element refs for the same step.",
+            properties: [
+                "goal": .init(type: "string", description: "The user's complete page goal, including every constraint that must be visibly satisfied."),
+            ],
+            required: ["goal"]
+        ),
         browserTool(
             name: "inspect_page",
             description: "Inspect the current page DOM and return visible interactive elements with sanitized HTML, ARIA state, a stable ref, a CSS selector, and a compatibility index. Use this before interacting.",
