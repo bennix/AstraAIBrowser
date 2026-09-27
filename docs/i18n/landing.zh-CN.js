@@ -38,7 +38,7 @@
     "features.signedUpdates.body": "打开“关于 Astra Browser”即会检查 GitHub Releases 更新。更新源与 DMG 均使用 Sparkle Ed25519 签名校验，并继续验证 Apple 代码签名。",
     "features.promptLibrary.title": "本地提示词管理器",
     "features.promptLibrary.body": "可将网页划词内容保存为提示词，并自动收藏已发送的提示词。所有内容仅保存在本机，支持按任务分类、搜索、复用、编辑、批量删除及 JSON 导入导出。",
-    "download.summary": "Build 102 改进 Chromium 密码候选弹层的激活与通用账号输入框的回填，并在当前网站没有保存 Touch ID 登录信息时给出明确提示。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 103 修复后台定时任务待处理时，Chromium 密码候选项无法确认回填的问题；已在复旦 eHall 登录页验证选择已保存账号后可正常回填。Chromium 保存的密码与 Astra Touch ID 凭据仍属于不同的存储。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

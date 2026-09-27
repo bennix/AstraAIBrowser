@@ -3,16 +3,16 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 102)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.102/Astra-Browser-build102.dmg)
+[Download Astra 1.0 (build 103)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.103/Astra-Browser-build103.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.102)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.103)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
 and accepted by Apple's notarization service.
 
 ## Highlights
 
-- Improves Chromium password popup activation, saved-login filling on sites with generic account fields, and feedback when Touch ID has no saved login for a site.
+- Fixes Chromium saved-login selection so password suggestions can be accepted while background timers are pending; verified by selecting a saved login on the Fudan eHall sign-in page. Keeps Chromium's built-in password store separate from Astra's Touch ID Keychain store.
 - Adds indexed page actions through a configurable ZenMux policy model. The policy selects visible controls for clicks, typing targets, selections, and scrolling, while the default chat model supplies field text without exposing passwords or verification data.
 - Validates newly configured ZenMux models against the provider catalog and enables image, PDF, and reasoning controls only when the selected model supports them. Gemini-family model IDs, including Gemini 3.8 Flash, use multimodal image input.
 - Restores selection translation, word lookup, and vocabulary-book actions in WebKit compatibility pages such as BBC.

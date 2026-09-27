@@ -1736,6 +1736,12 @@ private final class CefBrowserWindow: NSWindow {
     @objc static func bootstrapApplication() -> Bool {
         do {
             var configuration = CefConfiguration.default
+            // Use the native macOS pump with the existing periodic work driver.
+            // CEF's external pump only calls DoIdleWork when no delayed tasks
+            // remain. Chromium's autofill acceptance barrier needs an idle
+            // callback even when future timers are pending, otherwise a visible
+            // password suggestion can remain permanently unaccepting.
+            configuration.externalMessagePump = false
             let interfaceLocale = FingerprintPrivacyPolicy.interfaceLocale
             let outwardLocale: String
             if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {

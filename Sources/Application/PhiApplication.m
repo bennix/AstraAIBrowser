@@ -8,7 +8,6 @@
 #import <Carbon/Carbon.h>
 #import <Cocoa/Cocoa.h>
 @interface PhiApplication ()
-@property(nonatomic, assign) BOOL handlingSendEvent;
 @property(nonatomic, assign) BOOL terminationStarted;
 @property(nonatomic, assign) BOOL terminationRetryScheduled;
 @property(nonatomic, assign) BOOL terminationRetryReady;
@@ -43,15 +42,6 @@
     } else {
         [super sendEvent:event];
     }
-}
-
-- (BOOL)isHandlingSendEvent {
-    return _handlingSendEvent;
-}
-
-- (void)setHandlingSendEvent:(BOOL)handlingSendEvent {
-    _handlingSendEvent = handlingSendEvent;
-    AppLogDebug(@"setHandlingSendEvent: %d", handlingSendEvent);
 }
 
 - (void)terminate:(id)sender {
