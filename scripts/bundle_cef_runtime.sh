@@ -194,7 +194,14 @@ sign_target() {
   if [[ "$include_entitlements" == "true" && -n "$entitlements_path" ]]; then
     arguments+=(--entitlements "$entitlements_path")
   fi
-  /usr/bin/codesign "${arguments[@]}" "$target"
+  local attempt
+  for attempt in {1..5}; do
+    if /usr/bin/codesign "${arguments[@]}" "$target"; then
+      return 0
+    fi
+    (( attempt == 5 )) && return 1
+    sleep 2
+  done
 }
 
 cef_framework="$frameworks_dir/Chromium Embedded Framework.framework"

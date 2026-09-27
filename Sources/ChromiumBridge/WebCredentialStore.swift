@@ -16,10 +16,24 @@ struct WebCredentialDescriptor: Equatable {
 
 enum WebCredentialStoreError: LocalizedError {
     case invalidInput
+    case noSavedLogin
+    case fillFailed
     case keychain(OSStatus)
 
     var errorDescription: String? {
         switch self {
+        case .fillFailed:
+            return NSLocalizedString(
+                "passwords.webCredential.error.fillFailed",
+                value: "The login fields could not be filled. Wait for the login form to finish loading and try again.",
+                comment: "Web password manager - The form was missing or did not retain the filled values"
+            )
+        case .noSavedLogin:
+            return NSLocalizedString(
+                "passwords.webCredential.error.noSavedLogin",
+                value: "No Touch ID login is saved for this website. Logins shown in Chromium's password menu are stored separately; select them from that menu.",
+                comment: "Web password manager - Explains why Touch ID cannot fill a login from the separate Chromium password store"
+            )
         case .invalidInput:
             return NSLocalizedString(
                 "passwords.webCredential.error.invalidInput",

@@ -1,6 +1,8 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "passwords.webCredential.error.fillFailed" : {"comment":"Web password manager - The form was missing or did not retain the filled values","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"The login fields could not be filled. Wait for the login form to finish loading and try again."}}}},
+    "passwords.webCredential.error.noSavedLogin" : {"comment":"Web password manager - Explains why Touch ID cannot fill a login from the separate Chromium password store","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"No Touch ID login is saved for this website. Logins shown in Chromium's password menu are stored separately; select them from that menu."}}}},
 "browser.distractions.action" : {"comment":"Address bar - Dismiss supported optional login prompts","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Clear Distractions"}}}},
 "browser.distractions.closed" : {"comment":"Address bar - Optional prompt was dismissed","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Login prompt closed. Page scrolling is managed by the website."}}}},
 "browser.distractions.unsupported" : {"comment":"Address bar - No supported site rule","extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Currently supports dismissible login prompts on Zhihu article and question pages. No page changes made."}}}},

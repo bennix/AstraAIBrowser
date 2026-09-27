@@ -1587,6 +1587,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         if let overlay = chromeBrowser.nsWindow {
             UnmanagedChromiumWindowPolicy.markAsOwnedOverlay(overlay)
         }
+        rebindWindowObservers()
         updateChromeOverlay()
     }
 
@@ -1798,7 +1799,10 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             if overlay.frame != frame {
                 overlay.setFrame(frame, display: true)
             }
-            overlay.orderFront(nil)
+            // Reordering a visible Views window can cover its autofill popup.
+            if !overlay.isVisible {
+                overlay.orderFront(nil)
+            }
         } else {
             overlay.parent?.removeChildWindow(overlay)
             overlay.orderOut(nil)
@@ -1891,6 +1895,19 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                 ) { [weak self] _ in
                     MainActor.assumeIsolated {
                         self?.updateChromeOverlay()
+                    }
+                }
+            )
+        }
+        if let overlay = chromeBrowser?.nsWindow {
+            windowObservers.append(
+                NotificationCenter.default.addObserver(
+                    forName: NSWindow.didBecomeKeyNotification,
+                    object: overlay,
+                    queue: .main
+                ) { [weak self] _ in
+                    MainActor.assumeIsolated {
+                        self?.chromeBrowser?.activate()
                     }
                 }
             )
@@ -2395,6 +2412,30 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         browser.executeJavaScript(script)
     }
 
+    private static let credentialFieldsJavaScript = """
+    const visible = (element) => {
+      if (!element || element.disabled || element.readOnly) return false;
+      const rect = element.getBoundingClientRect();
+      const style = element.ownerDocument.defaultView.getComputedStyle(element);
+      return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+    };
+    const passwordField = () => Array.from(document.querySelectorAll('input[type="password"]'))
+      .find(element => visible(element) && element.autocomplete !== 'new-password');
+    const usernameField = () => {
+      const password = passwordField();
+      const root = password?.form || document;
+      const inputs = Array.from(root.querySelectorAll('input')).filter(element =>
+        visible(element) && ['text', 'email', 'tel', ''].includes(element.type) &&
+        !/one-time-code|new-password|cc-/.test(element.autocomplete || ''));
+      const explicit = inputs.find(element => /username|email/.test(element.autocomplete || '') ||
+        /^(username|user|userid|user_name|login|loginname|account|identifier|email)$/i.test(element.name || element.id));
+      if (explicit) return explicit;
+      const preceding = password ? inputs.filter(element =>
+        element.compareDocumentPosition(password) & Node.DOCUMENT_POSITION_FOLLOWING) : inputs;
+      return preceding.length === 1 ? preceding[0] : null;
+    };
+    """
+
     private func installWebCredentialControls() {
         guard allowsCredentialStorage,
               let browser,
@@ -2410,10 +2451,11 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         let script = """
         (function () {
           if (window.__astraCredentialControlsInstalled) return;
-          window.__astraCredentialControlsInstalled = true;
           const bridgeToken = \(tokenLiteral);
           const expectedOrigin = \(originLiteral);
           if (location.origin !== expectedOrigin || !window.cefSwift || !window.cefSwift.invoke) return;
+          window.__astraCredentialControlsInstalled = true;
+          \(Self.credentialFieldsJavaScript)
 
           const isVisible = (element) => {
             if (!element || element.disabled) return false;
@@ -2422,6 +2464,8 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
           };
           const username = () => {
+            const fieldValue = usernameField()?.value?.trim();
+            if (fieldValue) return fieldValue.slice(0, 320);
             const selectors = [
               'input[autocomplete="username"]', 'input[type="email"]',
               'input[name="identifier"]', 'input[name="Email"]', 'input[name="email"]'
@@ -2437,7 +2481,6 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             }
             return '';
           };
-          const passwordField = () => Array.from(document.querySelectorAll('input[type="password"]')).find(isVisible);
           const addFillButton = () => {
             const password = passwordField();
             let button = document.getElementById('astra-touch-id-fill');
@@ -2506,6 +2549,10 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
 
     private func fillSavedCredential(origin: String, requestedUsername: String?) {
         let descriptors = WebCredentialStore.shared.descriptors(for: origin)
+        guard !descriptors.isEmpty else {
+            WebCredentialPrompt.showError(WebCredentialStoreError.noSavedLogin, window: hostView.window)
+            return
+        }
         let trimmedUsername = requestedUsername?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let matching = trimmedUsername.isEmpty
             ? descriptors
@@ -2533,7 +2580,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                     reason: reason
                 )
                 guard currentSecureOrigin() == origin else { return }
-                fillCredential(username: descriptor.username, password: password, origin: origin)
+                await fillCredential(username: descriptor.username, password: password, origin: origin)
             } catch where WebCredentialStore.isUserCancellation(error) {
                 return
             } catch {
@@ -2566,14 +2613,13 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         }
     }
 
-    private func fillCredential(username: String, password: String, origin: String) {
-        guard let browser else { return }
+    private func fillCredential(username: String, password: String, origin: String) async {
         let usernameLiteral = Self.javaScriptLiteral(username)
         let passwordLiteral = Self.javaScriptLiteral(password)
         let originLiteral = Self.javaScriptLiteral(origin)
         let script = """
-        (function () {
-          if (location.origin !== \(originLiteral)) return;
+        return await (async function () {
+          if (location.origin !== \(originLiteral)) return 'failed';
           const update = (element, value) => {
             if (!element) return;
             const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
@@ -2581,19 +2627,23 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             element.dispatchEvent(new Event('input', { bubbles: true }));
             element.dispatchEvent(new Event('change', { bubbles: true }));
           };
-          const password = Array.from(document.querySelectorAll('input[type="password"]')).find((element) => {
-            const rect = element.getBoundingClientRect();
-            return rect.width > 0 && rect.height > 0 && !element.disabled;
-          });
-          const username = document.querySelector(
-            'input[autocomplete="username"], input[type="email"], input[name="identifier"], input[name="Email"], input[name="email"]'
-          );
-          if (username && !username.value) update(username, \(usernameLiteral));
+          \(Self.credentialFieldsJavaScript)
+          const password = passwordField();
+          const username = usernameField();
+          if (!password) return 'failed';
+          update(username, \(usernameLiteral));
           update(password, \(passwordLiteral));
           password?.focus();
+          await new Promise(resolve => setTimeout(resolve, 100));
+          return password.isConnected && password.value === \(passwordLiteral) &&
+            (!username || (username.isConnected && username.value === \(usernameLiteral))) ? 'filled' : 'failed';
         })();
         """
-        browser.executeJavaScript(script)
+        let result = await evaluateJavaScriptResult(operation: script)
+        guard currentSecureOrigin() == origin else { return }
+        if result != "filled" {
+            WebCredentialPrompt.showError(WebCredentialStoreError.fillFailed, window: hostView.window)
+        }
     }
 
     private func currentSecureOrigin() -> String? {
