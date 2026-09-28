@@ -38,7 +38,7 @@
     "features.signedUpdates.body": "打开“关于 Astra Browser”即会检查 GitHub Releases 更新。更新源与 DMG 均使用 Sparkle Ed25519 签名校验，并继续验证 Apple 代码签名。",
     "features.promptLibrary.title": "本地提示词管理器",
     "features.promptLibrary.body": "可将网页划词内容保存为提示词，并自动收藏已发送的提示词。所有内容仅保存在本机，支持按任务分类、搜索、复用、编辑、批量删除及 JSON 导入导出。",
-    "download.summary": "Build 103 修复后台定时任务待处理时，Chromium 密码候选项无法确认回填的问题；已在复旦 eHall 登录页验证选择已保存账号后可正常回填。Chromium 保存的密码与 Astra Touch ID 凭据仍属于不同的存储。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 104 恢复 macOS 上受支持的 CEF 外部消息泵，修复地址栏无法输入和标签页无法切换的问题，同时保留已保存账号选择回填修复。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {
