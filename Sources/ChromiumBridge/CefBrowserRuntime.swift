@@ -1736,6 +1736,9 @@ private final class CefBrowserWindow: NSWindow {
     @objc static func bootstrapApplication() -> Bool {
         do {
             var configuration = CefConfiguration.default
+            // Pair the native pump with runNativeMessageLoop(), never with
+            // CefSwift's periodic external-pump driver.
+            configuration.externalMessagePump = false
             let interfaceLocale = FingerprintPrivacyPolicy.interfaceLocale
             let outwardLocale: String
             if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
@@ -1830,6 +1833,10 @@ private final class CefBrowserWindow: NSWindow {
             AppLogError("CefSwift initialization failed: \(error.localizedDescription)")
             return false
         }
+    }
+
+    @objc static func runApplication() {
+        CefRuntime.shared.runNativeMessageLoop()
     }
 
     func applicationDidFinishLaunching() {

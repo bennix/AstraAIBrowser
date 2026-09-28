@@ -5,6 +5,12 @@
 #import <objc/runtime.h>
 
 static BOOL observedHandlingEvent;
+static NSUInteger terminationRequests;
+
+static BOOL deferTermination(void) {
+    terminationRequests += 1;
+    return NO;
+}
 
 static void inspectEventState(id application, SEL selector, NSEvent *event) {
     (void)selector;
@@ -37,6 +43,15 @@ int main(void) {
         method_setImplementation(method, original);
         puts(passed ? "PASS: event state is visible during dispatch and restored afterward"
                     : "FAIL: application hides the CEF event state");
+        [CEFApplication setTerminateHandler:deferTermination];
+        [application replyToApplicationShouldTerminate:NO];
+        BOOL terminationPassed = terminationRequests == 0;
+        [application replyToApplicationShouldTerminate:YES];
+        terminationPassed = terminationPassed && terminationRequests == 1;
+        [CEFApplication setTerminateHandler:NULL];
+        puts(terminationPassed ? "PASS: deferred termination replies preserve CEF shutdown ownership"
+                               : "FAIL: deferred termination bypasses the CEF handler");
+        passed = passed && terminationPassed;
         return passed ? 0 : 1;
     }
 }

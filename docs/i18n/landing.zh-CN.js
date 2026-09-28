@@ -38,7 +38,7 @@
     "features.signedUpdates.body": "打开“关于 Astra Browser”即会检查 GitHub Releases 更新。更新源与 DMG 均使用 Sparkle Ed25519 签名校验，并继续验证 Apple 代码签名。",
     "features.promptLibrary.title": "本地提示词管理器",
     "features.promptLibrary.body": "可将网页划词内容保存为提示词，并自动收藏已发送的提示词。所有内容仅保存在本机，支持按任务分类、搜索、复用、编辑、批量删除及 JSON 导入导出。",
-    "download.summary": "Build 104 恢复 macOS 上受支持的 CEF 外部消息泵，修复地址栏无法输入和标签页无法切换的问题，同时保留已保存账号选择回填修复。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "download.summary": "Build 105 使用 CEF 原生 macOS 事件循环统一处理浏览器与 AppKit 事件，保留保存账号回填能力，并确保网址输入、标签页切换和异步退出正常。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
   };
 
   const applyTranslations = () => {

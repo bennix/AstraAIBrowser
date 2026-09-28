@@ -318,6 +318,10 @@ extension AppController {
         hookAndRebuildMainMenu()
     }
 
+    @objc func quitApplicationFromMenu(_ sender: Any?) {
+        NSApp.terminate(sender)
+    }
+
     private func hookAndRebuildMainMenu() {
         guard let mainMenu = NSApp.mainMenu else {
             return
@@ -772,10 +776,10 @@ extension AppController {
 
                 let quit = NSMenuItem(
                     title: String(format: NSLocalizedString("Quit %@", comment: "Application menu - Quit"), appItem.title),
-                    action: #selector(NSApplication.terminate(_:)),
+                    action: #selector(quitApplicationFromMenu(_:)),
                     keyEquivalent: "q"
                 )
-                quit.target = NSApp
+                quit.target = self
                 appMenu.addItem(quit)
             }
             appItem.submenu = appMenu
@@ -2432,6 +2436,7 @@ extension AppController {
             .isGuestTransitionInteractionBlocked {
             let lifecycleSafeActions: [Selector] = [
                 #selector(orderFrontStandardAboutPanel(_:)),
+                #selector(quitApplicationFromMenu(_:)),
                 #selector(NSApplication.terminate(_:)),
                 #selector(NSApplication.hide(_:)),
                 #selector(NSApplication.hideOtherApplications(_:)),

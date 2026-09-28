@@ -48,7 +48,8 @@ int main(int argc, const char * argv[]) {
             return 1;
         }
         [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-        return NSApplicationMain(argc, (const char **)argv);
+        [CefBrowserRuntime runApplication];
+        return 0;
     } @catch (NSException *exception) {
         AppLogError(@"Exception in main: %@ - %@", exception.name, exception.reason);
         AppLogError(@"Exception callstack: %@", exception.callStackSymbols);

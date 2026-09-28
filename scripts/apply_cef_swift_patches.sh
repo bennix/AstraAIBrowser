@@ -17,6 +17,7 @@ patches=(
   "$repository_root/patches/cefswift/configure-do-not-track.patch"
   "$repository_root/patches/cefswift/forward-external-protocol.patch"
   "$repository_root/patches/cefswift/prefer-native-chinese.patch"
+  "$repository_root/patches/cefswift/support-native-message-loop.patch"
 )
 targets=(
   "$cef_swift_root/Sources/CefKit/CefBrowser.swift"
@@ -31,6 +32,7 @@ targets=(
   "$cef_swift_root/Sources/CefKit/BrowserClient.swift"
 )
 targets+=("$cef_swift_root/Sources/CefKit/BrowserClient.swift")
+targets+=("$cef_swift_root/Sources/CefKit/CefRuntime.swift")
 markers=(
   "public func captureVisiblePageScreenshot"
   "public func evaluateJavaScriptResult"
@@ -43,6 +45,7 @@ markers=(
   "final class CefDoNotTrackPolicy"
   "resourceHandler.pointee.on_protocol_execution"
   "public enum CefNativeSiteLanguagePolicy"
+  "public func runNativeMessageLoop"
 )
 
 applied_any=false

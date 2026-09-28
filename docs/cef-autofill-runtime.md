@@ -2,13 +2,11 @@
 
 ## Runtime integration constraint
 
-Astra must keep CEF's external message pump enabled on macOS. `CefRuntime`
-always starts CefSwift's `CefMessagePump`, which services CEF through
-`cef_do_message_loop_work()` timers and scheduled callbacks. Disabling CEF's
-external pump while retaining this driver makes the run-loop ownership
-inconsistent and can starve AppKit input, leaving address entry and tab
-switching unresponsive. Leave `CefConfiguration.externalMessagePump` at its
-default `true` unless the runtime integration is changed as a whole.
+Astra uses CEF's native macOS event loop as the single owner of event dispatch:
+`externalMessagePump = false` is paired with `runNativeMessageLoop()` from
+the executable entry point. CefSwift starts its periodic work driver only
+for clients that choose the external pump. Never combine the native loop
+with periodic `cef_do_message_loop_work()` calls or `NSApplicationMain`.
 
 In the bundled CEF `151.3.18+gbeff58d` external pump, `DirectRunWork` only
 invokes `DoIdleWork` when there are neither immediate nor delayed tasks.
@@ -17,23 +15,30 @@ Pending future tasks can therefore starve idle callbacks. Chromium 151's
 `NextIdleBarrier` has received a UI-thread idle callback. A popup can display
 and highlight saved logins while every acceptance attempt returns early.
 
-The external pump behavior can defer idle processing while future tasks remain
-scheduled. Preserve Chromium's acceptance delay and security checks rather
-than disabling them or extracting passwords into page scripts. Any future
-change to idle scheduling must retain the external-pump contract and be
-validated against both saved-login acceptance and AppKit input responsiveness.
+The native loop handles idle processing while future work is scheduled and
+dispatches AppKit input through the standard CEF application integration.
+Chromium's acceptance delay, focus checks, and password store remain intact.
+The runtime waits for browser closure before quitting the native loop, then
+notifies termination observers and shuts CEF down after the loop returns.
+Deferred application termination resumes through CEFApplication's reply hook.
+System quit Apple events are routed to the same asynchronous termination
+handler. AppKit's default Apple-event handler can otherwise enter a nested
+termination wait loop, which is incompatible with CEF lifecycle work.
 
 Sources for the bundled versions:
 
 - [CEF external pump](https://github.com/chromiumembedded/cef/blob/beff58d/libcef/browser/browser_message_loop.cc)
 - [Chromium acceptance check](https://github.com/chromium/chromium/blob/151.0.7922.138/chrome/browser/ui/autofill/autofill_popup_controller_impl.cc)
 - [Chromium idle barrier](https://github.com/chromium/chromium/blob/151.0.7922.138/chrome/browser/ui/autofill/next_idle_barrier.cc)
+- [Official macOS lifecycle](https://github.com/chromiumembedded/cef/blob/beff58d/tests/cefsimple/cefsimple_mac.mm)
 
 `PhiApplication` must also inherit `CEFApplication`'s `handlingSendEvent`
 storage and accessors. Redeclaring the property creates separate state and
 hides the superclass's active event-dispatch state from Chromium. The
 standalone `Tests/ApplicationEventStateRegression.m` test covers normal and
-nested dispatch state restoration.
+nested dispatch state restoration and deferred termination replies.
+`Tests/CEFQuitEventRegression.m` dispatches a quit Apple event to the installed
+handler and verifies that neither it nor a deferred reply bypasses CEF.
 
 ## Manual acceptance regression
 
@@ -52,13 +57,30 @@ An account list, highlighted row, successful build, or an already authenticated
 page alone does not establish that autofill passed. Existing sessions must not
 be cleared merely to run this test.
 
-Validation on 2026-09-28: the signed Build 103 Release compiled successfully,
-the standalone event-state regression passed, and the user confirmed saved-login
-selection filled the Fudan eHall login. A subsequent local process sample
-showed the main thread repeatedly entering CEF message-loop work while the
-address bar and tabs were unresponsive. Build 104 restores the external-pump
-default to keep CEF and AppKit on the same scheduling contract. Keyboard-only
-acceptance, the mail login, and the separate Touch ID path were not verified.
+Build 103 used the native pump with a periodic work driver and regressed
+AppKit input. Build 104 restored external pumping but the user reproduced
+saved-login acceptance failure. Both symptoms must be tested together for
+the native-loop integration; neither previous release establishes success.
+
+Validation on 2026-09-28 for the local native-loop candidate:
+
+- Release build and inside-out Developer ID signature verification passed.
+- Event-state and quit-event standalone regressions passed.
+- The isolated CEF smoke test loaded its expected page title and exited
+  naturally with status 0, without killing the process.
+- The user confirmed saved-login acceptance on Fudan eHall and working tab
+  switching in the first native-loop candidate.
+- Further testing exposed a nested AppKit quit loop, a CEF browser-creation
+  crash, and a disabled application-menu Quit item. The final candidate routes
+  quit Apple events asynchronously and targets the generated Quit menu item at
+  AppController; UI checks confirmed the item is enabled, selecting it exits
+  the app, and Command-Q exits after a cold launch. Build, signature,
+  regression, and natural-exit smoke checks were repeated.
+- Address-bar navigation, repeated tab switching after restart, and the mail
+  site's saved-login acceptance still require complete manual confirmation on
+  the final candidate. The automation tool selected CEF child windows and
+  stale menus, so those attempts are not recorded as passes.
+- The separate Touch ID path has not been verified by these tests.
 
 ## Credential-store boundary
 

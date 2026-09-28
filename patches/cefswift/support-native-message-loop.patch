@@ -1,0 +1,108 @@
+diff --git a/Sources/CefKit/CefRuntime.swift b/Sources/CefKit/CefRuntime.swift
+--- a/Sources/CefKit/CefRuntime.swift
++++ b/Sources/CefKit/CefRuntime.swift
+@@ -126,6 +126,7 @@ public final class CefRuntime {
+     private var settings: MappedCefSettings?
+     private var browsers: [Int32: CefBrowser] = [:]
+     private var isTerminationRequested = false
++    private var isRunningNativeMessageLoop = false
+ 
+     private init() {}
+ 
+@@ -205,7 +206,9 @@ public final class CefRuntime {
+         settings = mapped
+         self.configuration = configuration
+         messagePump = pump
+-        pump.start()
++        if configuration.externalMessagePump {
++            pump.start()
++        }
+         CEFApplication.setTerminateHandler(cefTerminateHandler)
+         isInitialized = true
+ 
+@@ -213,6 +216,20 @@ public final class CefRuntime {
+         registerSchemeHandler(scheme: CefBridge.schemeName, handler: CefBridgeSchemeHandler(bridge: bridge))
+     }
+ 
++    /// Runs CEF's native macOS event loop instead of NSApplicationMain.
++    /// No periodic work driver may run concurrently with this loop.
++    public func runNativeMessageLoop() {
++        precondition(isInitialized && configuration?.externalMessagePump == false)
++        precondition(!isRunningNativeMessageLoop)
++        isRunningNativeMessageLoop = true
++        cef_run_message_loop()
++        isRunningNativeMessageLoop = false
++        // Notify AppKit clients while Chromium is still alive, then shut down
++        // outside browser callbacks and outside the native event loop.
++        NotificationCenter.default.post(name: NSApplication.willTerminateNotification, object: NSApp)
++        shutdown()
++    }
++
+     /// Updates the request-layer Do Not Track policy for all browser profiles.
+     @discardableResult
+     public func setDoNotTrackEnabled(_ enabled: Bool) -> Bool {
+@@ -497,6 +514,19 @@ public final class CefRuntime {
+     func handleTerminationRequest() -> Bool {
+         guard isInitialized else { return true }
+         if browsers.isEmpty {
++            if isRunningNativeMessageLoop {
++                switch NSApp.delegate?.applicationShouldTerminate?(NSApp) ?? .terminateNow {
++                case .terminateNow:
++                    cef_quit_message_loop()
++                case .terminateCancel:
++                    isTerminationRequested = false
++                case .terminateLater:
++                    break
++                @unknown default:
++                    break
++                }
++                return false
++            }
+             shutdown()
+             return true
+         }
+diff --git a/Sources/CCefAppKit/CEFApplication.m b/Sources/CCefAppKit/CEFApplication.m
+--- a/Sources/CCefAppKit/CEFApplication.m
++++ b/Sources/CCefAppKit/CEFApplication.m
+@@ -26,6 +26,26 @@ static CEFApplicationTerminateHandler g_terminate_handler = NULL;
+ 
+ + (void)setTerminateHandler:(nullable CEFApplicationTerminateHandler)handler {
+   g_terminate_handler = handler;
++  if (handler != NULL) {
++    // AppKit's default quit Apple event enters a nested termination loop.
++    // CEF must close its browsers and leave its own loop asynchronously.
++    [[NSAppleEventManager sharedAppleEventManager]
++        setEventHandler:NSApp
++            andSelector:@selector(handleCefQuitEvent:withReplyEvent:)
++          forEventClass:kCoreEventClass
++             andEventID:kAEQuitApplication];
++  } else {
++    [[NSAppleEventManager sharedAppleEventManager]
++        removeEventHandlerForEventClass:kCoreEventClass
++                             andEventID:kAEQuitApplication];
++  }
++}
++
++- (void)handleCefQuitEvent:(NSAppleEventDescriptor*)event
++          withReplyEvent:(NSAppleEventDescriptor*)reply {
++  (void)event;
++  (void)reply;
++  [self terminate:nil];
+ }
+ 
+ - (BOOL)isHandlingSendEvent {
+@@ -51,4 +51,14 @@ static CEFApplicationTerminateHandler g_terminate_handler = NULL;
+   [super terminate:sender];
+ }
+ 
++- (void)replyToApplicationShouldTerminate:(BOOL)shouldTerminate {
++  if (g_terminate_handler != NULL) {
++    if (shouldTerminate) {
++      [self terminate:nil];
++    }
++    return;
++  }
++  [super replyToApplicationShouldTerminate:shouldTerminate];
++}
++
+ @end
