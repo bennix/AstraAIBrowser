@@ -12,6 +12,8 @@ int main(void) {
     @autoreleasepool {
         CEFApplication *application = [CEFApplication sharedApplication];
         [CEFApplication setTerminateHandler:deferTermination];
+        // Exercise real AppKit launch setup, which can replace early handlers.
+        [application finishLaunching];
         NSAppleEventDescriptor *event = [NSAppleEventDescriptor
             appleEventWithEventClass:kCoreEventClass
                              eventID:kAEQuitApplication

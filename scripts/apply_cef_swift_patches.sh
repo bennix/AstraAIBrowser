@@ -18,6 +18,7 @@ patches=(
   "$repository_root/patches/cefswift/forward-external-protocol.patch"
   "$repository_root/patches/cefswift/prefer-native-chinese.patch"
   "$repository_root/patches/cefswift/support-native-message-loop.patch"
+  "$repository_root/patches/cefswift/restore-quit-handler-after-launch.patch"
 )
 targets=(
   "$cef_swift_root/Sources/CefKit/CefBrowser.swift"
@@ -33,6 +34,7 @@ targets=(
 )
 targets+=("$cef_swift_root/Sources/CefKit/BrowserClient.swift")
 targets+=("$cef_swift_root/Sources/CefKit/CefRuntime.swift")
+targets+=("$cef_swift_root/Sources/CCefAppKit/CEFApplication.m")
 markers=(
   "public func captureVisiblePageScreenshot"
   "public func evaluateJavaScriptResult"
@@ -46,6 +48,7 @@ markers=(
   "resourceHandler.pointee.on_protocol_execution"
   "public enum CefNativeSiteLanguagePolicy"
   "public func runNativeMessageLoop"
+  "Restore our asynchronous quit route after that setup"
 )
 
 applied_any=false

@@ -2737,6 +2737,7 @@ extension AppController {
         if !canUseBrowser {
             let allowedActions: [Selector] = [
                 #selector(orderFrontStandardAboutPanel(_:)),
+                #selector(quitApplicationFromMenu(_:)),
                 #selector(NSApplication.terminate(_:)),
                 #selector(NSApplication.hide(_:)),
                 #selector(NSApplication.hideOtherApplications(_:)),

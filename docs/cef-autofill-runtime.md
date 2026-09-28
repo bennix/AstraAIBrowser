@@ -24,6 +24,10 @@ Deferred application termination resumes through CEFApplication's reply hook.
 System quit Apple events are routed to the same asynchronous termination
 handler. AppKit's default Apple-event handler can otherwise enter a nested
 termination wait loop, which is incompatible with CEF lifecycle work.
+The quit handler must be restored after `NSApplication.finishLaunching`:
+AppKit installs its core event handlers during launch and can overwrite a
+handler registered during CEF initialization. Testing only pre-launch event
+dispatch does not cover this ordering constraint.
 
 Sources for the bundled versions:
 
@@ -38,7 +42,8 @@ hides the superclass's active event-dispatch state from Chromium. The
 standalone `Tests/ApplicationEventStateRegression.m` test covers normal and
 nested dispatch state restoration and deferred termination replies.
 `Tests/CEFQuitEventRegression.m` dispatches a quit Apple event to the installed
-handler and verifies that neither it nor a deferred reply bypasses CEF.
+handler after AppKit launch and verifies that neither it nor a deferred reply
+bypasses CEF.
 
 ## Manual acceptance regression
 
@@ -83,6 +88,21 @@ Validation on 2026-09-28 for the local native-loop candidate:
 - The separate Touch ID path has not been verified by these tests.
 
 ## Credential-store boundary
+
+Follow-up quit validation on 2026-09-28:
+
+- Build 105 reproduced a hang with Settings open. A process sample showed
+  `_handleAEQuit` / `_shouldTerminate` waiting inside the native CEF loop.
+- The follow-up candidate restores the quit handler after AppKit launch and
+  permits the explicit Quit selector when browser access is unavailable.
+- Release compilation, Developer ID signature verification, launch-aware
+  quit-event regression, and event-state regression passed.
+- With Settings in front, menu Quit and Command-Q completed; process checks
+  found no remaining Astra processes afterward.
+- Further page/navigation regression was interrupted by candidate exits
+  between UI operations. Their cause needs confirmation before treating those
+  attempts as successful navigation or multi-tab coverage. The candidate has
+  not replaced the installed application or been published.
 
 Chromium's native saved-login popup and Astra's injected Touch ID button use
 different credential stores. This message-loop fix does not migrate credentials

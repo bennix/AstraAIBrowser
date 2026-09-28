@@ -1,0 +1,19 @@
+diff --git a/Sources/CCefAppKit/CEFApplication.m b/Sources/CCefAppKit/CEFApplication.m
+--- a/Sources/CCefAppKit/CEFApplication.m
++++ b/Sources/CCefAppKit/CEFApplication.m
+@@ -47,6 +47,15 @@
+   [self terminate:nil];
+ }
+ 
++- (void)finishLaunching {
++  [super finishLaunching];
++  // AppKit installs its core Apple event handlers during launch, after CEF
++  // initialization. Restore our asynchronous quit route after that setup.
++  if (g_terminate_handler != NULL) {
++    [CEFApplication setTerminateHandler:g_terminate_handler];
++  }
++}
++
+ - (BOOL)isHandlingSendEvent {
+   return _handlingSendEvent;
+ }
