@@ -1,5 +1,12 @@
 (() => {
   const translations = {
+    // Landing page - API billing and optional referral-link disclosure.
+    "referral.title": "AI API Key 与推广关系",
+    "referral.billing": "使用 ZenMux AI 功能时，请配置自己的 ZenMux API Key；模型用量由你的 ZenMux 账户按平台规则结算。",
+    "referral.disclosure": "通过本页邀请链接注册 ZenMux，作者可能获得推广奖励或额度；价格、奖励资格及结算以 ZenMux 现行规则为准。",
+    "referral.link": "ZenMux 邀请注册（可选）",
+    "referral.rules": "ZenMux 计费规则",
+
     "hero.summary": "Astra 将 Chromium 浏览、扩展程序、隐私控制和视觉 AI 助手统一在一个专注的原生 Mac 应用中。",
     "features.summary": "Astra 在应用内统一日常 Chromium 兼容性、扩展程序、视觉 AI 上下文和隐私控制。",
     "features.extensions.title": "扩展程序始终留在 Astra 内",
