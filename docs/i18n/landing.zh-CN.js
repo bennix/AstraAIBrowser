@@ -45,7 +45,11 @@
     "features.signedUpdates.body": "打开“关于 Astra Browser”即会检查 GitHub Releases 更新。更新源与 DMG 均使用 Sparkle Ed25519 签名校验，并继续验证 Apple 代码签名。",
     "features.promptLibrary.title": "本地提示词管理器",
     "features.promptLibrary.body": "可将网页划词内容保存为提示词，并自动收藏已发送的提示词。所有内容仅保存在本机，支持按任务分类、搜索、复用、编辑、批量删除及 JSON 导入导出。",
-    "download.summary": "Build 106 修复设置窗口打开时无法正常退出的问题，并保留账号回填、网址输入及标签页切换。DMG 已通过 Apple Developer ID 签名和 Apple 公证。"
+    "features.searchProvider.title": "自由选择搜索引擎",
+    "features.searchProvider.body": "地址栏查询与新标签页搜索可选 Google、百度、Bing 或 DuckDuckGo；网址和 AI 提示词仍按各自方式处理。",
+    "features.proxy.title": "可选的代理自动检测",
+    "features.proxy.body": "启用后优先采用 macOS 系统代理；未配置系统代理时可检测可用的本机代理。重启 Astra 后，设置会应用于两种浏览引擎。",
+    "download.summary": "Build 109 新增四种搜索引擎选择、可选的代理自动检测，并改善 X 页面上的 Guard 位置。新 DMG 已通过 Apple 公证和本地安装包校验；GitHub 发布后才会提供下载。"
   };
 
   const applyTranslations = () => {
