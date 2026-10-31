@@ -49,7 +49,7 @@
     "features.searchProvider.body": "地址栏查询与新标签页搜索可选 Google、百度、Bing 或 DuckDuckGo；网址和 AI 提示词仍按各自方式处理。",
     "features.proxy.title": "可选的代理自动检测",
     "features.proxy.body": "启用后优先采用 macOS 系统代理；未配置系统代理时可检测可用的本机代理。重启 Astra 后，设置会应用于两种浏览引擎。",
-    "download.summary": "Build 109 新增四种搜索引擎选择、可选的代理自动检测，并改善 X 页面上的 Guard 位置。新 DMG 已通过 Apple 公证和本地安装包校验；GitHub 发布后才会提供下载。"
+    "download.summary": "Build 111 提供四种搜索引擎选择、增强的代理自动校验和 Astra 风格的安装背景。DMG 已通过 Apple 公证，可手动下载安装；自动更新暂时停留在 Build 106。"
   };
 
   const applyTranslations = () => {
