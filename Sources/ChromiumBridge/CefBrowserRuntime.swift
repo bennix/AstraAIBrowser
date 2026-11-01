@@ -1740,23 +1740,8 @@ private final class CefBrowserWindow: NSWindow {
             // CefSwift's periodic external-pump driver.
             configuration.externalMessagePump = false
             let interfaceLocale = FingerprintPrivacyPolicy.interfaceLocale
-            let outwardLocale: String
-            if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
-                outwardLocale = interfaceLocale
-            } else if let overrideCountryCode = CommandLine.arguments
-                .first(where: { $0.hasPrefix("--astra-egress-country=") })?
-                .dropFirst("--astra-egress-country=".count),
-                let overriddenLocale = BrowserNetworkLanguagePolicy.locale(
-                    forCountryCode: String(overrideCountryCode)
-                ) {
-                outwardLocale = overriddenLocale
-            } else {
-                outwardLocale = BrowserNetworkLanguagePolicy.resolvedLocale(
-                    fallbackLocale: interfaceLocale
-                ) {
-                    APIClient.resolvePublicIPv4Location()
-                }
-            }
+            // Honor the selected language regardless of the proxy exit country.
+            let outwardLocale = interfaceLocale
             FingerprintPrivacyPolicy.configureOutwardLocale(outwardLocale)
             AppLogInfo(
                 "[CEF] Browser language fingerprint locale=\(outwardLocale); " +

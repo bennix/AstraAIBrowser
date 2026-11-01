@@ -29,7 +29,7 @@ the signed automatic-update feed currently remains at Build 106.
 - Local AI memory uses an account-scoped SQLite vector index, renders Markdown tables and LaTeX locally, exports one or several selected entries as Markdown files, remembers completed user/AI turns, and summarizes expired conversation memory before removing its source records.
 - Browsing history stays in each persistent Chromium profile; the native History menu, Command-Y, and General settings provide direct access to viewing or clearing it.
 - Account settings show whether Astra owns both HTTP and HTTPS and can request complete macOS default-browser ownership.
-- Links opened by other macOS apps enter Astra's embedded Chromium tabs. Astra's rendered interface follows the user-selected app language and defaults to Simplified Chinese on a fresh installation, while web-exposed language signals follow the country of the public egress IPv4 address without storing that address.
+- Links opened by other macOS apps enter Astra's embedded Chromium tabs. Astra's interface defaults to the macOS language on a fresh installation. Users can select their preferred language in Settings, and web-exposed language signals follow that selection regardless of the proxy exit country.
 - Do Not Track is enabled by default, applies to Chromium and WebKit request paths and JavaScript surfaces, and can be changed from General settings.
 - Explicit HTTP pages use Astra's existing in-app compatibility engine when the embedded Chromium network stack cannot reach a legacy server, while HTTPS browsing keeps its normal Chromium path.
 - Integrated AI workspace for browsing and task assistance.

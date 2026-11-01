@@ -179,7 +179,10 @@ enum BrowserWindowOpenPolicy {
             || host == "twitter.com"
             || host.hasSuffix(".twitter.com")
         guard isXIdentityHost else { return false }
-        return path == "/i/oauth2/authorize"
+        return path == "/i/flow/login"
+            || path.hasPrefix("/i/flow/login/")
+            || path == "/login"
+            || path == "/i/oauth2/authorize"
             || path.hasPrefix("/i/oauth2/authorize/")
             || path == "/oauth/authorize"
             || path == "/oauth/authenticate"
@@ -1277,13 +1280,9 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             decidePolicyFor navigationAction: WKNavigationAction,
             decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
         ) {
-            guard navigationAction.targetFrame?.isMainFrame == true,
-                  BrowserOutwardRequestPolicy.needsCurrentHeaders(navigationAction.request) else {
-                decisionHandler(.allow)
-                return
-            }
-            decisionHandler(.cancel)
-            webView.load(BrowserOutwardRequestPolicy.current(navigationAction.request))
+            // Preserve WebKit's original OAuth navigation and transient context.
+            // Cancelling and loading a copied request can break Google GIS flows.
+            decisionHandler(.allow)
         }
 
         func applyDoNotTrackPreference(_ enabled: Bool) {
@@ -5553,6 +5552,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             return
         }
         if navigationAction.targetFrame?.isMainFrame == true,
+           !BrowserWindowOpenPolicy.isIdentityProviderURL(destination),
            BrowserOutwardRequestPolicy.needsCurrentHeaders(navigationAction.request) {
             decisionHandler(.cancel)
             webView.load(BrowserOutwardRequestPolicy.current(navigationAction.request))

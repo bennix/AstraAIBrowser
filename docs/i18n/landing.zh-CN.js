@@ -12,7 +12,7 @@
     "features.extensions.title": "扩展程序始终留在 Astra 内",
     "features.extensions.body": "可直接从 Chrome 应用商店安装扩展，并在 Chromium 渲染的页面中保持扩展操作图标可见，全程不跳出另一个浏览器窗口。",
     "features.privacy.title": "语言与追踪隐私保持一致",
-    "features.privacy.body": "原生界面保留用户选择的语言，网页对外语言信号则跟随公网出口 IPv4 所在国家；“勿追踪”默认开启，同时继续阻止不经过代理的 WebRTC 直连。",
+    "features.privacy.body": "新构建默认跟随 macOS 系统语言，用户可在设置中选择；网页语言信号跟随该选择，不再由 VPN 或代理出口国家覆盖。“勿追踪”默认开启，同时继续阻止不经过代理的 WebRTC 直连。",
     "features.fingerprintPrivacy.title": "兼顾安全验证的指纹隐私防护",
     "features.fingerprintPrivacy.body": "普通网页继续使用 Astra 的 Canvas、WebGL、WebAudio、GPU、字体、硬件与语言信号隐私防护；登录和安全验证路径使用 Chromium 原生表面，以提高滑块验证码的加载与校验一致性。",
     "features.visualContext.title": "视觉 AI 上下文",
