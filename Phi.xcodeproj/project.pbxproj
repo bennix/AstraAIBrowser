@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A57A0000000000000000E001 /* HLSManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A57A0000000000000000E002 /* HLSManifest.swift */; };
+		A57A0000000000000000D001 /* TemporaryDNSController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A57A0000000000000000D002 /* TemporaryDNSController.swift */; };
 		04FE4637EFE3A1396687DD63 /* AISettingsConnectorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8FCAEAE328C802016D87943 /* AISettingsConnectorViewModel.swift */; };
 		15B618E574463D94C98AEA5F /* AISettingHostingViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1B584F695BF7833FAA99558 /* AISettingHostingViewController.swift */; };
 		2ABF91DB68C2445BAA58C9BA /* GroupTabsTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 457F461C0F164136A46FF641 /* GroupTabsTableView.swift */; };
@@ -653,6 +655,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A57A0000000000000000E002 /* HLSManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HLSManifest.swift; sourceTree = "<group>"; };
+		A57A0000000000000000D002 /* TemporaryDNSController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemporaryDNSController.swift; sourceTree = "<group>"; };
 		11E8BEE1510290AB35D5C5AD /* SentinelBackupCoordination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SentinelBackupCoordination.swift; sourceTree = "<group>"; };
 		19B477B37CF44BC48335A032 /* AccountDeletedEventAuthentication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDeletedEventAuthentication.swift; sourceTree = "<group>"; };
 		3703C88B2F68F78500E7CF6D /* AISettingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISettingView.swift; sourceTree = "<group>"; };
@@ -1373,6 +1377,8 @@
 			children = (
 				376CE40F2F2897D30093D937 /* Models */,
 				376CE4102F2897D30093D937 /* APIClient.swift */,
+				A57A0000000000000000E002 /* HLSManifest.swift */,
+				A57A0000000000000000D002 /* TemporaryDNSController.swift */,
 				8EB020143020000000000014 /* OblivionDataExportAPI.swift */,
 				8EB01BE23010BCED0043E59D /* OblivionDeletionAPI.swift */,
 				54A1001B2FE000000000001B /* TimeMachinePackageDownloader.swift */,
@@ -3365,6 +3371,8 @@
 				376CE4162F2897D30093D937 /* Response.swift in Sources */,
 				8EF36C032F4E9E7000FCC91E /* TabViewModel.swift in Sources */,
 				376CE4172F2897D30093D937 /* APIClient.swift in Sources */,
+				A57A0000000000000000E001 /* HLSManifest.swift in Sources */,
+				A57A0000000000000000D001 /* TemporaryDNSController.swift in Sources */,
 				8EB020043020000000000004 /* OblivionDataExportAPI.swift in Sources */,
 				8EB01BE33010BCED0043E59D /* OblivionDeletionAPI.swift in Sources */,
 				54A1000B2FE000000000000B /* TimeMachinePackageDownloader.swift in Sources */,
@@ -3592,7 +3600,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10106;
+				CURRENT_PROJECT_VERSION = 10111;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -4055,7 +4063,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10106;
+				CURRENT_PROJECT_VERSION = 10111;
 				DEVELOPMENT_TEAM = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -4109,7 +4117,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10106;
+				CURRENT_PROJECT_VERSION = 10111;
 				DEVELOPMENT_TEAM = 5N66S29EK2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";

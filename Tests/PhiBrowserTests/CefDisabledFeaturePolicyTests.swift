@@ -7,7 +7,76 @@ import XCTest
 import JavaScriptCore
 @testable import Phi
 
+final class StrictSitePrivacyTests: XCTestCase {
+    func testCloudflareChallengePathRetainsNativeSurfaces() throws {
+        for path in ["/cdn-cgi/challenge-platform", "/cdn-cgi/challenge-platform/h/g/orchestrate"] {
+            XCTAssertTrue(CefSecurityChallengeCompatibilityPolicy.shouldUseNativeBrowserSurfaces(host: "example.com", path: path))
+            let context = try XCTUnwrap(JSContext())
+            context.evaluateScript("globalThis.location = {hostname: 'example.com', pathname: '\(path)'}; globalThis.top = globalThis;")
+            context.evaluateScript(FingerprintPrivacyPolicy.javaScript(for: FingerprintPrivacyPolicy.outwardLocale))
+            XCTAssertEqual(context.evaluateScript("__astraUsesNativeSecurityChallengeSurfaces")?.toBool(), true)
+            XCTAssertEqual(context.evaluateScript("typeof __astraFingerprintPrivacyInstalled")?.toString(), "undefined")
+            XCTAssertNil(context.exception)
+        }
+        XCTAssertFalse(CefSecurityChallengeCompatibilityPolicy.shouldUseNativeBrowserSurfaces(host: "example.com", path: "/cdn-cgi/challenge-platform-article"))
+    }
+
+    func testHostPreferencesDoNotMatchLookalikes() throws {
+        let name = "StrictSitePrivacyTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        XCTAssertTrue(FingerprintPrivacyPolicy.savedStrictHosts(defaults: defaults).contains("claude.ai"))
+        XCTAssertFalse(FingerprintPrivacyPolicy.savedStrictHosts(defaults: defaults).contains("claude.ai.example.com"))
+        FingerprintPrivacyPolicy.setStrictProtection(false, host: "claude.ai", defaults: defaults)
+        XCTAssertFalse(FingerprintPrivacyPolicy.savedStrictHosts(defaults: defaults).contains("claude.ai"))
+        XCTAssertNil(FingerprintPrivacyPolicy.siteHost("file:///tmp/test"))
+    }
+
+    func testStrictReadsAreDeniedWithoutDisablingUnselectedPagesOrAuth() throws {
+        for (host, auth, blocked) in [("claude.ai", false, true), ("claude.ai.example.com", false, false), ("claude.ai", true, false)] {
+            let context = try XCTUnwrap(JSContext())
+            context.evaluateScript("""
+            function URL(value) { this.hostname = value.split('/')[2]; }
+            function DOMException(message, name) { this.message = message; this.name = name; }
+            var location = { href: 'https://\(host)/chat', ancestorOrigins: [] };
+            var __astraUsesNativeSecurityChallengeSurfaces = \(auth);
+            function HTMLCanvasElement() {}
+            HTMLCanvasElement.prototype.toDataURL = () => 'raw-pixels';
+            HTMLCanvasElement.prototype.toBlob = () => 'raw-pixels';
+            function GPU() {}
+            const originalAdapterRequest = () => Promise.resolve({info: {vendor: 'apple'}});
+            GPU.prototype.requestAdapter = originalAdapterRequest;
+            """)
+            context.evaluateScript(FingerprintPrivacyPolicy.strictJavaScript(hosts: ["claude.ai"]))
+            XCTAssertNil(context.exception)
+            let result = context.evaluateScript("(() => { try { return new HTMLCanvasElement().toDataURL(); } catch(e) { return e.name; } })()")?.toString()
+            XCTAssertEqual(result, blocked ? "SecurityError" : "raw-pixels")
+            XCTAssertEqual(context.evaluateScript("GPU.prototype.requestAdapter !== originalAdapterRequest")?.toBool(), blocked)
+        }
+    }
+}
+
 final class CefDisabledFeaturePolicyTests: XCTestCase {
+    func testSecureDNSPreservesStateAndCanBeDisabled() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let url = root.appendingPathComponent("Local State")
+        try Data(#"{"unrelated":{"keep":true}}"#.utf8).write(to: url)
+        for enabled in [true, false] {
+            try BrowserSecureDNSPolicy.prepareLocalState(at: root, enabled: enabled)
+            let state = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+            XCTAssertEqual((state["unrelated"] as? [String: Bool])?["keep"], true)
+            let dns = try XCTUnwrap(state["dns_over_https"] as? [String: String])
+            XCTAssertEqual(dns["mode"], enabled ? "secure" : "off")
+            XCTAssertEqual(dns["templates"], enabled ? BrowserSecureDNSPolicy.template : "")
+        }
+        let malformed = Data("invalid-json".utf8)
+        try malformed.write(to: url)
+        XCTAssertThrowsError(try BrowserSecureDNSPolicy.prepareLocalState(at: root, enabled: true))
+        XCTAssertEqual(try Data(contentsOf: url), malformed)
+    }
+
     func testMergingPreservesCEFCompatibilityFeatures() {
         let result = CefDisabledFeaturePolicy.mergingCEFDefaults(
             "AutofillActorMode,GlicActorUi,LensOverlay"
@@ -93,12 +162,12 @@ final class CefSecurityChallengeCompatibilityPolicyTests: XCTestCase {
         )
     }
 
-    func testZenMuxLandingPageKeepsNativeSurfacesBeforeClientSideLogin() throws {
-        for host in ["zenmux.ai", "www.zenmux.ai"] {
+    func testInlineChallengeOriginsKeepNativeSurfacesBeforeClientSideLogin() throws {
+        for host in ["zenmux.ai", "www.zenmux.ai", "claude.ai", "www.claude.ai"] {
             XCTAssertTrue(CefSecurityChallengeCompatibilityPolicy.shouldUseNativeBrowserSurfaces(host: host, path: "/"))
             let context = try XCTUnwrap(JSContext())
             context.evaluateScript("globalThis.top = globalThis; globalThis.location = { hostname: '\(host)', pathname: '/' };")
-            context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
+            context.evaluateScript(FingerprintPrivacyPolicy.javaScript(for: FingerprintPrivacyPolicy.outwardLocale))
             context.evaluateScript("globalThis.location.pathname = '/login';")
             XCTAssertEqual(context.evaluateScript("globalThis.__astraUsesNativeSecurityChallengeSurfaces === true")?.toBool(), true)
             XCTAssertEqual(context.evaluateScript("globalThis.__astraFingerprintPrivacyInstalled === true")?.toBool(), false)
@@ -106,6 +175,7 @@ final class CefSecurityChallengeCompatibilityPolicyTests: XCTestCase {
             XCTAssertNil(context.exception)
         }
         XCTAssertFalse(CefSecurityChallengeCompatibilityPolicy.shouldUseNativeBrowserSurfaces(host: "zenmux.ai.example.org", path: "/"))
+        XCTAssertFalse(CefSecurityChallengeCompatibilityPolicy.shouldUseNativeBrowserSurfaces(host: "claude.ai.example.org", path: "/"))
     }
 
     func testLoginDocumentSkipsFingerprintWrappers() throws {
@@ -120,7 +190,7 @@ final class CefSecurityChallengeCompatibilityPolicyTests: XCTestCase {
           pathname: '/login'
         };
         """)
-        context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
+        context.evaluateScript(FingerprintPrivacyPolicy.javaScript(for: FingerprintPrivacyPolicy.outwardLocale))
 
         XCTAssertEqual(
             context.evaluateScript("globalThis.__astraUsesNativeSecurityChallengeSurfaces === true")?.toBool(),
@@ -149,7 +219,7 @@ final class CefSecurityChallengeCompatibilityPolicyTests: XCTestCase {
           pathname: '/account-settings'
         };
         """)
-        context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
+        context.evaluateScript(FingerprintPrivacyPolicy.javaScript(for: FingerprintPrivacyPolicy.outwardLocale))
 
         XCTAssertEqual(
             context.evaluateScript("globalThis.__astraUsesNativeSecurityChallengeSurfaces === true")?.toBool(),
@@ -164,6 +234,29 @@ final class CefSecurityChallengeCompatibilityPolicyTests: XCTestCase {
             false
         )
         XCTAssertNil(exception?.toString())
+    }
+
+    func testGoogleIdentityTransformSkipsFingerprintWrappers() throws {
+        XCTAssertTrue(CefSecurityChallengeCompatibilityPolicy.shouldUseNativeBrowserSurfaces(
+            host: "accounts.google.com",
+            path: "/gsi/transform"
+        ))
+        XCTAssertTrue(CefSecurityChallengeCompatibilityPolicy.shouldUseNativeBrowserSurfaces(
+            host: "accounts.google.co.jp",
+            path: "/gsi/select"
+        ))
+
+        let context = try XCTUnwrap(JSContext())
+        context.evaluateScript("globalThis.window = globalThis; globalThis.top = globalThis; globalThis.location = { hostname: 'accounts.google.com', pathname: '/gsi/transform' };")
+        context.evaluateScript(FingerprintPrivacyPolicy.javaScript(for: FingerprintPrivacyPolicy.outwardLocale))
+        XCTAssertEqual(
+            context.evaluateScript("globalThis.__astraUsesNativeSecurityChallengeSurfaces === true")?.toBool(),
+            true
+        )
+        XCTAssertEqual(
+            context.evaluateScript("globalThis.__astraFingerprintPrivacyInstalled === true")?.toBool(),
+            false
+        )
     }
 
     func testSameOriginChildFrameInheritsAuthenticationCompatibility() throws {
@@ -183,7 +276,7 @@ final class CefSecurityChallengeCompatibilityPolicyTests: XCTestCase {
           }
         };
         """)
-        context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
+        context.evaluateScript(FingerprintPrivacyPolicy.javaScript(for: FingerprintPrivacyPolicy.outwardLocale))
 
         XCTAssertEqual(
             context.evaluateScript("globalThis.__astraUsesNativeSecurityChallengeSurfaces === true")?.toBool(),
@@ -429,8 +522,63 @@ final class AudioFingerprintPrivacyPolicyTests: XCTestCase {
 }
 
 final class FingerprintPrivacyPolicyTests: XCTestCase {
+    func testOrdinarySitesKeepNativeFingerprintInterfaces() throws {
+        let context = try XCTUnwrap(JSContext())
+        context.evaluateScript(Self.browserSurfaceTestEnvironment)
+        context.evaluateScript("globalThis.originalHardwareDescriptor = Object.getOwnPropertyDescriptor(Navigator.prototype, 'hardwareConcurrency');")
+        context.evaluateScript(FingerprintPrivacyPolicy.siteScopedJavaScript(for: "en-US", hosts: ["claude.ai"]))
+        XCTAssertNil(context.exception)
+        XCTAssertEqual(context.evaluateScript("typeof __astraFingerprintPrivacyInstalled")?.toString(), "undefined")
+        XCTAssertEqual(context.evaluateScript("Object.getOwnPropertyDescriptor(Navigator.prototype, 'hardwareConcurrency').get === originalHardwareDescriptor.get")?.toBool(), true)
+    }
+
+    func testSelectedSitesInstallFingerprintProtection() throws {
+        let context = try XCTUnwrap(JSContext())
+        context.evaluateScript(Self.browserSurfaceTestEnvironment)
+        context.evaluateScript(FingerprintPrivacyPolicy.siteScopedJavaScript(for: "en-US", hosts: ["fingerprint.example"]))
+        XCTAssertNil(context.exception)
+        XCTAssertEqual(context.evaluateScript("__astraFingerprintPrivacyInstalled")?.toBool(), true)
+    }
+
+    func testMediaDiscoveryRetainsBoundedUniqueSignedManifestURLs() throws {
+        let context = try XCTUnwrap(JSContext())
+        context.evaluateScript("""
+        globalThis.location = {href: 'https://example.com/'};
+        function URL(value) { this.href = value; this.protocol = value.split(':')[0] + ':'; this.hash = ''; }
+        const callbacks = [];
+        function PerformanceObserver(callback) { callbacks.push(callback); this.observe = () => {}; }
+        globalThis.performance = {getEntriesByType: () => [{name: 'https://example.com/a.m3u8?token=abc'}]};
+        """)
+        context.evaluateScript(MediaResourceDiscoveryPolicy.javaScript)
+        XCTAssertNil(context.exception)
+        XCTAssertEqual(context.evaluateScript("__astraMediaResources[0]")?.toString(), "https://example.com/a.m3u8?token=abc")
+        context.evaluateScript("callbacks[0]({getEntries: () => Array.from({length: 120}, (_, i) => ({name: 'https://example.com/' + i + '.m3u8'}))});")
+        XCTAssertEqual(context.evaluateScript("__astraMediaResources.length")?.toInt32(), 100)
+        context.evaluateScript(MediaResourceDiscoveryPolicy.javaScript)
+        XCTAssertEqual(context.evaluateScript("callbacks.length")?.toInt32(), 1)
+    }
+
+    func testDoNotTrackPreservesMatchingNativeGetterAndUpdatesMismatch() throws {
+        for enabled in [false, true] {
+            let context = try XCTUnwrap(JSContext())
+            context.evaluateScript("""
+            function Navigator() {}
+            globalThis.navigator = new Navigator();
+            const nativeGetter = function() { return \(enabled ? "'1'" : "null"); };
+            Object.defineProperty(Navigator.prototype, 'doNotTrack', {
+                get: nativeGetter, configurable: true
+            });
+            """)
+            context.evaluateScript(BrowserOutwardRequestPolicy.doNotTrackJavaScript(enabled: enabled))
+            XCTAssertEqual(context.evaluateScript("Object.getOwnPropertyDescriptor(Navigator.prototype, 'doNotTrack').get === nativeGetter")?.toBool(), true)
+            context.evaluateScript(BrowserOutwardRequestPolicy.doNotTrackJavaScript(enabled: !enabled))
+            XCTAssertEqual(context.evaluateScript("navigator.doNotTrack === \(enabled ? "null" : "'1'")")?.toBool(), true)
+            XCTAssertNil(context.exception)
+        }
+    }
+
     func testPolicyCoversHighEntropyBrowserSurfaces() {
-        let script = FingerprintPrivacyPolicy.javaScript
+        let script = FingerprintPrivacyPolicy.javaScript(for: FingerprintPrivacyPolicy.outwardLocale)
 
         XCTAssertTrue(script.contains("__astraFingerprintPrivacyInstalled"))
         XCTAssertTrue(script.contains("CanvasRenderingContext2D"))
@@ -452,7 +600,7 @@ final class FingerprintPrivacyPolicyTests: XCTestCase {
         var exception: JSValue?
         context.exceptionHandler = { _, value in exception = value }
         context.evaluateScript(Self.browserSurfaceTestEnvironment)
-        context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
+        context.evaluateScript(FingerprintPrivacyPolicy.javaScript(for: FingerprintPrivacyPolicy.outwardLocale))
 
         XCTAssertEqual(context.evaluateScript("navigator.hardwareConcurrency")?.toInt32(), 8)
         XCTAssertEqual(context.evaluateScript("navigator.deviceMemory")?.toInt32(), 8)
@@ -475,12 +623,28 @@ final class FingerprintPrivacyPolicyTests: XCTestCase {
         XCTAssertNil(exception?.toString())
     }
 
+    func testPolicyBlocksBatteryAndPreservesNativeClientHints() throws {
+        let context = try XCTUnwrap(JSContext())
+        context.evaluateScript(Self.browserSurfaceTestEnvironment)
+        context.evaluateScript("globalThis.originalHints = NavigatorUAData.prototype.getHighEntropyValues;")
+        context.evaluateScript(FingerprintPrivacyPolicy.javaScript(for: FingerprintPrivacyPolicy.outwardLocale))
+
+        XCTAssertEqual(
+            context.evaluateScript("try { navigator.getBattery(); 'allowed' } catch (_) { 'blocked' }")?.toString(),
+            "blocked"
+        )
+        XCTAssertEqual(
+            context.evaluateScript("NavigatorUAData.prototype.getHighEntropyValues === originalHints")?.toBool(),
+            true
+        )
+    }
+
     func testPolicyFarblesCanvasAndMasksWebGLRenderer() throws {
         let context = try XCTUnwrap(JSContext())
         var exception: JSValue?
         context.exceptionHandler = { _, value in exception = value }
         context.evaluateScript(Self.browserSurfaceTestEnvironment)
-        context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
+        context.evaluateScript(FingerprintPrivacyPolicy.javaScript(for: FingerprintPrivacyPolicy.outwardLocale))
 
         XCTAssertEqual(context.evaluateScript("testCanvasWasFarbled()")?.toBool(), true)
         XCTAssertEqual(context.evaluateScript("testWebGLWasFarbled()")?.toBool(), true)
@@ -500,7 +664,7 @@ final class FingerprintPrivacyPolicyTests: XCTestCase {
         globalThis.document = { fonts: new FontFaceSet() };
         delete globalThis.FontFaceSet;
         """)
-        context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
+        context.evaluateScript(FingerprintPrivacyPolicy.javaScript(for: FingerprintPrivacyPolicy.outwardLocale))
 
         XCTAssertEqual(
             context.evaluateScript("document.fonts.check('16px \\\"PingFang SC\\\"')")?.toBool(),
@@ -532,7 +696,7 @@ final class FingerprintPrivacyPolicyTests: XCTestCase {
         globalThis.Element = Element;
         globalThis.HTMLElement = HTMLElement;
         """)
-        context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
+        context.evaluateScript(FingerprintPrivacyPolicy.javaScript(for: FingerprintPrivacyPolicy.outwardLocale))
         context.evaluateScript("""
         globalThis.metricProbe = new HTMLElement();
         metricProbe.style.fontFamily = 'PingFang SC, monospace';
@@ -573,7 +737,7 @@ final class FingerprintPrivacyPolicyTests: XCTestCase {
         globalThis.Element = Element;
         globalThis.HTMLElement = HTMLElement;
         """)
-        context.evaluateScript(FingerprintPrivacyPolicy.javaScript)
+        context.evaluateScript(FingerprintPrivacyPolicy.javaScript(for: FingerprintPrivacyPolicy.outwardLocale))
 
         let result = context.evaluateScript("""
         (() => {
@@ -634,6 +798,22 @@ final class FingerprintPrivacyPolicyTests: XCTestCase {
             FingerprintPrivacyPolicy.acceptLanguageList(for: locale),
             "ja-JP,ja,en-US,en"
         )
+    }
+
+    func testEgressLanguagesKeepEnglishAndChineseFirst() {
+        XCTAssertEqual(BrowserNetworkLanguagePolicy.preferredLanguages(forCountryCode: "JP"), "en-US,en,zh-CN,zh,ja-JP,ja")
+        XCTAssertEqual(BrowserNetworkLanguagePolicy.preferredLanguages(forCountryCode: "MY"), "en-US,en,zh-CN,zh,ms-MY,ms")
+        XCTAssertEqual(BrowserNetworkLanguagePolicy.preferredLanguages(forCountryCode: "CN"), "en-US,en,zh-CN,zh")
+        XCTAssertEqual(BrowserNetworkLanguagePolicy.preferredLanguages(forCountryCode: nil), "en-US,en,zh-CN,zh")
+    }
+
+    func testEgressTimeZoneUsesOnlyUnambiguousCountryCodes() {
+        XCTAssertEqual(BrowserNetworkTimeZonePolicy.identifier(forCountryCode: "jp"), "Asia/Tokyo")
+        XCTAssertEqual(BrowserNetworkTimeZonePolicy.identifier(forCountryCode: "ZA"), "Africa/Johannesburg")
+        XCTAssertEqual(BrowserNetworkTimeZonePolicy.identifier(forCountryCode: "my"), "Asia/Kuala_Lumpur")
+        XCTAssertEqual(TimeZone(identifier: "Asia/Kuala_Lumpur")?.secondsFromGMT(), 8 * 3600)
+        XCTAssertNil(BrowserNetworkTimeZonePolicy.identifier(forCountryCode: "US"))
+        XCTAssertNil(BrowserNetworkTimeZonePolicy.identifier(forCountryCode: "ZZ"))
     }
 
     func testNetworkLocaleFallsBackToRecentCountryWithoutPersistingAddress() throws {
@@ -775,6 +955,12 @@ final class FingerprintPrivacyPolicyTests: XCTestCase {
       get() { return ['en-US']; }, configurable: true, enumerable: true
     });
     Navigator.prototype.queryLocalFonts = async () => [{ family: 'PingFang SC' }];
+    Navigator.prototype.getBattery = () => ({ level: 0.8, charging: true });
+    class NavigatorUAData {
+      getHighEntropyValues() { return { platformVersion: '27.0.0' }; }
+    }
+    globalThis.NavigatorUAData = NavigatorUAData;
+    Navigator.prototype.userAgentData = new NavigatorUAData();
     globalThis.Navigator = Navigator;
     globalThis.navigator = new Navigator();
 

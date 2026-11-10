@@ -42,7 +42,9 @@ int main(int argc, const char * argv[]) {
 
         [TimeMachineBootstrap prepareBackupIfNeeded];
         
+        if ([TemporaryDNSLifecycle runResolverProbeIfRequested]) { return 0; }
         [PhiApplication sharedApplication];
+        [TemporaryDNSLifecycle prepareBeforeBrowserStartup];
         if (![CefBrowserRuntime bootstrapApplication]) {
             AppLogError(@"Failed to initialize CefSwift");
             return 1;
@@ -54,5 +56,7 @@ int main(int argc, const char * argv[]) {
         AppLogError(@"Exception in main: %@ - %@", exception.name, exception.reason);
         AppLogError(@"Exception callstack: %@", exception.callStackSymbols);
         return 1;
+    } @finally {
+        [TemporaryDNSLifecycle restoreBeforeExit];
     }
 }

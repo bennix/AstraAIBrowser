@@ -162,6 +162,30 @@ final class WebContentAddressBarMenuPresenter {
         func buildSettingsSubmenu(_ url: String?) -> NSMenu {
             let submenu = NSMenu(title: NSLocalizedString("browser.addressBarMenu.siteSettingsSubmenu.title", value: "Site Settings", comment: "Address bar menu - Settings submenu title"))
 
+            if let host = FingerprintPrivacyPolicy.siteHost(url ?? "") {
+                let saved = FingerprintPrivacyPolicy.savedStrictHosts().contains(host)
+                let active = FingerprintPrivacyPolicy.activeStrictHosts.contains(host)
+                let label = NSLocalizedString("privacy.strictSite.menu", value: "Strict fingerprint protection", comment: "Site settings - Exact-host fingerprint protection toggle")
+                let pending = NSLocalizedString("privacy.strictSite.pending", value: " (restart required)", comment: "Site privacy - Saved setting differs from the running browser")
+                let item = NSMenuItem(title: label + (saved != active ? pending : ""), action: nil, keyEquivalent: "")
+                item.state = saved ? .on : .off
+                let target = MenuActionTarget {
+                    let alert = NSAlert()
+                    alert.messageText = label
+                    alert.informativeText = NSLocalizedString("privacy.strictSite.explanation", value: "This setting applies to this hostname after restarting Astra. Strict protection restricts canvas, audio, WebGL and local font reads. It can affect image and audio tools. Websites still receive your requests, account information and exit IP.", comment: "Site privacy - Explains capabilities, limits and restart requirement") + "\n\n" + host
+                    alert.addButton(withTitle: NSLocalizedString("privacy.strictSite.save", value: "Save setting", comment: "Site privacy - Save changed preference"))
+                    alert.addButton(withTitle: NSLocalizedString("privacy.strictSite.cancel", value: "Cancel", comment: "Site privacy - Cancel preference change"))
+                    if alert.runModal() == .alertFirstButtonReturn {
+                        FingerprintPrivacyPolicy.setStrictProtection(!saved, host: host)
+                    }
+                }
+                actionTargets.append(target)
+                item.target = target
+                item.action = #selector(MenuActionTarget.performAction(_:))
+                submenu.addItem(item)
+                submenu.addItem(.separator())
+            }
+
             let windowId = browserState?.windowId ?? 0
             let clearCacheItem = NSMenuItem(
                 title: NSLocalizedString("browser.addressBarMenu.clearCacheAction", value: "Clear Cache", comment: "Address bar menu - Settings submenu item to clear cache"),

@@ -166,6 +166,9 @@ struct GeneralSettingView: View {
                 }
                 AppearanceSectionView()
                 BrowsingSectionView()
+                SearchProviderSettingsSectionView()
+                BrowserProxySettingsSectionView()
+                BrowserSecureDNSSettingsSectionView()
                 if !settingsPresentation.openedFromIncognito {
                     BrowsingHistorySectionView()
                 }
@@ -180,6 +183,205 @@ struct GeneralSettingView: View {
         }
         .themedBackground(PhiPreferences.fixedWindowBackground)
         .frame(width: 680, height: 561)
+    }
+}
+
+private struct SearchProviderSettingsSectionView: View {
+    @AppStorage(BrowserSearchProvider.preferenceKey)
+    private var selectedProvider = BrowserSearchProvider.google.rawValue
+
+    var body: some View {
+        GeneralSectionView(title: NSLocalizedString(
+            "settings.general.search.sectionTitle",
+            value: "Search",
+            comment: "General settings - Browser search provider section title"
+        )) {
+            GeneralContainerView {
+                HStack(spacing: 12) {
+                    Text(NSLocalizedString(
+                        "settings.general.search.providerLabel",
+                        value: "Default search engine",
+                        comment: "General settings - Label for the browser search provider selector"
+                    ))
+                    .font(.system(size: 13))
+                    .themedForeground(.textPrimary)
+                    Spacer(minLength: 12)
+                    Picker("", selection: $selectedProvider) {
+                        ForEach(BrowserSearchProvider.allCases) { provider in
+                            Text(verbatim: provider.displayName).tag(provider.rawValue)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                }
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+}
+
+private struct BrowserSecureDNSSettingsSectionView: View {
+    @AppStorage(BrowserSecureDNSPolicy.enabledKey) private var enabled = true
+    @AppStorage(TemporaryDNSPolicy.enabledKey) private var temporaryDNS = false
+
+    var body: some View {
+        GeneralSectionView(title: NSLocalizedString("settings.general.secureDNS.title", value: "Secure DNS", comment: "General settings - Encrypted DNS section title")) {
+            GeneralContainerView {
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle(isOn: $enabled) { Text(NSLocalizedString("settings.general.secureDNS.enabled", value: "Use secure DNS with Cloudflare", comment: "General settings - Toggle Chromium encrypted DNS")) }
+                    Text(NSLocalizedString("settings.general.secureDNS.scope", value: "Applies to Chromium after restarting Astra. Secure mode requires encrypted DNS to be available. WebKit pages and DNS resolved by your proxy follow their own network settings.", comment: "General settings - Secure DNS restart requirement and scope"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Divider()
+                    Toggle(isOn: $temporaryDNS) { Text(NSLocalizedString("settings.general.secureDNS.temporary", value: "Use temporary encrypted system DNS", comment: "General settings - Opt-in encrypted system DNS session")) }
+                    Text(NSLocalizedString("settings.general.secureDNS.temporaryHelp", value: "Requires macOS network authorization. Applies at startup and restores owned settings on exit. After an interrupted exit, recovery runs on the next launch.", comment: "General settings - Temporary DNS authorization and recovery behavior")).font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if TemporaryDNSLifecycle.lastOperationFailed {
+                        Text(NSLocalizedString("settings.general.secureDNS.failed", value: "Temporary DNS could not complete this launch. Saved recovery state will be retried at the next launch.", comment: "General settings - Temporary DNS startup failure status")).font(.caption).foregroundStyle(.red)
+                    }
+                }
+                .padding(.vertical, 12)
+            }
+        }
+    }
+}
+
+private struct BrowserProxySettingsSectionView: View {
+    @AppStorage(BrowserProxyPolicy.privacyRequiredKey) private var privacyProxyRequired = false
+    @AppStorage(BrowserProxyPolicy.enabledKey) private var automaticProxyEnabled = false
+    @State private var detection: BrowserProxyPolicy.Detection = .unavailable
+    @State private var isChecking = false
+    @State private var needsRestart = false
+
+    private var statusText: String {
+        if privacyProxyRequired {
+            return NSLocalizedString(
+                "settings.general.proxy.privacyStatus",
+                value: "Requires a proxy at 127.0.0.1:7891. Connections stop if it is unavailable.",
+                comment: "General settings - Required privacy proxy endpoint and failure behavior"
+            )
+        }
+        if !automaticProxyEnabled {
+            return NSLocalizedString(
+                "settings.general.proxy.disabledStatus",
+                value: "Use macOS network settings",
+                comment: "General settings - Proxy status when automatic detection is off"
+            )
+        }
+        switch detection {
+        case .system:
+            return NSLocalizedString(
+                "settings.general.proxy.systemStatus",
+                value: "Using the macOS system proxy",
+                comment: "General settings - Proxy status when a system proxy is active"
+            )
+        case .direct:
+            return NSLocalizedString(
+                "settings.general.proxy.directStatus",
+                value: "Direct connection works; no proxy is needed",
+                comment: "General settings - Proxy status when direct HTTPS works"
+            )
+        case .local:
+            return NSLocalizedString(
+                "settings.general.proxy.localStatus",
+                value: "Detected local proxy at 127.0.0.1:7890",
+                comment: "General settings - Proxy status when the local HTTP proxy is healthy"
+            )
+        case .unavailable:
+            return NSLocalizedString(
+                "settings.general.proxy.unavailableStatus",
+                value: "No working proxy detected; using macOS network settings",
+                comment: "General settings - Proxy status when no proxy is available"
+            )
+        }
+    }
+
+    var body: some View {
+        GeneralSectionView(title: NSLocalizedString(
+            "settings.general.proxy.sectionTitle",
+            value: "Proxy",
+            comment: "General settings - Browser proxy section title"
+        )) {
+            GeneralContainerView {
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle(isOn: $privacyProxyRequired) {
+                        Text(NSLocalizedString(
+                            "settings.general.proxy.privacyToggle",
+                            value: "Require the dedicated privacy proxy",
+                            comment: "General settings - Use a dedicated proxy without direct fallback"
+                        ))
+                        .font(.system(size: 13))
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .themedTint(.themeColor)
+                    HStack(spacing: 12) {
+                        Text(NSLocalizedString(
+                            "settings.general.proxy.autoDetectToggle",
+                            value: "Automatically detect and use a proxy",
+                            comment: "General settings - Toggle for system-first local proxy detection"
+                        ))
+                        .font(.system(size: 13))
+                        .themedForeground(.textPrimary)
+                        Spacer(minLength: 12)
+                        Toggle("", isOn: $automaticProxyEnabled)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.mini)
+                            .themedTint(.themeColor)
+                    }
+                    .disabled(privacyProxyRequired)
+                    HStack(spacing: 8) {
+                        Text(statusText)
+                            .font(.system(size: 11))
+                            .themedForeground(.textTertiary)
+                        if isChecking { ProgressView().controlSize(.small) }
+                        Spacer(minLength: 8)
+                        if automaticProxyEnabled && !privacyProxyRequired {
+                            Button(NSLocalizedString(
+                                "settings.general.proxy.checkAgainButton",
+                                value: "Check again",
+                                comment: "General settings - Button to repeat proxy detection"
+                            )) { Task { await refresh() } }
+                        }
+                    }
+                    if needsRestart {
+                        Text(NSLocalizedString(
+                            "settings.general.proxy.restartHint",
+                            value: "Restart Astra Browser to apply the proxy to all tabs.",
+                            comment: "General settings - Hint shown after a browser proxy setting changes"
+                        ))
+                        .font(.system(size: 11))
+                        .themedForeground(.textTertiary)
+                    }
+                }
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .onChange(of: privacyProxyRequired) { _, _ in needsRestart = true }
+        .task { if automaticProxyEnabled && !privacyProxyRequired { await refresh() } }
+        .onChange(of: automaticProxyEnabled) { _, enabled in
+            needsRestart = true
+            if enabled {
+                Task { await refresh() }
+            } else {
+                UserDefaults.standard.removeObject(forKey: BrowserProxyPolicy.localEndpointKey)
+                detection = .unavailable
+            }
+        }
+    }
+
+    private func refresh() async {
+        guard !isChecking else { return }
+        isChecking = true
+        let previous = UserDefaults.standard.string(forKey: BrowserProxyPolicy.localEndpointKey)
+        detection = await BrowserProxyPolicy.refresh()
+        needsRestart = needsRestart || previous != UserDefaults.standard.string(forKey: BrowserProxyPolicy.localEndpointKey)
+        isChecking = false
     }
 }
 

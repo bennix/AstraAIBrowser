@@ -261,6 +261,7 @@ import PostHog
     }
     
     func applicationWillTerminate(_ notification: Notification) {
+        TemporaryDNSLifecycle.restoreBeforeExit()
         coldOpenURLForwardWorkItem?.cancel()
         coldOpenURLForwardWorkItem = nil
         AppLogInfo("-------applicationWillTerminate----")
@@ -280,6 +281,13 @@ import PostHog
     }
     
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard TemporaryDNSLifecycle.restoreBeforeExit() else {
+            let alert = NSAlert()
+            alert.messageText = NSLocalizedString("network.dns.restoreFailed", value: "DNS restoration needs attention", comment: "Quit warning - Temporary network settings could not be restored")
+            alert.informativeText = NSLocalizedString("network.dns.restoreRetry", value: "Astra is staying open to keep its DNS resolver available. Complete macOS network authorization and try quitting again.", comment: "Quit warning - Explains why shutdown was cancelled after DNS restoration failed")
+            alert.runModal()
+            return .terminateCancel
+        }
         AppLogInfo("-----------------------------  Quitting: \(Self.makeClientString()) ------------------------------")
         // Note: on Cmd+Q this fires AFTER Chromium's window teardown; the restore
         // snapshot is frozen earlier, in phiWillTryToTerminateApplicationNotification.

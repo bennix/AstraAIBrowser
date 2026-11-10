@@ -74,6 +74,13 @@ spctl --assess --type execute --verbose=2 "/path/to/Astra Browser.app"
 
 ## Create and notarize the DMG
 
+The Finder window uses the Astra violet orbital background, with the signed
+`Astra Browser.app` on the left and an `/Applications` shortcut on the right.
+The window is 820 × 478 points and uses large icons. The release helper builds
+this layout with `dmgbuild` through `uvx`; both tools must be available before
+packaging. Verify the mounted image contains the correctly named app and the
+background before publishing.
+
 ```sh
 scripts/notarize_dmg.sh \
   --app "/path/to/Astra Browser.app" \

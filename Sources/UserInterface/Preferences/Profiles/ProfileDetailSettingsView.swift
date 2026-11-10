@@ -22,8 +22,8 @@ struct ProfileDetailSettingsView: View {
     /// captured `profileId` parameter) so a slow off-profile load can't
     /// clobber a newer selection.
     @State private var activeProfileId: String?
-    @State private var searchEngines: [SearchEngineInfo] = []
-    @State private var defaultEngineId: String = ""
+    @AppStorage(BrowserSearchProvider.preferenceKey)
+    private var selectedProvider = BrowserSearchProvider.google.rawValue
     @State private var downloadPath: String = ""
     @State private var isLoadingDetail: Bool = false
 
@@ -32,7 +32,7 @@ struct ProfileDetailSettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             SettingsDetailCard {
-                SettingsDetailRow(NSLocalizedString("settings.profiles.details.searchEngineLabel", value: "Search Engine", comment: "Profiles settings - search engine row label"),
+                SettingsDetailRow(NSLocalizedString("settings.profiles.details.browserSearchEngineLabel", value: "Search engine for all profiles", comment: "Profiles settings - Browser-wide search provider row label"),
                                   systemImage: "magnifyingglass") {
                     searchEngineControl
                 }
@@ -72,21 +72,14 @@ struct ProfileDetailSettingsView: View {
 
     @ViewBuilder
     private var searchEngineControl: some View {
-        if isLoadingDetail {
-            ProgressView().controlSize(.small)
-        } else if searchEngines.isEmpty {
-            Text(NSLocalizedString("settings.profiles.searchEngine.unavailableStatus", value: "Unavailable", comment: "Profiles settings - search engine list unavailable"))
-                .font(.system(size: 12))
-                .themedForeground(.textSecondary)
-        } else {
             // Custom pill matching the download-location control (and the Spaces
             // pane's themeControl) so the rows' selectors share one size,
             // style, and trailing edge instead of the native picker's taller,
             // differently-inset bezel.
             Menu {
-                Picker("", selection: searchBinding) {
-                    ForEach(searchEngines) { engine in
-                        Text(engine.name).tag(engine.id)
+                Picker("", selection: $selectedProvider) {
+                    ForEach(BrowserSearchProvider.allCases) { provider in
+                        Text(verbatim: provider.displayName).tag(provider.rawValue)
                     }
                 }
                 .pickerStyle(.inline)
@@ -110,11 +103,10 @@ struct ProfileDetailSettingsView: View {
             .buttonStyle(.plain)
             .menuIndicator(.hidden)
             .fixedSize()
-        }
     }
 
     private var selectedEngineName: String {
-        searchEngines.first(where: { $0.id == defaultEngineId })?.name ?? ""
+        BrowserSearchProvider(rawValue: selectedProvider)?.displayName ?? "Google"
     }
 
     @ViewBuilder
@@ -213,32 +205,11 @@ struct ProfileDetailSettingsView: View {
     private func loadDetail(_ profileId: String) {
         // Keep whatever's on screen; only show the loading state when there's
         // nothing cached to keep (first load).
-        isLoadingDetail = searchEngines.isEmpty
-        profileManager.searchEngines(forProfile: profileId) { engines in
-            guard activeProfileId == profileId else { return }
-            searchEngines = engines
-            defaultEngineId = engines.first(where: { $0.isDefault })?.id ?? engines.first?.id ?? ""
-            isLoadingDetail = false
-        }
+        isLoadingDetail = false
         profileManager.downloadLocation(forProfile: profileId) { path in
             guard activeProfileId == profileId else { return }
             downloadPath = path ?? ""
         }
-    }
-
-    private var searchBinding: Binding<String> {
-        Binding(
-            get: { defaultEngineId },
-            set: { newId in
-                guard newId != defaultEngineId else { return }
-                let previous = defaultEngineId
-                let profileId = profileId
-                defaultEngineId = newId
-                profileManager.setDefaultSearchEngine(newId, forProfile: profileId) { success, _ in
-                    if !success, activeProfileId == profileId { defaultEngineId = previous }
-                }
-            }
-        )
     }
 
     private func chooseDownloadLocation() {

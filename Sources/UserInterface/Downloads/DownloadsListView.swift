@@ -6,7 +6,8 @@
 import SwiftUI
 struct DownloadsListView: View {
     @ObservedObject var downloadsManager: DownloadsManager
-    @State private var contentSize: CGSize = .zero
+    @State private var isExpanded = false
+    @State private var isHistory = false
     
     private let maxVisibleItems = 5
     private let itemHeight: CGFloat = 56
@@ -15,16 +16,32 @@ struct DownloadsListView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Spacer()
+                Button {
+                    isExpanded.toggle()
+                } label: {
+                    Label(NSLocalizedString("downloads.panel.resize", value: "Expand or Collapse Downloads", comment: "Download panel size toggle"), systemImage: isExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                        .labelStyle(.iconOnly)
+                }
+                .buttonStyle(.plain)
+                .padding(10)
+            }
             if downloadsManager.downloads.isEmpty {
                 emptyStateView
             } else {
                 downloadsList
             }
             
-            DownloadsBottomBar(downloadsManager: downloadsManager)
+            if isHistory {
+                Button("Done") { isHistory = false }.padding(12)
+            } else {
+                DownloadsBottomBar(downloadsManager: downloadsManager, onOpenHistory: { isHistory = true })
+            }
         }
-        .frame(width: 340)
+        .frame(width: isHistory ? 680 : (isExpanded ? 520 : 340), height: isHistory ? 600 : (isExpanded ? 520 : 317))
         .background(.clear)
+        .onExitCommand { isHistory = false }
         .onAppear {
             downloadsManager.refreshDownloads()
         }
@@ -91,6 +108,7 @@ struct DownloadsListView: View {
 private struct DownloadsBottomBar: View {
     @ObservedObject var downloadsManager: DownloadsManager
     @State private var isHovered: Bool = false
+    let onOpenHistory: () -> Void
     
     var body: some View {
         VStack(spacing: 0) {
@@ -161,7 +179,7 @@ private struct DownloadsBottomBar: View {
                 Spacer()
                 
                 Button(action: {
-                    openAllDownloadsPage()
+                    onOpenHistory()
                 }) {
                     HStack(spacing: 4) {
                         Text(NSLocalizedString("downloads.list.openAllDownloadsButton", value: "All Downloads", comment: "Downloads list - Button to open full downloads page"))
@@ -191,10 +209,7 @@ private struct DownloadsBottomBar: View {
         }
     }
     
-    private func openAllDownloadsPage() {
-        let url = URLProcessor.processUserInput("phi://downloads")
-        MainBrowserWindowControllersManager.shared.activeWindowController?.browserState.createTab(url)
-    }
+
 }
 
 // MARK: - Color Extension

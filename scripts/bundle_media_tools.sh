@@ -79,3 +79,5 @@ mkdir -p "$tools_dir"
 /usr/bin/ditto "$cached_third_party" "$tools_dir/yt-dlp-THIRD-PARTY-LICENSES.txt"
 
 echo "Bundled verified media helper into: $tools_dir"
+
+/usr/bin/env python3 "${0:A:h}/bundle_media_dependencies.py" --destination "$tools_dir"

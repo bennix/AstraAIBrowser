@@ -441,7 +441,7 @@ struct HeaderTrailingArea: View {
     private var downloadPopoverContent: some View {
         if let manager = downloadViewModel.downloadsManager {
             DownloadsListView(downloadsManager: manager)
-                .frame(width: 340, height: 317)
+
         }
     }
 

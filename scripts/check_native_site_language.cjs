@@ -13,7 +13,13 @@ for address in ["https://google.com", "https://claude.ai", "https://example.com/
     precondition(!CefNativeSiteLanguagePolicy.prefersChinese(URL(string: address)), address)
 }
 precondition(!CefNativeSiteLanguagePolicy.prefersChinese(nil))
-print("PASS: native Chinese destinations, boundary matching, and outward-language exclusions")
+for address in ["https://claude.ai/new", "https://claude.com", "https://www.claude.com", "https://CLAUDE.AI."] {
+    precondition(CefNativeSiteLanguagePolicy.languageOverride(for: URL(string: address)) == "en-US,en;q=0.9")
+}
+for address in ["https://claude.ai.example.com", "https://notclaude.ai", "file:///claude.ai", "https://example.com/?next=claude.ai"] {
+    precondition(CefNativeSiteLanguagePolicy.languageOverride(for: URL(string: address)) == nil)
+}
+print("PASS: Chinese destinations, Claude English preference, and domain boundaries")
 `;
 const result = spawnSync('swift', ['-'], { input: 'import Foundation\n' + policy + checks, encoding: 'utf8' });
 process.stdout.write(result.stdout || '');

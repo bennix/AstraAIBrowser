@@ -7,6 +7,7 @@ import AppKit
 import CefKit
 import CryptoKit
 import WebKit
+import Network
 
 enum PageDistractionDismissal {
     // Only invoke a site's existing close control. Never remove arbitrary
@@ -147,12 +148,66 @@ struct MediaDownloadCandidate: Codable, Hashable, Sendable {
     }
 }
 
+enum MediaDownloadCandidateList {
+    static func expanded(_ candidates: [MediaDownloadCandidate]) -> [MediaDownloadCandidate] {
+        var seen = Set<String>()
+        var result: [MediaDownloadCandidate] = []
+        for candidate in candidates {
+            for url in [candidate.url] + (candidate.alternateURLs ?? []) {
+                guard ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+                      seen.insert(url.absoluteString).inserted else { continue }
+                if url == candidate.url {
+                    result.append(candidate)
+                } else {
+                    let audio = ["mp3", "m4a", "aac", "ogg", "opus"].contains(url.pathExtension.lowercased())
+                    result.append(MediaDownloadCandidate(url: url, title: url.lastPathComponent,
+                        kind: audio ? .audio : .video, durationSeconds: nil))
+                }
+            }
+        }
+        return result
+    }
+}
+
+struct MediaResourceResponse: Sendable {
+    let data: Data
+    let url: URL
+    let status: Int
+    let contentRange: String?
+}
+
 protocol MediaSessionCookieProviding: AnyObject {
     @MainActor
     func mediaSessionCookies(for url: URL) async -> [HTTPCookie]
 
     @MainActor
     func mediaDownloadCandidates(for pageURL: URL) async -> [MediaDownloadCandidate]
+
+    @MainActor
+    func mediaDownloadUserAgent() async -> String?
+
+    @MainActor
+    func mediaDownloadHeaders(for url: URL) async -> [String: String]
+
+    @MainActor
+    func mediaDownloadMIMEType(for url: URL) async -> String?
+
+    @MainActor
+    func mediaResource(for url: URL, headers: [String: String]) async throws -> MediaResourceResponse?
+}
+
+extension MediaSessionCookieProviding {
+    @MainActor
+    func mediaDownloadUserAgent() async -> String? { nil }
+
+    @MainActor
+    func mediaDownloadHeaders(for url: URL) async -> [String: String] { [:] }
+
+    @MainActor
+    func mediaDownloadMIMEType(for url: URL) async -> String? { nil }
+
+    @MainActor
+    func mediaResource(for url: URL, headers: [String: String]) async throws -> MediaResourceResponse? { nil }
 }
 
 enum BrowserAutomationInteractionPolicy {
@@ -183,6 +238,10 @@ enum BrowserWindowOpenPolicy {
             || path.hasPrefix("/i/oauth2/authorize/")
             || path == "/oauth/authorize"
             || path == "/oauth/authenticate"
+    }
+
+    static func shouldPreservePopupNavigation(for url: URL?) -> Bool {
+        isIdentityProviderURL(url)
     }
 
     static func action(for request: CefWindowOpenRequest) -> CefWindowOpenAction {
@@ -937,7 +996,8 @@ enum XImageZoomWebPolicy {
 }
 
 enum SupportedBrowserUserAgent {
-    static let chromiumProduct = "Chrome/151.0.7922.174"
+    static let chromiumProduct = "Chrome/151.0.0.0"
+    static let chromiumUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) \(chromiumProduct) Safari/537.36"
 
     static var safariApplicationName: String {
         "Version/\(safariVersion) Safari/605.1.15"
@@ -947,19 +1007,26 @@ enum SupportedBrowserUserAgent {
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) \(safariApplicationName)"
     }
 
-    static var safariVersion: String {
-        let infoURL = URL(fileURLWithPath: "/Applications/Safari.app/Contents/Info.plist")
-        if let info = NSDictionary(contentsOf: infoURL),
-           let version = info["CFBundleShortVersionString"] as? String {
-            let numeric = version.split(separator: " ").first.map(String.init) ?? version
-            if !numeric.isEmpty { return numeric }
-        }
-        return "18.6"
-    }
+    // Keep the compatibility product stable without inspecting another app's bundle.
+    static let safariVersion = "18.6"
+
 }
 
 @MainActor
 enum WebContentEnginePolicy {
+    static func shouldSwitchCommittedChromiumPageToWebKit(
+        _ url: URL,
+        isPrimaryBrowser: Bool
+    ) -> Bool {
+        guard isPrimaryBrowser,
+              url.scheme?.lowercased() == "https",
+              let host = url.host?.lowercased() else { return false }
+        // Cross-site links and redirects bypass navigate(toURL:). Keep X on
+        // the same WebKit profile for its Google popup and opener callbacks.
+        return host == "x.com" || host.hasSuffix(".x.com")
+            || host == "twitter.com" || host.hasSuffix(".twitter.com")
+    }
+
     static func usesPersistentWebKit(
         for url: URL,
         profileId: String,
@@ -1039,6 +1106,10 @@ enum SystemMediaCompatibilityPolicy {
 
     private static let chromiumOnlyDomains = [
         "grok.com",
+        // Switching engines during Claude verification loses the Chromium
+        // challenge/session cookies and restarts login in a different context.
+        "claude.ai",
+        "claude.com",
     ]
 
     private static func matches(_ host: String, domains: [String]) -> Bool {
@@ -1132,12 +1203,36 @@ final class SystemMediaWebView: WKWebView {
         }
     }
 
+    var onDownloadMedia: ((URL?) -> Void)?
+
+    @objc private func downloadContextMedia(_ sender: NSMenuItem) {
+        evaluateJavaScript("globalThis.__astraContextMediaURL || ''") { [weak self] value, _ in
+            self?.onDownloadMedia?((value as? String).flatMap(URL.init(string:)))
+        }
+    }
+
+    @objc private func discoverContextMedia(_ sender: NSMenuItem) {
+        onDownloadMedia?(nil)
+    }
+
     @objc private func contextMenuDidBeginTracking(_ notification: Notification) {
-        guard let window, window.isKeyWindow, !isHiddenOrHasHiddenAncestor,
-              let responder = window.firstResponder as? NSView,
-              responder === self || responder.isDescendant(of: self),
-              let menu = notification.object as? NSMenu else { return }
+        guard let window, window.isKeyWindow || window.isMainWindow,
+              !isHiddenOrHasHiddenAncestor,
+              let menu = notification.object as? NSMenu,
+              menu.items.contains(where: { $0.identifier?.rawValue.hasPrefix("WKMenuItemIdentifier") == true }) else { return }
+        // WebKit's menu tracking can move first responder to its menu window.
+        // Match the visible WebKit menu instead of requiring its former responder.
         routeSearchWebMenuItems(in: menu)
+        if onDownloadMedia != nil && !menu.items.contains(where: { $0.tag == 28520 }) {
+            menu.addItem(.separator())
+            let download = NSMenuItem(title: NSLocalizedString("downloads.context.media", value: "Download Media from This URL", comment: "Context menu action for a link or media element"), action: #selector(downloadContextMedia(_:)), keyEquivalent: "")
+            download.target = self
+            download.tag = 28520
+            menu.addItem(download)
+            let discover = NSMenuItem(title: NSLocalizedString("downloads.context.discover", value: "Find Downloadable Media on This Page", comment: "Context menu action to discover page media"), action: #selector(discoverContextMedia(_:)), keyEquivalent: "")
+            discover.target = self
+            menu.addItem(discover)
+        }
     }
 
     func routeSearchWebMenuItems(in menu: NSMenu) {
@@ -1274,9 +1369,27 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
 
         func webView(
             _ webView: WKWebView,
+            didFailProvisionalNavigation navigation: WKNavigation!,
+            withError error: Error
+        ) {
+            let failure = error as NSError
+            AppLogWarn("[WebKit popup] Provisional navigation failed: \(failure.domain) \(failure.code)")
+        }
+
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            AppLogWarn("[WebKit popup] Content process terminated")
+        }
+
+        func webView(
+            _ webView: WKWebView,
             decidePolicyFor navigationAction: WKNavigationAction,
             decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
         ) {
+            if BrowserWindowOpenPolicy.shouldPreservePopupNavigation(for: navigationAction.request.url) {
+                // Replacing an identity popup's initial navigation drops its opener context.
+                decisionHandler(.allow)
+                return
+            }
             guard navigationAction.targetFrame?.isMainFrame == true,
                   BrowserOutwardRequestPolicy.needsCurrentHeaders(navigationAction.request) else {
                 decisionHandler(.allow)
@@ -1460,6 +1573,11 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         configureContextMenu menu: CefMenuModel,
         params: CefContextMenuParams
     ) {
+        if params.linkURL != nil || params.mediaType == .video || params.mediaType == .audio {
+            menu.addSeparator()
+            menu.addItem(commandID: 28520, title: NSLocalizedString("downloads.context.media", value: "Download Media from This URL", comment: "Context menu action for a link or media element"))
+        }
+        menu.addItem(commandID: 28521, title: NSLocalizedString("downloads.context.discover", value: "Find Downloadable Media on This Page", comment: "Context menu action to discover page media"))
         let selection = SelectionTranslationPolicy.normalizedText(params.selectionText)
         guard allowsCredentialStorage, !selection.isEmpty else { return }
         if menu.count > 0 {
@@ -1478,6 +1596,15 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         contextMenuCommand commandID: Int,
         params: CefContextMenuParams
     ) -> Bool {
+        if commandID == 28520 || commandID == 28521 {
+            downloadsManager?.startMediaDownload(
+                kind: params.mediaType == .audio ? .audio : .video,
+                sourceURL: commandID == 28520 ? (params.linkURL ?? params.sourceURL) : nil,
+                originatingPageURL: params.pageURL,
+                sessionProvider: self
+            )
+            return true
+        }
         guard let action = Self.selectionAction(forContextMenuCommandID: commandID) else { return false }
         let selection = SelectionTranslationPolicy.normalizedText(params.selectionText)
         AppLogInfo(
@@ -1595,6 +1722,17 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         guard systemMediaWebView == nil else { return }
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = systemMediaDataStore()
+        if let endpoint = BrowserProxyPolicy.effectiveLocalEndpoint() {
+            let isRequired = endpoint == BrowserProxyPolicy.privacyEndpoint
+            let port: NWEndpoint.Port = isRequired ? 7891 : 7890
+            var proxy = ProxyConfiguration(httpCONNECTProxy: .hostPort(host: "127.0.0.1", port: port))
+            proxy.allowFailover = !isRequired
+            configuration.websiteDataStore.proxyConfigurations = [proxy]
+        } else {
+            // The data store is shared by the profile. Clear a proxy left by
+            // earlier tabs when the selected route changes back to direct.
+            configuration.websiteDataStore.proxyConfigurations = []
+        }
         configuration.allowsAirPlayForMediaPlayback = true
         configuration.mediaTypesRequiringUserActionForPlayback = []
         // WKWebView disables the HTML Fullscreen API by default. Media sites
@@ -1686,7 +1824,21 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                 forMainFrameOnly: true
             )
         )
+        configuration.userContentController.addUserScript(WKUserScript(
+            source: MediaResourceDiscoveryPolicy.javaScript + """
+            document.addEventListener('contextmenu', event => {
+              const element = event.target instanceof Element ? event.target : null;
+              const target = element?.closest('a[href], video, audio');
+              globalThis.__astraContextMediaURL = target?.href || target?.currentSrc || target?.src || '';
+            }, true);
+            """, injectionTime: .atDocumentStart, forMainFrameOnly: false
+        ))
         let webView = SystemMediaWebView(frame: hostView.bounds, configuration: configuration)
+        webView.onDownloadMedia = { [weak self, weak webView] source in
+            guard let self else { return }
+            self.downloadsManager?.startMediaDownload(kind: .video, sourceURL: source,
+                originatingPageURL: webView?.url, sessionProvider: self)
+        }
         webView.onSearchSelectedText = { [weak self] query in
             self?.openSystemMediaSearchInNewTab(query)
         }
@@ -1745,7 +1897,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     }
 
     private func openSystemMediaSearchInNewTab(_ query: String) {
-        guard let url = URL(string: URLProcessor.googleSearchURL(for: query)) else { return }
+        guard let url = URL(string: URLProcessor.defaultSearchURL(for: query)) else { return }
         onOpenURLInNewTab?(url, true)
     }
 
@@ -2110,6 +2262,16 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
 
     func browser(_ browser: CefBrowser, didChangeURL url: URL?) {
         guard let url, url.absoluteString != "about:blank" || urlString?.isNTP != true else { return }
+        // A hidden Chromium page may continue loading after the active tab
+        // switches to WebKit; it must not overwrite WebKit's address state.
+        if systemMediaWebView != nil, self.browser === browser { return }
+        if systemMediaWebView == nil,
+           WebContentEnginePolicy.shouldSwitchCommittedChromiumPageToWebKit(
+               url, isPrimaryBrowser: self.browser === browser
+           ) {
+            switchCurrentPageToSystemMediaEngine(url)
+            return
+        }
         urlString = url.absoluteString
         securityInfo = [
             "securityLevel": url.scheme?.lowercased() == "https" ? 3 : 0,
@@ -2439,11 +2601,12 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
     private func installWebCredentialControls() {
         guard allowsCredentialStorage,
               let browser,
-              let origin = currentSecureOrigin() else { return }
+              let origin = currentSecureOrigin(),
+              !WebCredentialStore.shared.descriptors(for: origin).isEmpty else { return }
         let fillTitle = NSLocalizedString(
-            "passwords.webCredential.fillButton.title",
-            value: "Fill with Touch ID",
-            comment: "Web password manager - Button injected on HTTPS login pages to fill a saved password"
+            "passwords.webCredential.fillSavedLoginButton.title",
+            value: "Fill saved login",
+            comment: "Web password manager - Button shown only when Astra has a saved login for this website"
         )
         let tokenLiteral = Self.javaScriptLiteral(pageContextToken)
         let originLiteral = Self.javaScriptLiteral(origin)
@@ -2673,6 +2836,55 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                 Data("[cef-smoke] external open: \(urlString)\n".utf8)
             )
             NSApp.terminate(nil)
+            return
+        }
+
+        if arguments.contains("--cef-linux-identity-smoke") {
+            guard !isLoading, let browser, browser.url?.host == "example.com" else { return }
+            didStartSmokeCheck = true
+            Task { @MainActor in
+                let result = await browser.evaluateJavaScriptResult("""
+                (async () => {
+                  const snapshot = async () => ({ua:navigator.userAgent,platform:navigator.platform,
+                    hints:navigator.userAgentData ? await navigator.userAgentData.getHighEntropyValues(['platform','architecture','bitness','platformVersion']) : null});
+                  const page = await snapshot();
+                  const workerURL = URL.createObjectURL(new Blob([
+                    'const snapshot='+snapshot.toString()+'; snapshot().then(result => postMessage(result))'
+                  ],{type:'text/javascript'}));
+                  const worker = new Worker(workerURL);
+                  let workerResult;
+                  try { workerResult = await new Promise((resolve,reject) => {
+                    worker.onmessage = event => resolve(event.data); worker.onerror = reject;
+                  }); } finally { worker.terminate(); URL.revokeObjectURL(workerURL); }
+                  const frame = document.createElement('iframe'); document.body.appendChild(frame);
+                  const iframe = {ua:frame.contentWindow.navigator.userAgent,platform:frame.contentWindow.navigator.platform};
+                  frame.remove();
+                  let headers;
+                  try { const echoed = await (await fetch('https://httpbingo.org/headers', {signal:AbortSignal.timeout(4000)})).json(); headers = {userAgent:echoed.headers['User-Agent'],platform:echoed.headers['Sec-Ch-Ua-Platform']}; }
+                  catch(error) { headers = {unavailable:String(error)}; }
+                  return JSON.stringify({page,worker:workerResult,iframe,headers,
+                    nativePlatform:Function.prototype.toString.call(Object.getOwnPropertyDescriptor(Navigator.prototype,'platform').get).includes('[native code]')});
+                })()
+                """, timeout: 10) ?? "unavailable"
+                FileHandle.standardOutput.write(Data("[cef-smoke] Linux identity: \(result)\n".utf8))
+                NSApp.terminate(nil)
+            }
+            return
+        }
+
+        if arguments.contains("--cef-time-zone-smoke") {
+            guard !isLoading, let browser, browser.url?.host == "example.com" else { return }
+            didStartSmokeCheck = true
+            Task { @MainActor in
+                let result = await browser.evaluateJavaScriptResult("""
+                JSON.stringify({host:location.hostname,zone:Intl.DateTimeFormat().resolvedOptions().timeZone,
+                  offset:new Date().getTimezoneOffset(), language:navigator.language,
+                  languages:navigator.languages,
+                  nativeDate:Function.prototype.toString.call(Date).includes('[native code]')})
+                """) ?? "unavailable"
+                FileHandle.standardOutput.write(Data("[cef-smoke] startup time zone: \(result)\n".utf8))
+                NSApp.terminate(nil)
+            }
             return
         }
 
@@ -3041,6 +3253,31 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             return
         }
 
+        if arguments.contains("--cef-strict-privacy-smoke") {
+            guard !isLoading, browser != nil || systemMediaWebView != nil else { return }
+            didStartSmokeCheck = true
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                // Allow challenge navigation to settle before inspecting the final document.
+                try? await Task.sleep(for: .seconds(45))
+                let result = await evaluateJavaScriptResult(operation: """
+                let canvasBlocked = false;
+                try { document.createElement('canvas').toDataURL(); }
+                catch (error) { canvasBlocked = error.name === 'SecurityError'; }
+                const clientHints = navigator.userAgentData
+                  ? await navigator.userAgentData.getHighEntropyValues(['architecture', 'bitness', 'platformVersion', 'fullVersionList']) : null;
+                const gpuAdapterAvailable = navigator.gpu
+                  ? !!(await navigator.gpu.requestAdapter()) : false;
+                return JSON.stringify({gpuAdapterAvailable, clientHints, canvasBlocked, host: location.hostname, path: location.pathname, title: document.title, language: navigator.language, languages: navigator.languages,
+                  timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                  nativeAuth: !!globalThis.__astraUsesNativeSecurityChallengeSurfaces});
+                """) ?? "unavailable"
+                FileHandle.standardOutput.write(Data("[cef-smoke] strict privacy: \(result)\n".utf8))
+                NSApp.terminate(nil)
+            }
+            return
+        }
+
         if arguments.contains("--cef-popup-opener-smoke") {
             guard !isLoading, browser != nil else { return }
             didStartSmokeCheck = true
@@ -3358,6 +3595,15 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
                     fontAssignmentsPreserved,
                     hardwareConcurrency: navigator.hardwareConcurrency,
                     deviceMemory: navigator.deviceMemory ?? null,
+                    batteryProbeBlocked: (() => {
+                      if (typeof navigator.getBattery !== 'function') return true;
+                      try { navigator.getBattery(); return false; } catch (_) { return true; }
+                    })(),
+                    highEntropyHintsBlocked: (() => {
+                      if (typeof navigator.userAgentData?.getHighEntropyValues !== 'function') return true;
+                      try { navigator.userAgentData.getHighEntropyValues(['platformVersion']); return false; }
+                      catch (_) { return true; }
+                    })(),
                     colorDepth: screen.colorDepth,
                     language: navigator.language,
                     languages: navigator.languages,
@@ -3967,6 +4213,27 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
         return await browser?.cookies(for: url) ?? []
     }
 
+    func mediaDownloadUserAgent() async -> String? {
+        await evaluateJavaScriptResult(operation: "return navigator.userAgent;", timeout: 2)
+    }
+
+    func mediaResource(for url: URL, headers: [String: String]) async throws -> MediaResourceResponse? {
+        guard systemMediaWebView == nil, let browser else { return nil }
+        guard let result = await browser.fetchMediaResource(url: url, headers: headers) else {
+            try Task.checkCancellation()
+            throw URLError(.networkConnectionLost)
+        }
+        return MediaResourceResponse(data: result.data, url: result.url, status: result.status, contentRange: result.contentRange)
+    }
+
+    func mediaDownloadMIMEType(for url: URL) async -> String? {
+        browser?.detectedMedia.last(where: { $0.url == url })?.mimeType
+    }
+
+    func mediaDownloadHeaders(for url: URL) async -> [String: String] {
+        browser?.detectedMedia.last(where: { $0.url == url })?.headers ?? [:]
+    }
+
     func mediaDownloadCandidates(for pageURL: URL) async -> [MediaDownloadCandidate] {
         let operation = #"""
         const candidates = [];
@@ -4003,14 +4270,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             return false;
           }
         };
-        const visible = (element) => {
-          const rect = element.getBoundingClientRect();
-          return rect.width >= 120 && rect.height >= 70 &&
-            rect.bottom > 0 && rect.right > 0 &&
-            rect.top < innerHeight && rect.left < innerWidth;
-        };
         const mediaElements = Array.from(document.querySelectorAll('video, audio'))
-          .filter(visible)
           .sort((first, second) => {
             const playbackPriority = Number(first.paused) - Number(second.paused);
             if (playbackPriority !== 0) return playbackPriority;
@@ -4020,10 +4280,13 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
           });
         const mediaPagePattern = /\/status\/\d+|\/watch\?v=|\/shorts\/|\/video\/|\/bangumi\/play\/|\/v\/ac\d+/i;
         const mediaResource = /\.(m3u8|mpd|mp4|m4v|mov|webm|mp3|m4a|aac|ogg|opus)(?:$|[?#])/i;
-        const performanceSources = performance.getEntriesByType('resource').slice().reverse()
+        const performanceSources = (globalThis.__astraMediaResources || []).slice().reverse().concat(performance.getEntriesByType('resource').slice().reverse()
           .filter((entry) => entry.initiatorType === 'video' || entry.initiatorType === 'audio' ||
             mediaResource.test(entry.name))
-          .map((entry) => entry.name);
+          .map((entry) => entry.name));
+        for (const anchor of document.querySelectorAll('a[href]')) {
+          if (mediaResource.test(anchor.href)) performanceSources.push(anchor.href);
+        }
         const currentMediaPageURL = location.href;
         for (let index = 0; index < mediaElements.length; index += 1) {
           const media = mediaElements[index];
@@ -4053,25 +4316,26 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
             add(directSources[0], title, kind, duration, directSources.slice(1));
           }
         }
-        if (candidates.length === 0) {
-          for (const resourceURL of performanceSources) {
+        for (const resourceURL of performanceSources) {
               const kind = /\.(mp3|m4a|aac|ogg|opus)(?:$|[?#])/i.test(resourceURL)
                 ? 'audio'
                 : 'video';
               add(resourceURL, '', kind, null);
-          }
         }
-        return JSON.stringify(candidates.slice(0, 12));
+        return JSON.stringify(candidates);
         """#
-        guard let result = await evaluateJavaScriptResult(operation: operation, timeout: 5),
-              let data = result.data(using: .utf8),
-              let values = try? JSONDecoder().decode([MediaDownloadCandidate].self, from: data) else { return [] }
-        var seen = Set<String>()
-        return values.compactMap { candidate in
-            guard ["http", "https"].contains(candidate.url.scheme?.lowercased() ?? ""),
-                  seen.insert(candidate.url.absoluteString).inserted else { return nil }
-            return candidate
+        let result = await evaluateJavaScriptResult(operation: operation, timeout: 5)
+        let values = result.flatMap { $0.data(using: .utf8) }.flatMap {
+            try? JSONDecoder().decode([MediaDownloadCandidate].self, from: $0)
+        } ?? []
+        let detected = systemMediaWebView == nil && browser?.url == pageURL ? (browser?.detectedMedia ?? []) : []
+        let networkCandidates = detected.reversed().map { resource in
+            MediaDownloadCandidate(url: resource.url,
+                title: resource.url.lastPathComponent,
+                kind: resource.mimeType.hasPrefix("audio/") && !resource.mimeType.contains("mpegurl") ? .audio : .video,
+                durationSeconds: nil)
         }
+        return MediaDownloadCandidateList.expanded(networkCandidates + values)
     }
 
     private static func cookie(_ cookie: HTTPCookie, matches url: URL) -> Bool {

@@ -9,6 +9,15 @@ import XCTest
 @testable import Phi
 
 final class YouTubeAdPlaybackPolicyTests: XCTestCase {
+    func testHLSRangeSelectionRejectsInvalidAndReversedTimes() {
+        XCTAssertEqual(MediaTimeRangePolicy.section(start: "1:02", end: "2:03"), "*62.0-123.0")
+        XCTAssertEqual(MediaTimeRangePolicy.section(start: "", end: ""), "*0.0-inf")
+        XCTAssertNil(MediaTimeRangePolicy.section(start: "10", end: "5"))
+        XCTAssertNil(MediaTimeRangePolicy.section(start: "NaN", end: "20"))
+        XCTAssertNil(MediaTimeRangePolicy.section(start: "1:65", end: ""))
+        XCTAssertNil(MediaTimeRangePolicy.section(start: "-1", end: "20"))
+    }
+
     func testSystemMediaPlaybackResolutionUsesASingleMP4AndCookies() {
         let pageURL = URL(string: "https://x.com/example/status/123")!
         let cookieURL = URL(fileURLWithPath: "/tmp/astra-playback-cookies.txt")

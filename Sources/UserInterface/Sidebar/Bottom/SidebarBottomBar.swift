@@ -251,7 +251,6 @@ struct SidebarBottomBarSwiftUI: View {
         .popover(isPresented: $state.isDownloadPopoverShown, arrowEdge: .top) {
             if let manager = downloadViewModel.downloadsManager {
                 DownloadsListView(downloadsManager: manager)
-                    .frame(width: 340, height: 317)
             }
         }
     }

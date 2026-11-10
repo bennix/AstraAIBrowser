@@ -1,0 +1,57 @@
+--- a/Sources/CefKit/BrowserClient.swift
++++ b/Sources/CefKit/BrowserClient.swift
+@@ -714,6 +714,17 @@
+ 
+     // MARK: Navigation / requests
+ 
++    nonisolated private static func mediaRequestHeaders(_ request: UnsafeMutablePointer<cef_request_t>) -> [String: String] {
++        var result: [String: String] = [:]
++        for name in ["User-Agent", "Referer", "Origin", "Accept", "Accept-Language"] {
++            let value = CefStringUtil.withCefString(name) { key in
++                CefStringUtil.takingUserFree(request.pointee.get_header_by_name?(request, key))
++            }
++            if let value, !value.isEmpty, !value.contains("\r"), !value.contains("\n") { result[name] = value }
++        }
++        return result
++    }
++
+     private func makeRequestHandler() {
+         let resourceHandler = cefAllocate(cef_resource_request_handler_t.self, owner: self)
+         resourceHandler.pointee.on_before_resource_load = {
+@@ -743,6 +754,36 @@
+                 }
+             }
+             return RV_CONTINUE
++        }
++        resourceHandler.pointee.on_resource_response = { handlerSelf, browser, frame, request, response in
++            defer {
++                cefRelease(browser.map(UnsafeMutableRawPointer.init))
++                cefRelease(frame.map(UnsafeMutableRawPointer.init))
++                cefRelease(request.map(UnsafeMutableRawPointer.init))
++                cefRelease(response.map(UnsafeMutableRawPointer.init))
++            }
++            guard let client = BrowserClient.owner(handlerSelf.map(UnsafeMutableRawPointer.init)),
++                  let request, let response,
++                  (200..<300).contains(Int(response.pointee.get_status?(response) ?? 0)),
++                  let rawURL = CefStringUtil.takingUserFree(request.pointee.get_url?(request)),
++                  let url = URL(string: rawURL), ["http", "https"].contains(url.scheme ?? "") else { return 0 }
++            let mime = CefStringUtil.takingUserFree(response.pointee.get_mime_type?(response))?.lowercased() ?? ""
++            let playlist = ["application/vnd.apple.mpegurl", "application/x-mpegurl", "audio/mpegurl", "application/dash+xml"].contains(mime)
++            let media = (mime.hasPrefix("video/") || mime.hasPrefix("audio/")) && mime != "video/mp2t"
++            guard playlist || media || ["m3u8", "mpd"].contains(url.pathExtension.lowercased()) else { return 0 }
++            let mainFrame = browser?.pointee.get_main_frame?(browser)
++            // CEF invokes this callback on IO; nested closures inherit MainActor isolation.
++            var pageURL: URL?
++            if let mainFrame,
++               let pageAddress = CefStringUtil.takingUserFree(mainFrame.pointee.get_url?(mainFrame)) {
++                pageURL = URL(string: pageAddress)
++            }
++            cefRelease(mainFrame.map(UnsafeMutableRawPointer.init))
++            let headers = BrowserClient.mediaRequestHeaders(request)
++            Task { @MainActor [weak client] in
++                client?.browser?.recordMedia(url: url, mimeType: mime, pageURL: pageURL, headers: headers)
++            }
++            return 0
+         }
+         resourceHandler.pointee.on_protocol_execution = { handlerSelf, browser, frame, request, allowOSExecution in
+             // Keep OS execution behind the application's existing consent prompt.

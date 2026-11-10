@@ -36,6 +36,9 @@ The policy:
   text-metric probes by mapping explicit probes to a generic fallback while
   retaining normal Chinese text rendering;
 - normalizes CPU count, memory hints, and display color depth to common values;
+- denies Battery Status and high-entropy User-Agent Client Hints reads on ordinary
+  pages, while authentication and security-challenge surfaces retain native
+  browser behavior;
 - derives Chromium's `Accept-Language` profile from the system time-zone region
   so language and time-zone exposure remain consistent without changing the
   application's interface language;
@@ -67,15 +70,20 @@ can be eliminated. Dedicated workers and native Blink implementation details
 cannot all be changed by a page-context policy. Screen dimensions are not
 falsified because reporting dimensions that conflict with the visible window
 creates a stronger anomaly; robust screen normalization requires native
-letterboxing. TLS fingerprints, proxy headers, exit-IP reputation, open ports,
-and destination reachability are network-layer properties and are outside this
-policy's ownership.
+letterboxing. TLS and TCP fingerprints, DNS resolver location, proxy headers,
+exit-IP reputation, open ports, and destination reachability are network-layer
+properties and are outside this policy's ownership. A page can also detect
+that script-visible APIs have been wrapped; the protection reduces stable
+readback entropy but cannot make an embedded browser indistinguishable from a
+native browser or from its network exit. Language and time zone can disagree
+with a changed exit IP until the next verified egress lookup and browser restart.
 
 ## Verification
 
 The release test suite covers Canvas and WebGL perturbation, GPU masking,
 protected-font concealment, hardware normalization, Audio readback
-perturbation, trusted activation, zero-gain processing chains, repeated and
+perturbation, blocked Battery Status and high-entropy Client Hints reads,
+trusted activation, zero-gain processing chains, repeated and
 oversized WebAudio connection queues, WebRTC policy, YouTube playback policy,
 and the document-start script transport. A real CEF smoke page verifies the
 policy in Chromium rather than only in JavaScriptCore.

@@ -225,6 +225,10 @@ for release_helper in "$app_path"/Contents/Helpers/*(N.); do
   [[ -f "$release_helper" ]] && sign_target "$release_helper"
 done
 
+for media_library in "$resources_dir"/MediaTools/lib/*.dylib(N.); do
+  sign_target "$media_library" true
+done
+
 for media_tool in "$resources_dir"/MediaTools/*(N.); do
   [[ -x "$media_tool" ]] && sign_target "$media_tool" true
 done

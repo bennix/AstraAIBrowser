@@ -209,7 +209,9 @@ struct DownloadItemRow: View {
     private var progressInfo: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 4) {
-                if item.percentComplete >= 0 {
+                if let status = item.mediaStatus {
+                    Text(verbatim: status)
+                } else if item.percentComplete >= 0 {
                     Text(verbatim: "\(item.percentComplete)%")
                 } else if item.formattedProgress.isEmpty {
                     Text(NSLocalizedString(
@@ -309,6 +311,14 @@ struct DownloadItemRow: View {
                     tooltip: NSLocalizedString("downloads.item.inProgress.copyLinkButtonTooltip", value: "Copy Link", comment: "Download item - Tooltip for copying the link of an in-progress download")
                 )
                 if !item.isCEFDownload {
+                    if item.isLiveRecording {
+                        Button { onPause(item) } label: {
+                            Image(systemName: "stop.circle")
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(item.isFinalizingRecording)
+                        .help(NSLocalizedString("downloads.media.stopRecording", value: "Stop and Save Recording", comment: "Download action that finalizes recorded live segments"))
+                    } else {
                     // Pause/Resume button
                     DownloadActionButton(
                         icon: item.isPaused ? .init(.resumeDownload) : .init(.pauseDownload),
@@ -316,6 +326,7 @@ struct DownloadItemRow: View {
                         tooltip: item.isPaused ? NSLocalizedString("downloads.item.resumeButtonTooltip", value: "Resume", comment: "Download item row - Tooltip for resume download button") : NSLocalizedString("downloads.item.pauseButtonTooltip", value: "Pause", comment: "Download item row - Tooltip for pause download button")
                     )
 
+                    }
                     // Cancel button
                     DownloadActionButton(
                         icon: .init(.deleteDownload),

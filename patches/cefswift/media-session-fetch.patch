@@ -1,0 +1,132 @@
+--- a/Sources/CefKit/CefBrowser.swift
++++ b/Sources/CefKit/CefBrowser.swift
+@@ -237,6 +237,22 @@
+                 continuation.resume(returning: nil)
+                 return
+             }
++        }
++    }
++
++    /// Fetches media with this profile's Chromium network context and cookie store.
++    public func fetchMediaResource(url: URL, headers: [String: String]) async -> CefMediaResourceResponse? {
++        let transfer = CefMediaResourceRequest()
++        return await withTaskCancellationHandler {
++            await withCheckedContinuation { continuation in
++                transfer.continuation = continuation
++                guard !Task.isCancelled, withHost({ transfer.start(host: $0, url: url, headers: headers) }) == true else {
++                    transfer.finish(nil)
++                    return
++                }
++            }
++        } onCancel: {
++            Task { @MainActor in transfer.cancel() }
+         }
+     }
+ 
+@@ -1080,3 +1096,87 @@
+     /// Redoes the last undone edit in the focused frame.
+     public func redo() { withEditingFrame { $0.pointee.redo?($0) } }
+ }
++
++
++public struct CefMediaResourceResponse: Sendable {
++    public let url: URL
++    public let status: Int
++    public let data: Data
++    public let contentRange: String?
++}
++
++@MainActor
++private final class CefMediaResourceRequest {
++    var continuation: CheckedContinuation<CefMediaResourceResponse?, Never>?
++    private var request: UnsafeMutablePointer<cef_urlrequest_t>?
++    private var data = Data()
++    private var timeout: DispatchWorkItem?
++
++    func start(host: UnsafeMutablePointer<cef_browser_host_t>, url: URL, headers: [String: String]) -> Bool {
++        guard let context = host.pointee.get_request_context?(host), let input = cef_request_create() else { return false }
++        CefStringUtil.withCefString(url.absoluteString) { input.pointee.set_url?(input, $0) }
++        CefStringUtil.withCefString("GET") { input.pointee.set_method?(input, $0) }
++        input.pointee.set_flags?(input, Int32(UR_FLAG_ALLOW_STORED_CREDENTIALS.rawValue))
++        for name in ["User-Agent", "Origin", "Accept", "Accept-Language", "Range"] {
++            guard let value = headers[name], !value.contains("\r"), !value.contains("\n") else { continue }
++            CefStringUtil.withCefString(name) { key in
++                CefStringUtil.withCefString(value) { input.pointee.set_header_by_name?(input, key, $0, 1) }
++            }
++        }
++        if let referer = headers["Referer"] {
++            CefStringUtil.withCefString(referer) {
++                input.pointee.set_referrer?(input, $0, REFERRER_POLICY_DEFAULT)
++                input.pointee.set_first_party_for_cookies?(input, $0)
++            }
++        }
++        let client = cefAllocate(cef_urlrequest_client_t.self, owner: self)
++        client.pointee.on_download_data = { client, callbackRequest, bytes, count in
++            defer { cefRelease(callbackRequest.map(UnsafeMutableRawPointer.init)) }
++            guard let owner = cefOwner(CefMediaResourceRequest.self, client.map(UnsafeMutableRawPointer.init)), let bytes else { return }
++            // URLRequest callbacks run on the CEF thread where the request was created.
++            MainActor.assumeIsolated {
++                guard owner.continuation != nil else { return }
++                guard count <= 64 * 1024 * 1024 - owner.data.count else { owner.cancel(); return }
++                owner.data.append(bytes.assumingMemoryBound(to: UInt8.self), count: count)
++            }
++        }
++        client.pointee.on_request_complete = { client, callbackRequest in
++            defer { cefRelease(callbackRequest.map(UnsafeMutableRawPointer.init)) }
++            guard let owner = cefOwner(CefMediaResourceRequest.self, client.map(UnsafeMutableRawPointer.init)) else { return }
++            MainActor.assumeIsolated { owner.complete(callbackRequest) }
++        }
++        guard let request = cef_urlrequest_create(input, client, context) else { return false }
++        self.request = request
++        let timeout = DispatchWorkItem { [weak self] in self?.cancel() }
++        self.timeout = timeout
++        DispatchQueue.main.asyncAfter(deadline: .now() + 30, execute: timeout)
++        return true
++    }
++
++    private func complete(_ request: UnsafeMutablePointer<cef_urlrequest_t>?) {
++        guard let request, request.pointee.get_request_status?(request) == UR_SUCCESS,
++              let response = request.pointee.get_response?(request) else { finish(nil); return }
++        defer { cefRelease(UnsafeMutableRawPointer(response)) }
++        guard let value = CefStringUtil.takingUserFree(response.pointee.get_url?(response)), let url = URL(string: value) else { finish(nil); return }
++        let range = CefStringUtil.withCefString("Content-Range") {
++            CefStringUtil.takingUserFree(response.pointee.get_header_by_name?(response, $0))
++        }
++        finish(CefMediaResourceResponse(url: url, status: Int(response.pointee.get_status?(response) ?? 0), data: data, contentRange: range))
++    }
++
++    func cancel() {
++        request?.pointee.cancel?(request)
++        finish(nil)
++    }
++
++    func finish(_ result: CefMediaResourceResponse?) {
++        guard let continuation else { return }
++        self.continuation = nil
++        timeout?.cancel()
++        timeout = nil
++        let request = self.request
++        self.request = nil
++        cefRelease(request.map(UnsafeMutableRawPointer.init))
++        continuation.resume(returning: result)
++    }
++}
+--- a/Sources/CCef/include/CCef.h
++++ b/Sources/CCef/include/CCef.h
+@@ -69,6 +69,7 @@
+ #include "include/capi/cef_registration_capi.h"
+ #include "include/capi/cef_render_handler_capi.h"
+ #include "include/capi/cef_request_capi.h"
++#include "include/capi/cef_urlrequest_capi.h"
+ #include "include/capi/cef_request_context_capi.h"
+ #include "include/capi/cef_request_context_handler_capi.h"
+ #include "include/capi/cef_request_handler_capi.h"
+--- a/Sources/CCef/include/ccef_symbols.h
++++ b/Sources/CCef/include/ccef_symbols.h
+@@ -140,3 +140,6 @@
+ 
+ // ponytail: cookie/v8/process_message symbols removed — zero Swift call sites.
+ // Add back here (and wire CefKit callers) when task #12 (native JS bridge) ships.
++
++CCEF_SYM(cef_request_t*, cef_request_create, (void), ())
++CCEF_SYM(cef_urlrequest_t*, cef_urlrequest_create, (cef_request_t* request, cef_urlrequest_client_t* client, cef_request_context_t* context), (request, client, context))

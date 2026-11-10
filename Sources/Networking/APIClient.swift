@@ -4,6 +4,7 @@
 // found in the LICENSE file.
 
 import Foundation
+import Network
 import CryptoKit
 import Security
 import YouTubeTranscript
@@ -2138,18 +2139,16 @@ class APIClient {
     )!
     private static let maximumXSpamShieldArtifactSize = 32 * 1_024 * 1_024
 
-    /// Resolves the public IPv4 address visible to internet services and maps
-    /// that exact address to an ISO country code. This intentionally performs
+    /// Resolves the public IPv4 address and country from one server response.
+    /// A rotating proxy could use a different exit for two separate requests.
+    /// This intentionally performs
     /// no interface or routing-table inspection: private LAN addresses must
     /// never influence the browser's outward language fingerprint.
-    static func resolvePublicIPv4Location(timeout: TimeInterval = 3) -> PublicIPv4Location? {
-        let requestTimeout = max(0.5, timeout / 2)
-        guard let addressURL = URL(string: "https://api.ipify.org?format=json"),
-              let addressData = synchronousPublicData(from: addressURL, timeout: requestTimeout),
-              let address = decodePublicIPv4(from: addressData),
-              let countryURL = URL(string: "https://api.country.is/\(address)"),
-              let countryData = synchronousPublicData(from: countryURL, timeout: requestTimeout),
-              let countryCode = decodeCountryCode(from: countryData, expectedIPv4: address) else {
+    static func resolvePublicIPv4Location(proxyEndpoint: String? = nil, allowProxyFailover: Bool = true, timeout: TimeInterval = 8) -> PublicIPv4Location? {
+        guard let locationURL = URL(string: "https://api.country.is/"),
+              let locationData = synchronousPublicData(from: locationURL, proxyEndpoint: proxyEndpoint, allowProxyFailover: allowProxyFailover, timeout: timeout),
+              let address = decodePublicIPv4(from: locationData),
+              let countryCode = decodeCountryCode(from: locationData, expectedIPv4: address) else {
             return nil
         }
         return PublicIPv4Location(address: address, countryCode: countryCode)
@@ -2211,8 +2210,20 @@ class APIClient {
         return true
     }
 
-    private static func synchronousPublicData(from url: URL, timeout: TimeInterval) -> Data? {
+    private static func synchronousPublicData(from url: URL, proxyEndpoint: String?, allowProxyFailover: Bool, timeout: TimeInterval) -> Data? {
         let configuration = URLSessionConfiguration.ephemeral
+        if let proxyEndpoint {
+            let components = proxyEndpoint.split(separator: ":")
+            guard components.count == 2,
+                  let portValue = UInt16(components[1]),
+                  let port = NWEndpoint.Port(rawValue: portValue) else { return nil }
+            var proxy = ProxyConfiguration(httpCONNECTProxy: .hostPort(
+                host: NWEndpoint.Host(String(components[0])), port: port
+            ))
+            // Country lookup must not reveal a direct address when proxy routing is required.
+            proxy.allowFailover = allowProxyFailover
+            configuration.proxyConfigurations = [proxy]
+        }
         configuration.timeoutIntervalForRequest = timeout
         configuration.timeoutIntervalForResource = timeout
         configuration.waitsForConnectivity = false
@@ -4292,4 +4303,96 @@ enum APIError: Error {
     case httpError(statusCode: Int)
     case decodingError
     case serverError(message: String)
+}
+
+extension APIClient {
+    /// One task-scoped session. Redirects are rebuilt so cookies are scoped at every hop.
+    final class MediaSession: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+        private var session: URLSession!
+
+        init(proxy: String?) {
+            super.init()
+            let configuration = URLSessionConfiguration.ephemeral
+            configuration.httpShouldSetCookies = false
+            configuration.urlCache = nil
+            configuration.timeoutIntervalForRequest = 30
+            configuration.timeoutIntervalForResource = 90
+            if let proxy, let endpoint = URL(string: "http://\(proxy)"), let host = endpoint.host, let port = endpoint.port {
+                configuration.connectionProxyDictionary = [
+                    "HTTPEnable": 1, "HTTPProxy": host, "HTTPPort": port,
+                    "HTTPSEnable": 1, "HTTPSProxy": host, "HTTPSPort": port,
+                ]
+            }
+            session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+        }
+
+        func close() { session.invalidateAndCancel() }
+
+        func urlSession(_ session: URLSession, task: URLSessionTask,
+                        willPerformHTTPRedirection response: HTTPURLResponse,
+                        newRequest request: URLRequest,
+                        completionHandler: @escaping @Sendable (URLRequest?) -> Void) {
+            completionHandler(nil)
+        }
+
+        @MainActor
+        func resource(_ resource: HLSResource, pageURL: URL, userAgent: String?,
+                      provider: MediaSessionCookieProviding?, headers: [String: String] = [:]) async throws -> (Data, URL) {
+            var sessionHeaders = headers
+            sessionHeaders["Referer"] = headers["Referer"] ?? pageURL.absoluteString
+            sessionHeaders["User-Agent"] = userAgent
+            if let range = resource.range { sessionHeaders["Range"] = "bytes=\(range.lowerBound)-\(range.upperBound - 1)" }
+            if let result = try await provider?.mediaResource(for: resource.url, headers: sessionHeaders) {
+                guard (200..<300).contains(result.status) else {
+                    throw NSError(domain: "AstraMediaHTTP", code: result.status, userInfo: [NSLocalizedDescriptionKey: "HTTP \(result.status)"])
+                }
+                guard !result.data.isEmpty, result.data.count <= 64 * 1024 * 1024 else { throw URLError(.dataLengthExceedsMaximum) }
+                if let range = resource.range {
+                    guard result.status == 206, result.data.count == range.count,
+                          result.contentRange?.hasPrefix("bytes \(range.lowerBound)-\(range.upperBound - 1)/") == true else { throw URLError(.badServerResponse) }
+                }
+                return (result.data, result.url)
+            }
+            var url = resource.url
+            for _ in 0..<10 {
+                try Task.checkCancellation()
+                guard ["http", "https"].contains(url.scheme?.lowercased() ?? "") else { throw URLError(.unsupportedURL) }
+                var request = URLRequest(url: url)
+                request.setValue(headers["Referer"] ?? pageURL.absoluteString, forHTTPHeaderField: "Referer")
+                request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+                for name in ["Origin", "Accept", "Accept-Language"] {
+                    request.setValue(headers[name], forHTTPHeaderField: name)
+                }
+                request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
+                let cookies = await provider?.mediaSessionCookies(for: url) ?? []
+                for (name, value) in HTTPCookie.requestHeaderFields(with: cookies) { request.setValue(value, forHTTPHeaderField: name) }
+                if let range = resource.range {
+                    request.setValue("bytes=\(range.lowerBound)-\(range.upperBound - 1)", forHTTPHeaderField: "Range")
+                }
+                let (temporaryFile, response) = try await session.download(for: request)
+                defer { try? FileManager.default.removeItem(at: temporaryFile) }
+                guard let response = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+                if (300..<400).contains(response.statusCode),
+                   let location = response.value(forHTTPHeaderField: "Location"),
+                   let redirected = URL(string: location, relativeTo: url)?.absoluteURL {
+                    url = redirected
+                    continue
+                }
+                guard (200..<300).contains(response.statusCode) else {
+                    throw NSError(domain: "AstraMediaHTTP", code: response.statusCode,
+                        userInfo: [NSLocalizedDescriptionKey: "HTTP \(response.statusCode)"])
+                }
+                let size = try temporaryFile.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+                guard size > 0, size <= 64 * 1024 * 1024 else { throw URLError(.dataLengthExceedsMaximum) }
+                if let range = resource.range {
+                    guard response.statusCode == 206,
+                          response.value(forHTTPHeaderField: "Content-Range")?.hasPrefix("bytes \(range.lowerBound)-\(range.upperBound - 1)/") == true,
+                          size == range.count else { throw URLError(.badServerResponse) }
+                }
+                let data = try await Task.detached { try Data(contentsOf: temporaryFile) }.value
+                return (data, url)
+            }
+            throw URLError(.httpTooManyRedirects)
+        }
+    }
 }

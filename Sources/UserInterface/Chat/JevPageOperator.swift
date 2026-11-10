@@ -10,7 +10,12 @@ import Foundation
 /// text only after the operation is TYPE_TEXT.
 enum JevPagePolicy {
     static let toolName = "operate_page"
-    static let maximumStepsPerCall = 8
+    static let maximumStepsPerCall = 32
+    static func repetitionCount(previousSnapshot: Snapshot?, snapshot: Snapshot,
+                                previousOutcome: Outcome?, outcome: Outcome, previousCount: Int) -> Int {
+        previousSnapshot == snapshot && previousOutcome == outcome ? previousCount + 1 : 1
+    }
+
     static let defaultModelIdentifier = PhiPreferences.AISettings.defaultBrowserPolicyModelIdentifier
 
     static let nextActionRules = """
@@ -566,8 +571,14 @@ enum JevPageOperator {
         var history: [JevPagePolicy.HistoryEntry] = []
         var lines: [String] = []
         var changedPage = false
+        var previousSnapshot: JevPagePolicy.Snapshot?
+        var previousOutcome: JevPagePolicy.Outcome?
+        var repeatedDecisionCount = 0
 
         for step in 1...JevPagePolicy.maximumStepsPerCall {
+            guard !Task.isCancelled else {
+                return .init(succeeded: false, message: trace(status: "cancelled", lines: lines))
+            }
             let inspection = await browserAutomation(BrowserAutomationAction(
                 kind: .inspectPage,
                 index: nil,
@@ -615,6 +626,21 @@ enum JevPageOperator {
                 )
             }
 
+            guard !Task.isCancelled else {
+                return .init(succeeded: false, message: trace(status: "cancelled", lines: lines))
+            }
+            // An operation name alone cannot distinguish clicks on different controls.
+            repeatedDecisionCount = JevPagePolicy.repetitionCount(
+                previousSnapshot: previousSnapshot, snapshot: snapshot,
+                previousOutcome: previousOutcome, outcome: decision.outcome,
+                previousCount: repeatedDecisionCount
+            )
+            previousSnapshot = snapshot
+            previousOutcome = decision.outcome
+            if repeatedDecisionCount >= 3 {
+                return finish(status: "blocked", policyModel: policyModel, textModel: textModel,
+                              changedPage: changedPage, lines: lines + ["Stopped after an unchanged page and decision repeated."], snapshot: snapshot)
+            }
             switch decision.outcome {
             case .done:
                 return finish(
@@ -668,6 +694,9 @@ enum JevPageOperator {
                     x: nil,
                     y: nil
                 )
+                guard !Task.isCancelled else {
+                    return .init(succeeded: false, message: trace(status: "cancelled", lines: lines))
+                }
                 let result = await browserAutomation(action)
                 lines.append("\(step). TYPE_TEXT [\(decision.target ?? "?")] \(label): \(result.message)")
                 history.append(.init(
@@ -681,6 +710,9 @@ enum JevPageOperator {
                 }
                 changedPage = true
             case .act(let action):
+                guard !Task.isCancelled else {
+                    return .init(succeeded: false, message: trace(status: "cancelled", lines: lines))
+                }
                 let result = await browserAutomation(action)
                 let target = decision.target.map { " [\($0)]" } ?? ""
                 lines.append("\(step). \(decision.operation)\(target): \(result.message)")
@@ -696,17 +728,7 @@ enum JevPageOperator {
                 changedPage = true
             }
 
-            let signature = history.suffix(3).map { "\($0.action)|\($0.text ?? "")" }
-            if signature.count == 3, Set(signature).count == 1 {
-                return finish(
-                    status: "blocked",
-                    policyModel: policyModel,
-                    textModel: textModel,
-                    changedPage: changedPage,
-                    lines: lines + ["Stopped after the same action repeated."],
-                    snapshot: snapshot
-                )
-            }
+
         }
 
         return .init(

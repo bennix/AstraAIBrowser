@@ -1,0 +1,213 @@
+--- a/Sources/CefKit/CefBrowser.swift
++++ b/Sources/CefKit/CefBrowser.swift
+@@ -67,10 +67,41 @@
+         self.id = raw.map { $0.pointee.get_identifier?($0) ?? -1 } ?? -1
+     }
+ 
++    var pendingIdentityURL: URL?
++    private var nativeIdentityReady = CefRuntime.shared.configuration?.nativeUserAgentParameters == nil
++    private var nativeIdentityPending = false
++
++    func prepareNativeIdentity() async {
++        guard !nativeIdentityReady, !nativeIdentityPending,
++              let parameters = CefRuntime.shared.configuration?.nativeUserAgentParameters else { return }
++        nativeIdentityPending = true
++        defer { nativeIdentityPending = false }
++        let result: String? = await withCheckedContinuation { continuation in
++            let request = CefDevToolsEvaluationRequest(
++                expression: "", continuation: continuation, timeout: 5,
++                commandParameters: parameters
++            )
++            guard withHost({ request.start(host: $0) }) != nil else {
++                continuation.resume(returning: nil)
++                return
++            }
++        }
++        guard result != nil else {
++            NSLog("[CEF] Native browser identity initialization failed")
++            return
++        }
++        nativeIdentityReady = true
++        if let destination = pendingIdentityURL {
++            pendingIdentityURL = nil
++            load(destination)
++        }
++    }
++
+     // MARK: Navigation
+ 
+     /// Navigates the main frame to `url`.
+     public func load(_ url: URL) {
++        guard nativeIdentityReady else { pendingIdentityURL = url; return }
+         withMainFrame { frame in
+             CefStringUtil.withCefString(url.absoluteString) { cefURL in
+                 frame.pointee.load_url?(frame, cefURL)
+@@ -267,6 +298,7 @@
+         raw = newRaw
+         id = newRaw.pointee.get_identifier?(newRaw) ?? -1
+         CefRuntime.shared.registerBrowser(self)
++        Task { await self.prepareNativeIdentity() }
+     }
+ 
+     /// Whether a live raw cef_browser_t is attached.
+@@ -388,12 +420,15 @@
+ 
+         let requestContext = options.profile?.makeRequestContext()
+ 
+-        let rawBrowser = CefStringUtil.withCefString(url.absoluteString) { cefURL in
++        let initialURL = CefRuntime.shared.configuration?.nativeUserAgentParameters == nil ? url.absoluteString : "about:blank"
++        let rawBrowser = CefStringUtil.withCefString(initialURL) { cefURL in
+             cef_browser_host_create_browser_sync(&windowInfo, clientPointer, cefURL, &browserSettings, nil, requestContext)
+         }
+ 
+         let browser = CefBrowser(raw: rawBrowser, client: client, delegate: delegate)
++        if initialURL == "about:blank" { browser.pendingIdentityURL = url }
+         client.attach(browser)
++        Task { await browser.prepareNativeIdentity() }
+         CefRuntime.shared.registerBrowser(browser)
+         return browser
+     }
+@@ -473,7 +508,9 @@
+         client.attach(browser)
+         client.pendingOSRBrowser = browser
+ 
+-        _ = CefStringUtil.withCefString(url.absoluteString) { cefURL in
++        let initialURL = CefRuntime.shared.configuration?.nativeUserAgentParameters == nil ? url.absoluteString : "about:blank"
++        if initialURL == "about:blank" { browser.pendingIdentityURL = url }
++        _ = CefStringUtil.withCefString(initialURL) { cefURL in
+             cef_browser_host_create_browser(&windowInfo, clientPointer, cefURL, &browserSettings, nil, requestContext)
+         }
+         return browser
+@@ -750,6 +787,7 @@
+ @MainActor
+ private final class CefDevToolsEvaluationRequest {
+     private let expression: String
++    private let commandParameters: String?
+     private var continuation: CheckedContinuation<String?, Never>?
+     private var registration: UnsafeMutablePointer<cef_registration_t>?
+     private var timeoutItem: DispatchWorkItem?
+@@ -758,8 +796,10 @@
+     init(
+         expression: String,
+         continuation: CheckedContinuation<String?, Never>,
+-        timeout: TimeInterval
++        timeout: TimeInterval,
++        commandParameters: String? = nil
+     ) {
++        self.commandParameters = commandParameters
+         self.expression = expression
+         self.continuation = continuation
+         let timeoutItem = DispatchWorkItem { [weak self] in
+@@ -814,22 +854,32 @@
+         }
+         self.registration = registration
+ 
+-        guard let parameters = cef_dictionary_value_create() else {
+-            finish(with: nil)
+-            return false
+-        }
+-        CefStringUtil.withCefString("expression") { key in
+-            CefStringUtil.withCefString(expression) { value in
+-                _ = parameters.pointee.set_string?(parameters, key, value)
+-            }
+-        }
+-        for keyName in ["awaitPromise", "returnByValue", "userGesture"] {
+-            CefStringUtil.withCefString(keyName) { key in
+-                _ = parameters.pointee.set_bool?(parameters, key, 1)
+-            }
+-        }
+-
+-        let submittedID = CefStringUtil.withCefString("Runtime.evaluate") { method in
++        let parameters: UnsafeMutablePointer<cef_dictionary_value_t>?
++        if let commandParameters {
++            let value = CefStringUtil.withCefString(commandParameters) { cef_parse_json($0, JSON_PARSER_RFC) }
++            let dictionary = value.flatMap { $0.pointee.get_dictionary?($0) }
++            parameters = dictionary.flatMap { $0.pointee.copy?($0, 0) }
++            if let dictionary { cefRelease(UnsafeMutableRawPointer(dictionary)) }
++            if let value { cefRelease(UnsafeMutableRawPointer(value)) }
++        } else {
++            parameters = cef_dictionary_value_create()
++        }
++        guard let parameters else { finish(with: nil); return false }
++        // The CEF bridge consumes the submitted dictionary reference.
++        if commandParameters == nil {
++            CefStringUtil.withCefString("expression") { key in
++                CefStringUtil.withCefString(expression) { value in
++                    _ = parameters.pointee.set_string?(parameters, key, value)
++                }
++            }
++            for keyName in ["awaitPromise", "returnByValue", "userGesture"] {
++                CefStringUtil.withCefString(keyName) { key in
++                    _ = parameters.pointee.set_bool?(parameters, key, 1)
++                }
++            }
++        }
++        let methodName = commandParameters == nil ? "Runtime.evaluate" : "Emulation.setUserAgentOverride"
++        let submittedID = CefStringUtil.withCefString(methodName) { method in
+             host.pointee.execute_dev_tools_method?(host, 0, method, parameters) ?? 0
+         }
+         guard submittedID != 0 else {
+@@ -846,6 +896,10 @@
+         payload: Data?
+     ) {
+         guard Int(messageID) == self.messageID else { return }
++        if commandParameters != nil {
++            finish(with: succeeded ? "{}" : nil)
++            return
++        }
+         guard succeeded,
+               let payload,
+               let object = try? JSONSerialization.jsonObject(with: payload) as? [String: Any],
+--- a/Sources/CefKit/CefChromeBrowser.swift
++++ b/Sources/CefKit/CefChromeBrowser.swift
+@@ -132,6 +132,9 @@
+         let cefBrowser = CefBrowser(raw: nil, client: client, delegate: delegate)
+         client.attach(cefBrowser)
+ 
++        let usesNativeIdentity = CefRuntime.shared.configuration?.nativeUserAgentParameters != nil
++        if usesNativeIdentity { cefBrowser.pendingIdentityURL = url }
++        let initialURL = usesNativeIdentity ? URL(string: "about:blank")! : url
+         let chrome = CefChromeBrowser(browser: cefBrowser, options: options)
+         liveInstances[ObjectIdentifier(chrome)] = chrome
+ 
+@@ -146,7 +149,7 @@
+         // cef_browser_view_create consumes our +1 client and +1 delegate refs
+         // and returns a +1 browser view that `chrome` owns.
+         let requestContext = options.profile?.makeRequestContext()
+-        chrome.rawBrowserView = CefStringUtil.withCefString(url.absoluteString) { cefURL in
++        chrome.rawBrowserView = CefStringUtil.withCefString(initialURL.absoluteString) { cefURL in
+             cef_browser_view_create(clientPointer, cefURL, &settings, nil, requestContext, viewDelegate.makeStruct())
+         }
+ 
+--- a/Sources/CefKit/CefConfiguration.swift
++++ b/Sources/CefKit/CefConfiguration.swift
+@@ -88,6 +88,9 @@
+     /// Product portion of the User-Agent string, e.g. `"MyApp/1.0"`.
+     public var userAgentProduct: String?
+ 
++    /// Native desktop identity parameters encoded as DevTools JSON.
++    public var nativeUserAgentParameters: String?
++
+     /// Log verbosity for CEF's log file.
+     public var logSeverity: CefLogSeverity = .default
+ 
+--- a/Sources/CCef/include/CCef.h
++++ b/Sources/CCef/include/CCef.h
+@@ -80,6 +80,7 @@
+ #include "include/capi/cef_string_visitor_capi.h"
+ #include "include/capi/cef_task_capi.h"
+ #include "include/capi/cef_values_capi.h"
++#include "include/capi/cef_parser_capi.h"
+ 
+ // Views framework (chrome-style windows: cef_browser_view + cef_window).
+ #include "include/capi/views/cef_view_capi.h"
+--- a/Sources/CCef/include/ccef_symbols.h
++++ b/Sources/CCef/include/ccef_symbols.h
+@@ -119,6 +119,7 @@
+ CCEF_SYM(cef_binary_value_t*, cef_binary_value_create,
+          (const void* data, size_t data_size), (data, data_size))
+ CCEF_SYM(cef_dictionary_value_t*, cef_dictionary_value_create, (void), ())
++CCEF_SYM(cef_value_t*, cef_parse_json, (const cef_string_t* text, cef_json_parser_options_t options), (text, options))
+ CCEF_SYM(cef_list_value_t*, cef_list_value_create, (void), ())
+ 
+ // --- Drag and drop (OSR system → page) -----------------------------------------

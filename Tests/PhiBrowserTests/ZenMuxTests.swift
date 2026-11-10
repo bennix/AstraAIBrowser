@@ -14,6 +14,20 @@ import UniformTypeIdentifiers
 @testable import Phi
 
 final class ZenMuxTests: XCTestCase {
+    func testBrowserOperationBudgetAndLoopDetection() {
+        XCTAssertEqual(JevPagePolicy.maximumStepsPerCall, 32)
+        let snapshot = JevPagePolicy.Snapshot(title: "Form", url: "https://example.com", text: "Form", elements: [])
+        let first = JevPagePolicy.Outcome.type(ref: "first", selector: nil, index: 1, label: "First", currentValue: "")
+        let second = JevPagePolicy.Outcome.type(ref: "second", selector: nil, index: 2, label: "Second", currentValue: "")
+        XCTAssertEqual(JevPagePolicy.repetitionCount(previousSnapshot: snapshot, snapshot: snapshot,
+            previousOutcome: first, outcome: second, previousCount: 2), 1)
+        XCTAssertEqual(JevPagePolicy.repetitionCount(previousSnapshot: snapshot, snapshot: snapshot,
+            previousOutcome: first, outcome: first, previousCount: 2), 3)
+        let changed = JevPagePolicy.Snapshot(title: "Form", url: "https://example.com", text: "Result", elements: [])
+        XCTAssertEqual(JevPagePolicy.repetitionCount(previousSnapshot: snapshot, snapshot: changed,
+            previousOutcome: first, outcome: first, previousCount: 2), 1)
+    }
+
     func testZenMuxBuildDoesNotRequireLegacyAuthentication() {
         XCTAssertFalse(PhiBuildCapabilities.supportsAuthentication)
         XCTAssertTrue(PhiBuildCapabilities.supportsAI)
@@ -1650,6 +1664,14 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertEqual(BrowserWindowOpenPolicy.action(for: request), .allowNativePopup)
     }
 
+    func testGoogleIdentityPopupPreservesItsInitialNavigation() {
+        let identityURL = URL(string: "https://accounts.google.com/gsi/transform")!
+        let ordinaryURL = URL(string: "https://example.com/popup")!
+
+        XCTAssertTrue(BrowserWindowOpenPolicy.shouldPreservePopupNavigation(for: identityURL))
+        XCTAssertFalse(BrowserWindowOpenPolicy.shouldPreservePopupNavigation(for: ordinaryURL))
+    }
+
     func testXOAuthKeepsNativeOpenerRelationship() {
         let authorizationURL = URL(
             string: "https://x.com/i/oauth2/authorize?client_id=grok"
@@ -1715,6 +1737,18 @@ final class ZenMuxTests: XCTestCase {
             for: xURL,
             profileId: LocalStore.defaultProfileId,
             allowsCredentialStorage: true
+        ))
+        XCTAssertTrue(WebContentEnginePolicy.shouldSwitchCommittedChromiumPageToWebKit(
+            xURL, isPrimaryBrowser: true
+        ))
+        XCTAssertTrue(WebContentEnginePolicy.shouldSwitchCommittedChromiumPageToWebKit(
+            twitterURL, isPrimaryBrowser: true
+        ))
+        XCTAssertFalse(WebContentEnginePolicy.shouldSwitchCommittedChromiumPageToWebKit(
+            xURL, isPrimaryBrowser: false
+        ))
+        XCTAssertFalse(WebContentEnginePolicy.shouldSwitchCommittedChromiumPageToWebKit(
+            URL(string: "https://grok.com/")!, isPrimaryBrowser: true
         ))
     }
 
@@ -1799,6 +1833,26 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertTrue(script.contains("handler.postMessage({ type: 'scan', handles, posts })"))
         XCTAssertFalse(script.contains("x.zuoluo.tv"))
         XCTAssertFalse(script.contains("XMLHttpRequest"))
+    }
+
+    func testXGuardRouteVisibilityFollowsSinglePageNavigation() {
+        let context = JSContext()!
+        context.evaluateScript("globalThis.location = { pathname: '/home' }")
+        context.evaluateScript(XSpamShieldWebPolicy.routeVisibilityJavaScript)
+
+        for path in ["/home", "/example/status/1", "/explore", "/i/bookmarks"] {
+            context.evaluateScript("location.pathname = '\(path)'")
+            XCTAssertEqual(context.evaluateScript("shouldShowGuard()")?.toBool(), true, path)
+        }
+        for path in [
+            "/i/grok", "/i/grok/conversation/1", "/i/chat", "/i/chat/g123",
+            "/i/jf/onboarding/web", "/i/flow/login", "/compose/post", "/settings/account"
+        ] {
+            context.evaluateScript("location.pathname = '\(path)'")
+            XCTAssertEqual(context.evaluateScript("shouldShowGuard()")?.toBool(), false, path)
+        }
+        context.evaluateScript("location.pathname = '/home'")
+        XCTAssertEqual(context.evaluateScript("shouldShowGuard()")?.toBool(), true)
     }
 
     func testXSpamShieldScriptBlocksDiscoveredAccountsFromGuardPill() {
@@ -2260,6 +2314,12 @@ final class ZenMuxTests: XCTestCase {
 
     @MainActor
     func testGrokRemainsInChromiumAfterMediaErrors() {
+        for address in ["https://claude.ai/new", "https://claude.ai/login", "https://www.claude.com/"] {
+            let url = URL(string: address)!
+            XCTAssertFalse(SystemMediaCompatibilityPolicy.allowsAutomaticFallback(for: url))
+            SystemMediaCompatibilityPolicy.rememberDetectedMediaIncompatibility(for: url)
+            XCTAssertFalse(SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(for: url))
+        }
         let grokURL = URL(string: "https://grok.com/imagine")!
 
         XCTAssertFalse(SystemMediaCompatibilityPolicy.allowsAutomaticFallback(for: grokURL))
@@ -2491,6 +2551,79 @@ final class ZenMuxTests: XCTestCase {
         XCTAssertTrue(script.contains("RTCPeerConnection"))
         XCTAssertTrue(script.contains("webkitRTCPeerConnection"))
         XCTAssertTrue(script.contains("configurable: false"))
+    }
+
+    func testAutomaticProxyPrefersSystemAndRequiresVerifiedLocalEndpoint() {
+        let suite = "PrivacyProxyTests." + UUID().uuidString
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: BrowserProxyPolicy.privacyRequiredKey)
+        defaults.set(false, forKey: BrowserProxyPolicy.enabledKey)
+        XCTAssertEqual(BrowserProxyPolicy.effectiveLocalEndpoint(defaults: defaults), BrowserProxyPolicy.privacyEndpoint)
+        XCTAssertEqual(BrowserProxyPolicy.cefProxyServer(for: BrowserProxyPolicy.privacyEndpoint), "http://127.0.0.1:7891")
+        XCTAssertTrue(BrowserProxyPolicy.systemProxyIsEnabled(["HTTPEnable": 1]))
+        XCTAssertTrue(BrowserProxyPolicy.systemProxyIsEnabled(["ProxyAutoConfigEnable": 1]))
+        XCTAssertFalse(BrowserProxyPolicy.systemProxyIsEnabled(["HTTPEnable": 0]))
+
+        let endpoint = BrowserProxyPolicy.localEndpoint
+        XCTAssertEqual(BrowserProxyPolicy.resolvedLocalEndpoint(
+            enabled: true, systemProxyEnabled: false,
+            savedEndpoint: endpoint, localReachable: true
+        ), endpoint)
+        XCTAssertNil(BrowserProxyPolicy.resolvedLocalEndpoint(
+            enabled: true, systemProxyEnabled: true,
+            savedEndpoint: endpoint, localReachable: true
+        ))
+        XCTAssertNil(BrowserProxyPolicy.resolvedLocalEndpoint(
+            enabled: true, systemProxyEnabled: false,
+            savedEndpoint: endpoint, localReachable: false
+        ))
+        XCTAssertNil(BrowserProxyPolicy.resolvedLocalEndpoint(
+            enabled: true, systemProxyEnabled: false,
+            savedEndpoint: endpoint, localReachable: true,
+            proxyHealthy: false
+        ))
+        XCTAssertEqual(BrowserProxyPolicy.route(
+            directReachable: true, proxyReachable: true
+        ), .local)
+        XCTAssertEqual(BrowserProxyPolicy.route(
+            directReachable: true, proxyReachable: false
+        ), .direct)
+        XCTAssertEqual(BrowserProxyPolicy.route(
+            directReachable: false, proxyReachable: true
+        ), .local)
+        XCTAssertEqual(BrowserProxyPolicy.route(
+            directReachable: false, proxyReachable: false
+        ), .unavailable)
+        XCTAssertEqual(
+            BrowserProxyPolicy.cefProxyServer(for: endpoint),
+            "http://127.0.0.1:7890,direct://"
+        )
+        XCTAssertNil(BrowserProxyPolicy.resolvedLocalEndpoint(
+            enabled: false, systemProxyEnabled: false,
+            savedEndpoint: endpoint, localReachable: true
+        ))
+        XCTAssertNil(BrowserProxyPolicy.resolvedLocalEndpoint(
+            enabled: true, systemProxyEnabled: false,
+            savedEndpoint: "127.0.0.1:9999", localReachable: true
+        ))
+    }
+
+    func testBrowserSearchProvidersEncodeUnicodeQueries() throws {
+        let expected: [BrowserSearchProvider: (String, String)] = [
+            .google: ("www.google.com", "q"),
+            .baidu: ("www.baidu.com", "wd"),
+            .bing: ("www.bing.com", "q"),
+            .duckDuckGo: ("duckduckgo.com", "q")
+        ]
+        for provider in BrowserSearchProvider.allCases {
+            let url = try XCTUnwrap(URL(string: provider.searchURL(for: "中文 test")))
+            let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+            XCTAssertEqual(url.host, expected[provider]?.0)
+            XCTAssertEqual(components.queryItems?.first?.name, expected[provider]?.1)
+            XCTAssertEqual(components.queryItems?.first?.value, "中文 test")
+        }
+        XCTAssertEqual(URLProcessor.processUserInput("https://example.com/path"), "https://example.com/path")
     }
 
     func testCefExtensionCatalogExposesInstalledIconAndControls() throws {
@@ -2930,5 +3063,305 @@ final class XBookmarkDigestTests: XCTestCase {
             isExplicitlyEmpty: isExplicitlyEmpty,
             hasTimelineError: false
         )
+    }
+}
+
+
+final class MediaDownloadHistoryTests: XCTestCase {
+    func testRoundTripRemovalAndProfileIsolation() throws {
+        let suite = "MediaDownloadHistoryTests." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let first = DownloadItem(mediaID: UUID(), fileName: "sample.mp4",
+                                 pageURL: URL(string: "https://example.com/video")!, mimeType: "video/mp4")
+        first.updateMediaProgress(receivedBytes: 4096, totalBytes: 4096, speed: 0)
+        first.finishMediaDownload(at: URL(fileURLWithPath: "/nonexistent-astra-history/sample.mp4"))
+        MediaDownloadHistory.update(first, profile: "one", defaults: defaults)
+        let restored = try XCTUnwrap(MediaDownloadHistory.records(profile: "one", defaults: defaults).first).item()
+        XCTAssertEqual(restored.id, first.id)
+        XCTAssertEqual(restored.state, .complete)
+        XCTAssertEqual(restored.receivedBytes, 4096)
+        XCTAssertEqual(restored.targetFilePath, first.targetFilePath)
+        XCTAssertFalse(restored.canOpenDownload)
+        XCTAssertTrue(MediaDownloadHistory.records(profile: "two", defaults: defaults).isEmpty)
+        MediaDownloadHistory.update(first, profile: "one", defaults: defaults)
+        XCTAssertEqual(MediaDownloadHistory.records(profile: "one", defaults: defaults).count, 1)
+        MediaDownloadHistory.update(first, profile: "one", removing: true, defaults: defaults)
+        XCTAssertTrue(MediaDownloadHistory.records(profile: "one", defaults: defaults).isEmpty)
+    }
+
+    func testActiveTaskIsNotRestoredAsCompleted() throws {
+        let suite = "MediaDownloadHistoryTests." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let item = DownloadItem(mediaID: UUID(), fileName: "sample.mp4",
+                                pageURL: URL(string: "https://example.com/video")!, mimeType: "video/mp4")
+        MediaDownloadHistory.update(item, profile: "one", defaults: defaults)
+        XCTAssertTrue(MediaDownloadHistory.records(profile: "one", defaults: defaults).isEmpty)
+    }
+}
+
+
+final class YouTubeDownloadRetryPolicyTests: XCTestCase {
+    func testOnlyYouTubeSession403RetriesPublicly() {
+        for address in ["https://youtube.com/watch?v=sample", "https://www.youtube.com/shorts/sample", "https://youtu.be/sample"] {
+            XCTAssertTrue(YouTubeDownloadRetryPolicy.shouldRetryPublicly(url: URL(string: address)!, failure: "unable to download video data: HTTP Error 403: Forbidden", hasSessionArguments: true))
+        }
+        for address in ["https://youtube.com.example.org/video", "https://example.com/video", "file:///video"] {
+            XCTAssertFalse(YouTubeDownloadRetryPolicy.shouldRetryPublicly(url: URL(string: address)!, failure: "HTTP Error 403", hasSessionArguments: true))
+        }
+        let url = URL(string: "https://youtube.com/watch?v=sample")!
+        XCTAssertFalse(YouTubeDownloadRetryPolicy.shouldRetryPublicly(url: url, failure: "HTTP Error 403", hasSessionArguments: false))
+        XCTAssertFalse(YouTubeDownloadRetryPolicy.shouldRetryPublicly(url: url, failure: "HTTP Error 404", hasSessionArguments: true))
+    }
+}
+
+final class HLSManifestTests: XCTestCase {
+    private let base = URL(string: "https://media.example/path/list.m3u8?token=secret")!
+
+    func testMasterPreservesSignedVariantURL() throws {
+        let plan = try HLSManifest.parse("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=500000,RESOLUTION=640x360\nvideo.m3u8?sig=a%2Bb\n", base: base)
+        XCTAssertEqual(plan.variants.first?.height, 360)
+        XCTAssertEqual(plan.variants.first?.url.absoluteString, "https://media.example/path/video.m3u8?sig=a%2Bb")
+    }
+
+    func testRangeSequenceAndSelection() throws {
+        let plan = try HLSManifest.parse("""
+        #EXTM3U
+        #EXT-X-TARGETDURATION:10
+        #EXT-X-MEDIA-SEQUENCE:42
+        #EXTINF:10,
+        #EXT-X-BYTERANGE:100@0
+        media.ts
+        #EXTINF:10,
+        #EXT-X-BYTERANGE:120
+        media.ts
+        #EXT-X-ENDLIST
+        """, base: base)
+        XCTAssertFalse(plan.live)
+        XCTAssertEqual(plan.segments[1].resource.range, 100..<220)
+        XCTAssertEqual(plan.selected(start: 10, end: 19).map(\.sequence), [43])
+        XCTAssertEqual(HLSManifest.partitions(plan.segments, count: 4).flatMap { $0 }.map(\.sequence), [42, 43])
+    }
+
+    func testImplicitRangeCannotSwitchResource() {
+        XCTAssertThrowsError(try HLSManifest.parse("#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXTINF:1,\n#EXT-X-BYTERANGE:10@0\na.ts\n#EXTINF:1,\n#EXT-X-BYTERANGE:10\nb.ts\n#EXT-X-ENDLIST", base: base))
+    }
+
+    func testLocalEncryptionUsesOriginalSequenceAndKeyRotation() throws {
+        let plan = try HLSManifest.parse("""
+        #EXTM3U
+        #EXT-X-TARGETDURATION:10
+        #EXT-X-MEDIA-SEQUENCE:42
+        #EXT-X-KEY:METHOD=AES-128,URI="key?value=a,b"
+        #EXTINF:10,
+        a.ts
+        #EXT-X-KEY:METHOD=NONE
+        #EXTINF:10,
+        b.ts
+        #EXT-X-ENDLIST
+        """, base: base)
+        let first = plan.segments[0]
+        let files = [first.resource: "a.bin", first.key!: "key.bin", plan.segments[1].resource: "b.bin"]
+        let text = try plan.localPlaylist(segments: plan.segments, files: files)
+        XCTAssertTrue(text.contains("IV=0x0000000000000000000000000000002a"))
+        XCTAssertTrue(text.contains("#EXT-X-KEY:METHOD=NONE"))
+        XCTAssertFalse(text.contains("https://"))
+        XCTAssertEqual(first.key?.url.query, "value=a,b")
+    }
+
+    func testInitializationMapAndDiscontinuityPreserved() throws {
+        let plan = try HLSManifest.parse("#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MAP:URI=\"init.mp4\",BYTERANGE=\"10@3\"\n#EXT-X-DISCONTINUITY\n#EXTINF:2,\nsegment.m4s\n#EXT-X-ENDLIST", base: base)
+        let segment = plan.segments[0]
+        XCTAssertEqual(segment.map?.range, 3..<13)
+        let text = try plan.localPlaylist(segments: plan.segments, files: [segment.map!: "init.bin", segment.resource: "segment.bin"])
+        XCTAssertTrue(text.contains("#EXT-X-DISCONTINUITY"))
+        XCTAssertTrue(text.contains("#EXT-X-MAP:URI=\"init.bin\""))
+        XCTAssertFalse(text.contains("BYTERANGE"))
+    }
+
+    func testShortExplicitIVIsPadded() throws {
+        let plan = try HLSManifest.parse("#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-KEY:METHOD=AES-128,URI=\"key\",IV=0x1\n#EXTINF:1,\na.ts\n#EXT-X-ENDLIST", base: base)
+        XCTAssertEqual(plan.segments.first?.iv, "0x00000000000000000000000000000001")
+    }
+
+    func testMalformedDurationAndUnsupportedDRMRejected() {
+        for text in ["#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXTINF:\na.ts", "#EXTM3U\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"key\""] {
+            XCTAssertThrowsError(try HLSManifest.parse(text, base: base))
+        }
+    }
+}
+
+@MainActor
+final class HLSDownloadIntegrationTests: XCTestCase {
+    func testFailedFragmentsResumeAndMergeInOrder() async throws {
+        let ffmpeg = "/opt/homebrew/bin/ffmpeg"
+        guard FileManager.default.isExecutableFile(atPath: ffmpeg),
+              FileManager.default.isExecutableFile(atPath: "/usr/bin/python3") else {
+            throw XCTSkip("Local integration fixture requires ffmpeg and Python")
+        }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("astra-hls-test-\(UUID())")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let generate = Process()
+        generate.executableURL = URL(fileURLWithPath: ffmpeg)
+        generate.arguments = ["-nostdin", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=10",
+                              "-f", "lavfi", "-i", "sine=frequency=440", "-t", "6", "-c:v", "libx264", "-g", "20",
+                              "-c:a", "aac", "-hls_time", "2", "-hls_list_size", "0", "-hls_segment_filename",
+                              directory.appendingPathComponent("part%d.ts").path, directory.appendingPathComponent("list.m3u8").path]
+        try generate.run()
+        generate.waitUntilExit()
+        XCTAssertEqual(generate.terminationStatus, 0)
+        let server = Process()
+        server.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+        server.arguments = ["-u", "-c", #"""
+import http.server, os, sys
+os.chdir(sys.argv[1])
+class Handler(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, *args): pass
+    def do_GET(self):
+        with open('requests.log', 'a') as log: log.write(self.path + '\n')
+        if self.path == '/part1.ts' and not os.path.exists('allow'):
+            self.send_error(503)
+            return
+        super().do_GET()
+server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+print(server.server_port, flush=True)
+server.serve_forever()
+"""#, directory.path]
+        let pipe = Pipe()
+        server.standardOutput = pipe
+        try server.run()
+        defer { server.terminate(); server.waitUntilExit() }
+        var portData = Data()
+        while !portData.contains(10) {
+            guard let byte = try pipe.fileHandleForReading.read(upToCount: 1), !byte.isEmpty else { throw URLError(.cannotConnectToHost) }
+            portData.append(byte)
+        }
+        let port = try XCTUnwrap(String(data: portData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines))
+        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/list.m3u8"))
+        let cache = directory.appendingPathComponent("cache")
+        let first = HLSDownloadOperation(pageURL: url, userAgent: nil, provider: nil, proxy: nil)
+        let plan = try await first.resolve(url, maximumHeight: nil)
+        XCTAssertEqual(plan.segments.count, 3)
+        do {
+            _ = try await first.download(plan, segments: plan.segments, directory: cache, partitions: 4) { _, _, _ in }
+            XCTFail("The missing fragment must fail the task")
+        } catch { XCTAssertEqual((error as NSError).code, 503) }
+        first.close()
+        try Data().write(to: directory.appendingPathComponent("allow"))
+        let second = HLSDownloadOperation(pageURL: url, userAgent: nil, provider: nil, proxy: nil)
+        defer { second.close() }
+        var percentages: [Int] = []
+        let playlist = try await second.download(plan, segments: plan.segments, directory: cache, partitions: 2) { _, percent, _ in
+            percentages.append(percent)
+        }
+        XCTAssertEqual(percentages.last, 95)
+        let requests = try String(contentsOf: directory.appendingPathComponent("requests.log"), encoding: .utf8).components(separatedBy: .newlines)
+        XCTAssertEqual(requests.filter { $0 == "/part0.ts" }.count, 1)
+        XCTAssertEqual(requests.filter { $0 == "/part2.ts" }.count, 1)
+        XCTAssertEqual(requests.filter { $0 == "/part1.ts" }.count, 4)
+        let merge = Process()
+        merge.executableURL = URL(fileURLWithPath: ffmpeg)
+        merge.arguments = ["-nostdin", "-v", "error", "-protocol_whitelist", "file,crypto,data", "-allowed_extensions", "ALL", "-allowed_segment_extensions", "ALL", "-extension_picky", "0",
+                           "-i", playlist.path, "-c", "copy", directory.appendingPathComponent("merged.mp4").path]
+        try merge.run()
+        merge.waitUntilExit()
+        XCTAssertEqual(merge.terminationStatus, 0)
+        XCTAssertGreaterThan(try directory.appendingPathComponent("merged.mp4").resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0, 1000)
+        let probe = Process()
+        probe.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/ffprobe")
+        probe.arguments = ["-v", "error", "-show_entries", "format=duration:stream=codec_type", "-of", "json", directory.appendingPathComponent("merged.mp4").path]
+        let probeOutput = Pipe()
+        probe.standardOutput = probeOutput
+        try probe.run()
+        let probeData = probeOutput.fileHandleForReading.readDataToEndOfFile()
+        probe.waitUntilExit()
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: probeData) as? [String: Any])
+        let format = try XCTUnwrap(object["format"] as? [String: Any])
+        let duration = try XCTUnwrap(Double(format["duration"] as? String ?? ""))
+        XCTAssertEqual(duration, 6, accuracy: 0.2)
+        let streams = try XCTUnwrap(object["streams"] as? [[String: Any]])
+        XCTAssertEqual(Set(streams.compactMap { $0["codec_type"] as? String }), ["audio", "video"])
+
+        for mode in ["encrypted", "fmp4"] {
+            let encoder = Process()
+            encoder.executableURL = URL(fileURLWithPath: ffmpeg)
+            encoder.currentDirectoryURL = directory
+            var arguments = ["-nostdin", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=10",
+                             "-t", "4", "-c:v", "libx264", "-g", "20", "-hls_time", "2", "-hls_list_size", "0"]
+            if mode == "encrypted" {
+                let key = directory.appendingPathComponent("key.bin")
+                try Data((0..<16).map(UInt8.init)).write(to: key)
+                let info = directory.appendingPathComponent("keyinfo")
+                try "http://127.0.0.1:\(port)/key.bin\n\(key.path)\n".write(to: info, atomically: true, encoding: .utf8)
+                arguments += ["-hls_key_info_file", info.path]
+            } else {
+                arguments += ["-hls_segment_type", "fmp4", "-hls_fmp4_init_filename", "init.mp4"]
+            }
+            arguments += ["-hls_segment_filename", "\(mode)%d.ts", "\(mode).m3u8"]
+            encoder.arguments = arguments
+            try encoder.run()
+            encoder.waitUntilExit()
+            XCTAssertEqual(encoder.terminationStatus, 0)
+            let modeURL = url.deletingLastPathComponent().appendingPathComponent("\(mode).m3u8")
+            let operation = HLSDownloadOperation(pageURL: modeURL, userAgent: nil, provider: nil, proxy: nil)
+            let modePlan = try await operation.resolve(modeURL, maximumHeight: nil)
+            let local = try await operation.download(modePlan, segments: modePlan.segments,
+                directory: directory.appendingPathComponent(mode), partitions: 4) { _, _, _ in }
+            let merger = Process()
+            merger.executableURL = URL(fileURLWithPath: ffmpeg)
+            merger.arguments = ["-nostdin", "-v", "error", "-protocol_whitelist", "file,crypto,data", "-allowed_extensions", "ALL",
+                                "-allowed_segment_extensions", "ALL", "-extension_picky", "0", "-i", local.path, "-c", "copy",
+                                directory.appendingPathComponent("\(mode).mp4").path]
+            try merger.run()
+            merger.waitUntilExit()
+            XCTAssertEqual(merger.terminationStatus, 0, mode)
+            operation.close()
+        }
+        let cancelled = HLSDownloadOperation(pageURL: url, userAgent: nil, provider: nil, proxy: nil)
+        cancelled.pause()
+        let pausedTask = Task {
+            try await cancelled.download(plan, segments: plan.segments, directory: directory.appendingPathComponent("cancelled"), partitions: 4) { _, _, _ in }
+        }
+        await Task.yield()
+        cancelled.cancel()
+        do { _ = try await pausedTask.value; XCTFail("Cancelled operation must not publish a playlist") }
+        catch { XCTAssertTrue(error is CancellationError) }
+    }
+}
+
+final class MediaCandidateURLSummaryTests: XCTestCase {
+    func testSummaryDescribesResourceWithoutSignedQueryValues() {
+        let url = URL(string: "https://cdn.example/videos/1080p/master.m3u8?token=private-value&expires=123")!
+        let summary = MediaCandidateURLSummary.text(for: url)
+        XCTAssertTrue(summary.contains("cdn.example/videos/1080p/master.m3u8"))
+        XCTAssertTrue(summary.contains("HLS"))
+        XCTAssertTrue(summary.contains("1080p"))
+        XCTAssertFalse(summary.contains("private-value"))
+        XCTAssertFalse(summary.contains("expires"))
+    }
+
+    func testResolutionHintsOnlyUseExplicitFields() {
+        XCTAssertFalse(MediaCandidateURLSummary.text(for: URL(string: "https://cdn.example/movie.mp4?token=1080p")!).contains("1080p"))
+        XCTAssertTrue(MediaCandidateURLSummary.text(for: URL(string: "https://cdn.example/movie.mp4?height=720")!).contains("720p"))
+    }
+}
+
+final class MediaDownloadCandidateListTests: XCTestCase {
+    func testListsAllSourcesAndPreservesSignedURLIdentity() {
+        let urls = (0..<125).map { URL(string: "https://cdn.example/video.m3u8?signature=\($0)")! }
+        let candidate = MediaDownloadCandidate(url: urls[0], title: "Video", kind: .video, durationSeconds: nil, alternateURLs: urls)
+        let rows = MediaDownloadCandidateList.expanded([candidate, candidate])
+        XCTAssertEqual(rows.count, 125)
+        XCTAssertEqual(rows.map(\.url), urls)
+    }
+
+    func testAlternateAudioIsListedAndUnsupportedSchemesAreExcluded() {
+        let candidate = MediaDownloadCandidate(url: URL(string: "https://example.com/watch")!, title: "Video", kind: .video,
+            durationSeconds: nil, alternateURLs: [URL(string: "https://cdn.example/sound.m4a")!, URL(string: "file:///private/movie.mp4")!])
+        let rows = MediaDownloadCandidateList.expanded([candidate])
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(rows[1].kind, .audio)
     }
 }

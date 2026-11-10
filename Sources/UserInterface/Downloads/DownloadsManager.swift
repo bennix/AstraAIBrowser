@@ -50,6 +50,14 @@ class DownloadItem: ObservableObject, Identifiable {
     @Published var isInsecure: Bool
     @Published var insecureDownloadStatus: Int
     @Published var targetFilePath: String
+    @Published var isLiveRecording = false
+    @Published var isFinalizingRecording = false
+    @Published var mediaStatus: String?
+    var recordingDurationSeconds: Double?
+    var mediaTimeRange: String?
+    var mediaOptionsConfirmed = false
+    var mediaPartitionCount = 4
+    var mediaRequestHeaders: [String: String] = [:]
 
     var isCEFDownload: Bool {
         id.hasPrefix("cef-")
@@ -491,6 +499,15 @@ enum MediaDownloadProgressPolicy {
     }
 }
 
+enum YouTubeDownloadRetryPolicy {
+    static func shouldRetryPublicly(url: URL, failure: String?, hasSessionArguments: Bool) -> Bool {
+        guard hasSessionArguments, let host = url.host?.lowercased(),
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              host == "youtube.com" || host.hasSuffix(".youtube.com") || host == "youtu.be" else { return false }
+        return failure?.contains("HTTP Error 403") == true
+    }
+}
+
 enum MediaDownloadAttemptPolicy {
     static func qualities(
         for kind: MediaDownloadKind,
@@ -500,6 +517,27 @@ enum MediaDownloadAttemptPolicy {
             return [selectedQuality]
         }
         return [selectedQuality, .best]
+    }
+}
+
+enum MediaTimeRangePolicy {
+    static func seconds(_ value: String) -> Double? {
+        let parts = value.split(separator: ":", omittingEmptySubsequences: false)
+        guard !parts.isEmpty, parts.count <= 3 else { return nil }
+        var result = 0.0
+        for (index, part) in parts.enumerated() {
+            guard let number = Double(part), number.isFinite, number >= 0,
+                  (index == 0 || number < 60) else { return nil }
+            result = result * 60 + number
+        }
+        return result.isFinite ? result : nil
+    }
+
+    static func section(start: String, end: String) -> String? {
+        guard let first = seconds(start.isEmpty ? "0" : start) else { return nil }
+        if end.isEmpty { return "*\(first)-inf" }
+        guard let last = seconds(end), last > first else { return nil }
+        return "*\(first)-\(last)"
     }
 }
 
@@ -621,7 +659,7 @@ enum MediaDownloadPolicy {
         return nil
     }
 
-    private static func metadataObject(in data: Data) -> [String: Any]? {
+    static func metadataObject(in data: Data) -> [String: Any]? {
         if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             return object
         }
@@ -636,6 +674,127 @@ enum MediaDownloadPolicy {
     }
 }
 
+enum MediaCandidateURLSummary {
+    static func text(for url: URL) -> String {
+        let host = url.host ?? ""
+        let path = (url.path.removingPercentEncoding ?? url.path)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        let compactPath = path.count > 68 ? String(path.prefix(24)) + "…" + String(path.suffix(40)) : path
+        var parts = [host + compactPath]
+        switch url.pathExtension.lowercased() {
+        case "m3u8": parts.append("HLS")
+        case "mpd": parts.append("DASH")
+        case "mp4", "webm", "m4v", "mov", "mp3", "m4a", "aac", "ogg": parts.append(url.pathExtension.uppercased())
+        default: break
+        }
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        let hints = items.filter { ["height", "quality", "resolution"].contains($0.name.lowercased()) }.compactMap(\.value)
+        let pattern = #"(?:^|[^0-9])([1-9][0-9]{2,3})p(?:$|[^a-zA-Z0-9])"#
+        if let regex = try? NSRegularExpression(pattern: pattern),
+           let match = regex.firstMatch(in: path, range: NSRange(path.startIndex..., in: path)),
+           let range = Range(match.range(at: 1), in: path) {
+            parts.append(String(path[range]) + "p")
+        } else if let height = hints.first(where: { value in
+            let number = value.hasSuffix("p") ? String(value.dropLast()) : value
+            return Int(number).map { (100...8640).contains($0) } ?? false
+        }) {
+            parts.append(height.hasSuffix("p") ? height : height + "p")
+        }
+        return parts.joined(separator: " · ")
+    }
+}
+
+@MainActor
+private final class MediaCandidatePicker: NSView, NSTableViewDataSource, NSTableViewDelegate {
+    private let table = NSTableView()
+    private let candidates: [MediaDownloadCandidate]
+    private let titles: [String]
+    var onDownload: (() -> Void)?
+    var selectedIndex: Int { table.selectedRow }
+
+    init(candidates: [MediaDownloadCandidate], titles: [String]) {
+        self.candidates = candidates
+        self.titles = titles
+        super.init(frame: NSRect(x: 0, y: 0, width: 640, height: 380))
+        table.frame = bounds
+        table.autoresizingMask = [.width]
+        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("mediaURLs"))
+        column.width = 620
+        table.addTableColumn(column)
+        table.headerView = nil
+        table.usesAutomaticRowHeights = true
+        table.rowHeight = 120
+        table.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
+        table.allowsEmptySelection = false
+        table.allowsMultipleSelection = false
+        table.delegate = self
+        table.dataSource = self
+        table.intercellSpacing = NSSize(width: 0, height: 8)
+        let scroll = NSScrollView(frame: bounds)
+        scroll.autoresizingMask = [.width, .height]
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+        scroll.borderType = .bezelBorder
+        scroll.documentView = table
+        addSubview(scroll)
+        table.reloadData()
+        table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func numberOfRows(in tableView: NSTableView) -> Int { candidates.count }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        let candidate = candidates[row]
+        let cell = NSTableCellView()
+        let title = NSTextField(wrappingLabelWithString: titles[row])
+        title.font = .systemFont(ofSize: 12, weight: .medium)
+        let summary = NSTextField(wrappingLabelWithString: MediaCandidateURLSummary.text(for: candidate.url))
+        summary.font = .systemFont(ofSize: 11)
+        summary.textColor = .secondaryLabelColor
+        let address = NSTextField(wrappingLabelWithString: candidate.url.absoluteString)
+        address.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        address.isSelectable = true
+        address.lineBreakMode = .byCharWrapping
+        address.setAccessibilityLabel(NSLocalizedString("downloads.media.selectionDialog.fullURL", value: "Full media URL", comment: "Media picker - Accessibility label for the selected complete URL"))
+        let copy = NSButton(title: NSLocalizedString("downloads.media.selectionDialog.copyURL", value: "Copy URL", comment: "Media picker - Copy the complete selected media URL"), target: self, action: #selector(copyURL(_:)))
+        let download = NSButton(title: NSLocalizedString("downloads.media.selectionDialog.confirmButton", value: "Download", comment: "Media download dialog - Button that confirms the selected media item"), target: self, action: #selector(downloadURL(_:)))
+        copy.tag = row
+        download.tag = row
+        let actions = NSStackView(views: [copy, download])
+        actions.spacing = 8
+        let stack = NSStackView(views: [title, summary, address, actions])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 5
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        cell.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 8),
+            stack.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -8),
+            stack.topAnchor.constraint(equalTo: cell.topAnchor, constant: 8),
+            stack.bottomAnchor.constraint(equalTo: cell.bottomAnchor, constant: -8),
+            title.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            summary.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            address.widthAnchor.constraint(equalTo: stack.widthAnchor),
+        ])
+        return cell
+    }
+
+    @objc private func copyURL(_ button: NSButton) {
+        guard candidates.indices.contains(button.tag) else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(candidates[button.tag].url.absoluteString, forType: .string)
+    }
+
+    @objc private func downloadURL(_ button: NSButton) {
+        guard candidates.indices.contains(button.tag) else { return }
+        table.selectRowIndexes(IndexSet(integer: button.tag), byExtendingSelection: false)
+        onDownload?()
+    }
+}
+
 private final class MediaToolProcess: @unchecked Sendable {
     struct Result {
         let exitCode: Int32
@@ -647,12 +806,19 @@ private final class MediaToolProcess: @unchecked Sendable {
     private let lock = NSLock()
     private var output = Data()
     private var pendingLine = Data()
+    private let boundsDiagnosticOutput: Bool
     private let lineHandler: @Sendable (String) -> Void
 
-    init(executableURL: URL, arguments: [String], lineHandler: @escaping @Sendable (String) -> Void) {
+    init(executableURL: URL, arguments: [String], isMediaExtractor: Bool = true, lineHandler: @escaping @Sendable (String) -> Void) {
         self.lineHandler = lineHandler
+        boundsDiagnosticOutput = arguments.contains("--progress-template")
         process.executableURL = executableURL
-        process.arguments = arguments
+        // yt-dlp does not inherit Chromium's explicit local proxy. Using the same
+        // endpoint keeps manifest resolution and media requests on that route.
+        let proxyArguments = BrowserProxyPolicy.effectiveLocalEndpoint().map {
+            ["--proxy", "http://\($0)"]
+        } ?? []
+        process.arguments = isMediaExtractor ? ["--socket-timeout", "20"] + proxyArguments + arguments : arguments
         process.standardOutput = pipe
         process.standardError = pipe
         var environment = ProcessInfo.processInfo.environment
@@ -694,9 +860,17 @@ private final class MediaToolProcess: @unchecked Sendable {
         }
     }
 
+    func stopRecording() {
+        guard process.isRunning else { return }
+        process.interrupt()
+    }
+
     func terminate() {
         guard process.isRunning else { return }
-        process.terminate()
+        Darwin.kill(process.processIdentifier, SIGCONT)
+        // yt-dlp forwards interruption to ffmpeg and waits for it to exit.
+        // Killing only the parent would leave a live recorder running unseen.
+        process.interrupt()
     }
 
     func pause() {
@@ -712,9 +886,11 @@ private final class MediaToolProcess: @unchecked Sendable {
     private func consume(_ data: Data) {
         lock.lock()
         output.append(data)
+        // Live recordings can run indefinitely; retain only recent diagnostics.
+        if boundsDiagnosticOutput && output.count > 2_097_152 { output.removeFirst(output.count - 2_097_152) }
         pendingLine.append(data)
         var lines: [String] = []
-        while let newline = pendingLine.firstIndex(of: 0x0A) {
+        while let newline = pendingLine.firstIndex(where: { $0 == 0x0A || $0 == 0x0D }) {
             let lineData = pendingLine.prefix(upTo: newline)
             pendingLine.removeSubrange(...newline)
             if let line = String(data: lineData, encoding: .utf8) {
@@ -747,6 +923,10 @@ private final class MediaDownloadCoordinator {
     private weak var manager: DownloadsManager?
     private var processes: [String: MediaToolProcess] = [:]
     private var cancelledIDs = Set<String>()
+    private var nativeOperations: [String: HLSDownloadOperation] = [:]
+    private var tasks: [String: Task<Void, Never>] = [:]
+    private var retryActions: [String: () -> Void] = [:]
+    private var workDirectories: [String: URL] = [:]
 
     init(manager: DownloadsManager) {
         self.manager = manager
@@ -757,28 +937,63 @@ private final class MediaDownloadCoordinator {
         sourceURLs: [URL],
         kind: MediaDownloadKind,
         quality: MediaDownloadQuality,
-        cookies: [HTTPCookie]
+        cookies: [HTTPCookie],
+        userAgent: String?,
+        provider: MediaSessionCookieProviding?
     ) {
-        Task { [weak self, weak item] in
+        let originalTitle = item.fileName
+        retryActions[item.id] = { [weak self, weak item] in
             guard let self, let item else { return }
+            item.fileName = originalTitle
+            self.start(item: item, sourceURLs: sourceURLs, kind: kind, quality: quality,
+                       cookies: cookies, userAgent: userAgent, provider: provider)
+        }
+        tasks[item.id] = Task { [weak self, weak item] in
+            guard let self, let item else { return }
+            defer { self.tasks[item.id] = nil }
             await self.perform(
                 item: item,
                 sourceURLs: sourceURLs,
                 kind: kind,
                 quality: quality,
-                cookies: cookies
+                cookies: cookies,
+                userAgent: userAgent,
+                provider: provider
             )
         }
     }
 
     func cancel(_ item: DownloadItem) {
         cancelledIDs.insert(item.id)
+        tasks[item.id]?.cancel()
+        nativeOperations[item.id]?.cancel()
+        retryActions[item.id] = nil
         processes[item.id]?.terminate()
         item.failMediaDownload(cancelled: true)
         finishEvent(for: item, eventType: .cancelled)
     }
 
+    func discard(_ item: DownloadItem) {
+        if item.state == .inProgress { cancel(item); return }
+        retryActions[item.id] = nil
+        cancelledIDs.remove(item.id)
+        if let directory = workDirectories.removeValue(forKey: item.id) {
+            Task.detached { try? FileManager.default.removeItem(at: directory) }
+        }
+    }
+
     func pause(_ item: DownloadItem) {
+        if item.isLiveRecording {
+            stopRecording(item)
+            return
+        }
+        if let operation = nativeOperations[item.id], processes[item.id] == nil {
+            operation.pause()
+            item.isPaused = true
+            item.canResume = true
+            finishEvent(for: item, eventType: .paused)
+            return
+        }
         guard let process = processes[item.id] else { return }
         process.pause()
         item.isPaused = true
@@ -786,7 +1001,33 @@ private final class MediaDownloadCoordinator {
         finishEvent(for: item, eventType: .paused)
     }
 
+    private func stopRecording(_ item: DownloadItem) {
+        guard item.state == .inProgress, item.isLiveRecording,
+              !item.isFinalizingRecording, let process = processes[item.id],
+              process.process.isRunning else { return }
+        item.isFinalizingRecording = true
+        item.mediaStatus = NSLocalizedString("downloads.media.finalizing", value: "Saving recording…", comment: "Download progress while live media is finalized")
+        process.stopRecording()
+        finishEvent(for: item, eventType: .updated)
+    }
+
     func resume(_ item: DownloadItem) {
+        if item.state == .interrupted, let retry = retryActions[item.id] {
+            item.state = .inProgress
+            item.isDone = false
+            item.isPaused = false
+            item.canResume = false
+            item.endTime = nil
+            retry()
+            return
+        }
+        if let operation = nativeOperations[item.id], processes[item.id] == nil {
+            operation.resume()
+            item.isPaused = false
+            item.canResume = false
+            finishEvent(for: item, eventType: .resumed)
+            return
+        }
         guard let process = processes[item.id] else { return }
         process.resume()
         item.isPaused = false
@@ -839,7 +1080,9 @@ private final class MediaDownloadCoordinator {
         sourceURLs: [URL],
         kind: MediaDownloadKind,
         quality: MediaDownloadQuality,
-        cookies: [HTTPCookie]
+        cookies: [HTTPCookie],
+        userAgent: String?,
+        provider: MediaSessionCookieProviding?
     ) async {
         guard let toolURL = Self.ytDLPURL() else {
             fail(
@@ -853,24 +1096,39 @@ private final class MediaDownloadCoordinator {
             return
         }
 
-        let workDirectory = FileManager.default.temporaryDirectory
+        let workDirectory = workDirectories[item.id] ?? FileManager.default.temporaryDirectory
             .appendingPathComponent("astra-media-\(UUID().uuidString)", isDirectory: true)
+        workDirectories[item.id] = workDirectory
         do {
-            try FileManager.default.createDirectory(at: workDirectory, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: workDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         } catch {
             fail(item)
             return
         }
-        defer { try? FileManager.default.removeItem(at: workDirectory) }
+        defer {
+            nativeOperations.removeValue(forKey: item.id)?.close()
+            if item.state == .complete || item.state == .cancelled {
+                retryActions[item.id] = nil
+                workDirectories[item.id] = nil
+                Task.detached { try? FileManager.default.removeItem(at: workDirectory) }
+            }
+        }
 
         let cookieURL = workDirectory.appendingPathComponent("session-cookies.txt")
+        defer { try? FileManager.default.removeItem(at: cookieURL) }
         if !cookies.isEmpty {
             try? Self.writeNetscapeCookies(cookies, to: cookieURL)
         }
-        let cookieArguments = FileManager.default.fileExists(atPath: cookieURL.path)
+        var cookieArguments = FileManager.default.fileExists(atPath: cookieURL.path)
             ? ["--cookies", cookieURL.path]
             : []
+        if let userAgent, !userAgent.isEmpty {
+            cookieArguments += ["--user-agent", userAgent]
+        }
 
+        for name in ["Origin", "Accept", "Accept-Language"] {
+            if let value = item.mediaRequestHeaders[name] { cookieArguments += ["--add-headers", "\(name):\(value)"] }
+        }
         var lastFailure: String?
         var foundDRM = false
         var foundClearMedia = false
@@ -890,72 +1148,115 @@ private final class MediaDownloadCoordinator {
         var attemptIndex = 0
 
         for sourceURL in sourceURLs {
-            let metadataArguments = [
-                "--no-config", "--no-playlist", "--no-warnings", "--skip-download", "--dump-single-json",
-                "--referer", item.url,
-            ] + cookieArguments + [sourceURL.absoluteString]
-            do {
-                let metadataProcess = MediaToolProcess(
-                    executableURL: toolURL,
-                    arguments: metadataArguments,
-                    lineHandler: { _ in }
-                )
-                processes[item.id] = metadataProcess
-                let metadata = try await metadataProcess.run()
-                guard !wasCancelled(item) else { return }
-                guard metadata.exitCode == 0 else {
-                    lastFailure = MediaDownloadPolicy.failureSummary(in: metadata.output) ?? lastFailure
-                    continue
-                }
-                switch MediaDownloadPolicy.decision(for: metadata.output) {
-                case .allow:
-                    foundClearMedia = true
-                case .rejectDRM:
-                    foundDRM = true
-                    continue
-                case .rejectUnverified:
-                    continue
-                }
-            } catch {
-                guard !wasCancelled(item) else { return }
-                lastFailure = error.localizedDescription
-                continue
-            }
-
-            for attemptQuality in qualities {
-                attemptIndex += 1
-                item.prepareForMediaDownloadAttempt()
-                finishEvent(for: item, eventType: .updated)
-                let result = await runDownloadAttempt(
-                    item: item,
-                    toolURL: toolURL,
-                    sourceURL: sourceURL,
-                    pageURLString: item.url,
-                    kind: kind,
-                    quality: attemptQuality,
-                    ffmpegDirectory: ffmpegDirectory,
-                    cookieArguments: cookieArguments,
-                    workDirectory: workDirectory,
-                    attemptIndex: attemptIndex
-                )
-                switch result {
-                case .cancelled:
-                    return
-                case .failed(let message):
-                    lastFailure = message ?? lastFailure
-                case .completed(let temporaryFileURL):
-                    do {
-                        let destination = Self.uniqueMediaDestination(
-                            baseName: baseName,
-                            sourceFileURL: temporaryFileURL,
-                            directory: downloadsDirectory
-                        )
-                        try FileManager.default.moveItem(at: temporaryFileURL, to: destination)
+            lastFailure = nil
+            let sourceMIME = await provider?.mediaDownloadMIMEType(for: sourceURL) ?? ""
+            if sourceURL.pathExtension.lowercased() == "m3u8" || sourceMIME.contains("mpegurl") {
+                do {
+                    if let temporaryFile = try await downloadNativeHLS(item: item, sourceURL: sourceURL,
+                        quality: quality, kind: kind, userAgent: userAgent, provider: provider, workDirectory: workDirectory) {
+                        let destination = Self.uniqueMediaDestination(baseName: baseName, sourceFileURL: temporaryFile, directory: downloadsDirectory)
+                        try FileManager.default.moveItem(at: temporaryFile, to: destination)
                         item.finishMediaDownload(at: destination)
                         finishEvent(for: item, eventType: .completed)
                         return
-                    } catch {
-                        lastFailure = error.localizedDescription
+                    }
+                } catch {
+                    guard !wasCancelled(item) else { return }
+                    lastFailure = error.localizedDescription
+                    fail(item, message: lastFailure)
+                    return
+                }
+            }
+            for sessionAttempt in 0...1 {
+                if sessionAttempt == 1 && !YouTubeDownloadRetryPolicy.shouldRetryPublicly(
+                    url: sourceURL, failure: lastFailure, hasSessionArguments: !cookieArguments.isEmpty
+                ) { break }
+                let sessionArguments = sessionAttempt == 0 ? cookieArguments : []
+                let metadataArguments = [
+                    "--no-config", "--no-playlist", "--no-warnings", "--skip-download", "--dump-single-json",
+                    "--referer", item.mediaRequestHeaders["Referer"] ?? item.url,
+                ] + sessionArguments + [sourceURL.absoluteString]
+                do {
+                    let metadataProcess = MediaToolProcess(
+                        executableURL: toolURL,
+                        arguments: metadataArguments,
+                        lineHandler: { _ in }
+                    )
+                    processes[item.id] = metadataProcess
+                    let metadata = try await metadataProcess.run()
+                    guard !wasCancelled(item) else { return }
+                    guard metadata.exitCode == 0 else {
+                        lastFailure = MediaDownloadPolicy.failureSummary(in: metadata.output) ?? lastFailure
+                        continue
+                    }
+                    switch MediaDownloadPolicy.decision(for: metadata.output) {
+                    case .allow:
+                        foundClearMedia = true
+                        let info = MediaDownloadPolicy.metadataObject(in: metadata.output) ?? [:]
+                        let isLive = info["is_live"] as? Bool == true || info["live_status"] as? String == "is_live"
+                        let formats = info["formats"] as? [[String: Any]] ?? []
+                        let isHLS = sourceURL.pathExtension.lowercased() == "m3u8" ||
+                            formats.contains { ($0["protocol"] as? String)?.contains("m3u8") == true }
+                        if !item.mediaOptionsConfirmed && (isLive || isHLS) {
+                            guard await manager?.configureMediaSelection(item, isLive: isLive) == true else {
+                                cancel(item)
+                                return
+                            }
+                            guard item.state == .inProgress else { return }
+                        }
+                        item.isLiveRecording = isLive
+                    case .rejectDRM:
+                        foundDRM = true
+                        continue
+                    case .rejectUnverified:
+                        continue
+                    }
+                } catch {
+                    guard !wasCancelled(item) else { return }
+                    lastFailure = error.localizedDescription
+                    continue
+                }
+
+                for attemptQuality in qualities {
+                    attemptIndex += 1
+                    item.prepareForMediaDownloadAttempt()
+                    finishEvent(for: item, eventType: .updated)
+                    let result = await runDownloadAttempt(
+                        item: item,
+                        toolURL: toolURL,
+                        sourceURL: sourceURL,
+                        pageURLString: item.mediaRequestHeaders["Referer"] ?? item.url,
+                        kind: kind,
+                        quality: attemptQuality,
+                        ffmpegDirectory: ffmpegDirectory,
+                        cookieArguments: sessionArguments,
+                        workDirectory: workDirectory,
+                        attemptIndex: attemptIndex
+                    )
+                    switch result {
+                    case .cancelled:
+                        return
+                    case .failed(let message):
+                        lastFailure = message ?? lastFailure
+                        // Retrying a live stream would silently record a different time window.
+                        if item.isLiveRecording { fail(item, message: lastFailure); return }
+                        if sessionAttempt == 0 && YouTubeDownloadRetryPolicy.shouldRetryPublicly(
+                            url: sourceURL, failure: lastFailure, hasSessionArguments: !cookieArguments.isEmpty
+                        ) { break }
+                    case .completed(let temporaryFileURL):
+                        do {
+                            let destination = Self.uniqueMediaDestination(
+                                baseName: baseName,
+                                sourceFileURL: temporaryFileURL,
+                                directory: downloadsDirectory
+                            )
+                            try FileManager.default.moveItem(at: temporaryFileURL, to: destination)
+                            item.finishMediaDownload(at: destination)
+                            finishEvent(for: item, eventType: .completed)
+                            return
+                        } catch {
+                            lastFailure = error.localizedDescription
+                        }
                     }
                 }
             }
@@ -973,6 +1274,57 @@ private final class MediaDownloadCoordinator {
         } else {
             fail(item, message: lastFailure)
         }
+    }
+
+    private func downloadNativeHLS(
+        item: DownloadItem, sourceURL: URL, quality: MediaDownloadQuality, kind: MediaDownloadKind,
+        userAgent: String?, provider: MediaSessionCookieProviding?, workDirectory: URL
+    ) async throws -> URL? {
+        guard let pageURL = URL(string: item.url), let ffmpeg = Self.ffmpegURL() else { return nil }
+        let operation = HLSDownloadOperation(pageURL: pageURL, userAgent: userAgent, provider: provider,
+                                             proxy: BrowserProxyPolicy.effectiveLocalEndpoint(), headers: item.mediaRequestHeaders)
+        nativeOperations[item.id] = operation
+        defer { nativeOperations[item.id] = nil; operation.close() }
+        let plan: HLSManifest
+        do { plan = try await operation.resolve(sourceURL, maximumHeight: quality.maximumHeight) }
+        catch HLSManifest.Failure.unsupported { return nil }
+        guard !plan.live, plan.segments.count <= 4000 else { return nil }
+        if !item.mediaOptionsConfirmed {
+            guard await manager?.configureMediaSelection(item, isLive: false) == true else {
+                cancel(item)
+                throw CancellationError()
+            }
+        }
+        guard item.state == .inProgress else { throw CancellationError() }
+        let range = item.mediaTimeRange?.dropFirst().split(separator: "-").map(String.init) ?? []
+        let start = range.first.flatMap(Double.init) ?? 0
+        let end = range.count == 2 ? Double(range[1]) : nil
+        let segments = plan.selected(start: start, end: end)
+        let directory = workDirectory.appendingPathComponent("hls-" + plan.cacheIdentity, isDirectory: true)
+        let playlist = try await operation.download(plan, segments: segments, directory: directory,
+            partitions: item.mediaPartitionCount) { [weak self, weak item] bytes, percent, speed in
+                guard let self, let item, item.state == .inProgress else { return }
+                item.updateMediaProgress(receivedBytes: bytes, totalBytes: 0, speed: speed, percent: percent)
+                self.finishEvent(for: item, eventType: .updated)
+            }
+        guard item.state == .inProgress else { throw CancellationError() }
+        item.mediaStatus = NSLocalizedString("downloads.media.merging", value: "Merging downloaded segments…", comment: "Media download progress while local segments are merged")
+        finishEvent(for: item, eventType: .updated)
+        let output = directory.appendingPathComponent(kind == .audio ? "merged.m4a" : "merged.mp4")
+        var arguments = ["-nostdin", "-y", "-v", "error", "-protocol_whitelist", "file,crypto,data",
+                         "-allowed_extensions", "ALL", "-allowed_segment_extensions", "ALL", "-extension_picky", "0", "-i", playlist.path]
+        arguments += kind == .audio ? ["-vn", "-c:a", "aac"] : ["-map", "0:v?", "-map", "0:a?", "-c", "copy"]
+        arguments += ["-movflags", "+faststart", output.path]
+        let process = MediaToolProcess(executableURL: ffmpeg, arguments: arguments, isMediaExtractor: false, lineHandler: { _ in })
+        processes[item.id] = process
+        defer { processes[item.id] = nil; item.mediaStatus = nil }
+        let result = try await process.run()
+        guard item.state == .inProgress else { throw CancellationError() }
+        guard result.exitCode == 0, (try output.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) > 0 else {
+            throw NSError(domain: "AstraHLSMerge", code: Int(result.exitCode), userInfo: [NSLocalizedDescriptionKey:
+                NSLocalizedString("downloads.media.mergeFailed", value: "Could not merge media. Downloaded segments are retained for retry.", comment: "Media merge failure with retained fragments")])
+        }
+        return output
     }
 
     private func runDownloadAttempt(
@@ -1004,8 +1356,13 @@ private final class MediaDownloadCoordinator {
             "--no-config",
             "--no-playlist",
             "--newline",
+            // The final-path --print marker implies quiet mode; explicitly enable progress.
+            "--progress",
             "--progress-delta", "0.2",
             "--concurrent-fragments", "4",
+            "--retries", "5",
+            "--fragment-retries", "5",
+            "--abort-on-unavailable-fragments",
             "--progress-template", "download:__ASTRA_PROGRESS__:%(progress.downloaded_bytes)s:%(progress.total_bytes,progress.total_bytes_estimate)s:%(progress.speed)s:%(progress._percent_str)s",
             "--print", "after_move:__ASTRA_FILE__:%(filepath)s",
             "--output", outputTemplate,
@@ -1016,6 +1373,15 @@ private final class MediaDownloadCoordinator {
             quality: quality,
             ffmpegDirectory: ffmpegDirectory
         )
+        if item.isLiveRecording {
+            arguments += ["--downloader", "ffmpeg"]
+            if let duration = item.recordingDurationSeconds {
+                // Limit captured media time, excluding metadata and connection startup.
+                arguments += ["--downloader-args", "ffmpeg_o:-t \(duration)"]
+            }
+        } else if let range = item.mediaTimeRange {
+            arguments += ["--download-sections", range]
+        }
         arguments += cookieArguments
         arguments.append(sourceURL.absoluteString)
 
@@ -1039,6 +1405,10 @@ private final class MediaDownloadCoordinator {
                 }
             )
             processes[item.id] = downloadProcess
+            if item.isLiveRecording {
+                item.mediaStatus = NSLocalizedString("downloads.media.recording", value: "Recording live stream…", comment: "Download progress while recording live HLS")
+                finishEvent(for: item, eventType: .updated)
+            }
             let result = try await downloadProcess.run()
             processes[item.id] = nil
             guard !wasCancelled(item) else { return .cancelled }
@@ -1078,6 +1448,7 @@ private final class MediaDownloadCoordinator {
             )
         }
         item.failMediaDownload(cancelled: false)
+        item.canResume = retryActions[item.id] != nil
         finishEvent(for: item, eventType: .interrupted)
     }
 
@@ -1196,6 +1567,60 @@ private final class MediaDownloadCoordinator {
     }
 }
 
+
+struct MediaDownloadHistoryRecord: Codable {
+    let id: UUID
+    let fileName: String
+    let pageURL: URL
+    let mimeType: String
+    let path: String
+    let bytes: Int64
+    let started: Date?
+    let ended: Date?
+
+    init?(_ item: DownloadItem) {
+        guard item.isMediaDownload, item.state == .complete,
+              let id = UUID(uuidString: String(item.id.dropFirst("media-".count))),
+              let pageURL = URL(string: item.url) else { return nil }
+        self.id = id
+        self.fileName = item.fileName
+        self.pageURL = pageURL
+        self.mimeType = item.mimeType
+        self.path = item.targetFilePath
+        self.bytes = item.receivedBytes
+        self.started = item.startTime
+        self.ended = item.endTime
+    }
+
+    func item() -> DownloadItem {
+        let item = DownloadItem(mediaID: id, fileName: fileName, pageURL: pageURL, mimeType: mimeType)
+        item.updateMediaProgress(receivedBytes: bytes, totalBytes: bytes, speed: 0)
+        item.finishMediaDownload(at: URL(fileURLWithPath: path))
+        item.startTime = started
+        item.endTime = ended
+        return item
+    }
+}
+
+enum MediaDownloadHistory {
+    private static let lock = NSLock()
+
+    static func records(profile: String, defaults: UserDefaults = .standard) -> [MediaDownloadHistoryRecord] {
+        guard let data = defaults.data(forKey: "downloads.mediaHistory." + profile) else { return [] }
+        return (try? JSONDecoder().decode([MediaDownloadHistoryRecord].self, from: data)) ?? []
+    }
+
+    static func update(_ item: DownloadItem, profile: String, removing: Bool = false, defaults: UserDefaults = .standard) {
+        lock.lock()
+        defer { lock.unlock() }
+        var records = records(profile: profile, defaults: defaults)
+        records.removeAll { "media-" + $0.id.uuidString == item.id }
+        if !removing, let record = MediaDownloadHistoryRecord(item) { records.append(record) }
+        guard let data = try? JSONEncoder().encode(records) else { return }
+        defaults.set(data, forKey: "downloads.mediaHistory." + profile)
+    }
+}
+
 class DownloadsManager: ObservableObject {
     private final class WebKitTransfer: NSObject, WKDownloadDelegate {
         weak var manager: DownloadsManager?
@@ -1289,28 +1714,62 @@ class DownloadsManager: ObservableObject {
     
     init(browserState: BrowserState? = nil) {
         self.browserState = browserState
+        restoreMediaHistory()
+    }
+
+    private func restoreMediaHistory() {
+        guard let state = browserState, !state.isIncognito else { return }
+        let existing = Set(downloads.map(\.id))
+        downloads += MediaDownloadHistory.records(profile: state.profileId)
+            .map { $0.item() }.filter { !existing.contains($0.id) }
     }
 
     func startMediaDownload(
         kind: MediaDownloadKind,
-        quality: MediaDownloadQuality = .best
+        quality: MediaDownloadQuality = .best,
+        sourceURL: URL? = nil,
+        originatingPageURL: URL? = nil,
+        sessionProvider: MediaSessionCookieProviding? = nil
     ) {
         guard let tab = browserState?.focusingTab,
               let rawURL = tab.url,
-              let pageURL = URL(string: rawURL),
+              let pageURL = originatingPageURL ?? URL(string: rawURL),
               ["http", "https"].contains(pageURL.scheme?.lowercased() ?? "") else { return }
 
+        let selectedSourceURL = sourceURL.flatMap { url in
+            ["http", "https"].contains(url.scheme?.lowercased() ?? "") ? url : nil
+        }
         let title = tab.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        Task { @MainActor [weak self, weak tab] in
-            guard let self, let tab else { return }
-            let provider = tab.webContentWrapper as? MediaSessionCookieProviding
-            let candidates = await provider?.mediaDownloadCandidates(for: pageURL) ?? []
+        let provider = sessionProvider ?? (tab.webContentWrapper as? MediaSessionCookieProviding)
+        let item = DownloadItem(mediaID: UUID(), fileName: title.isEmpty ? (pageURL.host ?? "Media") : title,
+                                pageURL: pageURL, mimeType: kind.mimeType)
+        downloads.insert(item, at: 0)
+        updateTotalProgress()
+        downloadEventPublisher.send(DownloadEvent(eventType: .created, downloadItem: item))
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let candidates: [MediaDownloadCandidate]
+            if let sourceURL = selectedSourceURL {
+                candidates = [MediaDownloadCandidate(url: sourceURL, title: sourceURL.lastPathComponent,
+                    kind: kind == .audio ? .audio : .video, durationSeconds: nil)]
+            } else {
+                candidates = await provider?.mediaDownloadCandidates(for: pageURL) ?? []
+            }
+            guard item.state == .inProgress else { return }
             let selectedCandidate: MediaDownloadCandidate?
-            if candidates.count > 1 {
-                guard !self.isChoosingMediaCandidate else { return }
+            if !candidates.isEmpty {
+                guard !self.isChoosingMediaCandidate else {
+                    item.failMediaDownload(cancelled: true)
+                    self.mediaDownloadDidChange(item, eventType: .cancelled)
+                    return
+                }
                 self.isChoosingMediaCandidate = true
                 defer { self.isChoosingMediaCandidate = false }
-                guard let selection = await self.chooseMediaCandidate(from: candidates) else { return }
+                guard let selection = await self.chooseMediaCandidate(from: candidates) else {
+                    item.failMediaDownload(cancelled: true)
+                    self.mediaDownloadDidChange(item, eventType: .cancelled)
+                    return
+                }
                 selectedCandidate = selection
             } else {
                 selectedCandidate = candidates.first
@@ -1324,19 +1783,9 @@ class DownloadsManager: ObservableObject {
             } else {
                 itemTitle = title.isEmpty ? (pageURL.host ?? "Media") : title
             }
-            let item = DownloadItem(
-                mediaID: UUID(),
-                fileName: itemTitle,
-                pageURL: pageURL,
-                mimeType: kind.mimeType
-            )
-            self.downloads.insert(item, at: 0)
-            self.updateTotalProgress()
-            self.downloadEventPublisher.send(
-                DownloadEvent(eventType: .created, downloadItem: item)
-            )
+            item.fileName = itemTitle
 
-            let sourceURLs = MediaDownloadSourcePolicy.orderedSourceURLs(
+            let sourceURLs = selectedSourceURL.map { [$0] } ?? MediaDownloadSourcePolicy.orderedSourceURLs(
                 pageURL: pageURL,
                 selectedCandidate: selectedCandidate
             )
@@ -1350,13 +1799,18 @@ class DownloadsManager: ObservableObject {
                 let sourceCookies = await provider?.mediaSessionCookies(for: cookieSourceURL) ?? []
                 cookies = Self.mergingCookies(cookies, sourceCookies)
             }
+            item.mediaRequestHeaders = await provider?.mediaDownloadHeaders(for: sourceURLs.first ?? pageURL) ?? [:]
+            let fallbackUserAgent = await provider?.mediaDownloadUserAgent()
+            let userAgent = item.mediaRequestHeaders["User-Agent"] ?? fallbackUserAgent
             guard item.state == .inProgress else { return }
             self.mediaDownloadCoordinator.start(
                 item: item,
                 sourceURLs: sourceURLs,
                 kind: kind,
                 quality: quality,
-                cookies: cookies
+                cookies: cookies,
+                userAgent: userAgent,
+                provider: provider
             )
         }
     }
@@ -1373,6 +1827,73 @@ class DownloadsManager: ObservableObject {
     }
 
     @MainActor
+    fileprivate func configureMediaSelection(_ item: DownloadItem, isLive: Bool) async -> Bool {
+        guard !isChoosingMediaCandidate else { return false }
+        isChoosingMediaCandidate = true
+        defer { isChoosingMediaCandidate = false }
+        let alert = NSAlert()
+        alert.messageText = isLive
+            ? NSLocalizedString("downloads.media.liveOptions", value: "Record Live Stream", comment: "Live HLS recording options title")
+            : NSLocalizedString("downloads.media.hlsOptions", value: "Choose HLS Time Range", comment: "HLS segment selection title")
+        let instructions = isLive
+            ? NSLocalizedString("downloads.media.liveDuration", value: "Recording duration in minutes. Leave empty to stop manually.", comment: "Live recording duration input instructions")
+            : NSLocalizedString("downloads.media.hlsRange", value: "Choose the start and end time in seconds or HH:MM:SS. Leave the end empty to download the rest. The selected segments will be merged into one file.", comment: "HLS time range input instructions")
+        alert.informativeText = instructions
+        let start = NSTextField(string: isLive ? "" : "0")
+        let end = NSTextField(string: "")
+        start.placeholderString = isLive
+            ? NSLocalizedString("downloads.media.manualDuration", value: "Manual stop", comment: "Empty live recording duration placeholder")
+            : NSLocalizedString("downloads.media.startTime", value: "Start time", comment: "HLS start time field")
+        end.placeholderString = NSLocalizedString("downloads.media.endTime", value: "End time (optional)", comment: "HLS end time field")
+        let partitions = NSPopUpButton()
+        partitions.addItems(withTitles: ["1", "2", "4", "8", "16"])
+        partitions.selectItem(withTitle: String(item.mediaPartitionCount))
+        let partitionLabel = NSTextField(labelWithString: NSLocalizedString("downloads.media.partitions", value: "Time partitions", comment: "HLS selection label for number of temporal download partitions"))
+        let partitionRow = NSStackView(views: [partitionLabel, partitions])
+        let stack = NSStackView(views: isLive ? [start] : [start, end, partitionRow])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 8
+        stack.frame = NSRect(x: 0, y: 0, width: 440, height: isLive ? 28 : 100)
+        start.widthAnchor.constraint(equalToConstant: 440).isActive = true
+        end.widthAnchor.constraint(equalToConstant: 440).isActive = true
+        alert.accessoryView = stack
+        alert.addButton(withTitle: NSLocalizedString("downloads.media.startSelection", value: "Start", comment: "Confirm media range or live recording duration"))
+        alert.addButton(withTitle: NSLocalizedString("downloads.media.selectionDialog.cancelButton", value: "Cancel", comment: "Media download dialog - Button that cancels media selection"))
+        while item.state == .inProgress {
+            let response: NSApplication.ModalResponse
+            if let window = browserState?.windowController?.window {
+                response = await alert.beginSheetModal(for: window)
+            } else {
+                response = alert.runModal()
+            }
+            guard response == .alertFirstButtonReturn, item.state == .inProgress else { return false }
+            let first = start.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            let last = end.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if isLive {
+                if first.isEmpty {
+                    item.recordingDurationSeconds = nil
+                } else if let minutes = Double(first), minutes.isFinite, minutes > 0, minutes <= 525600 {
+                    item.recordingDurationSeconds = minutes * 60
+                } else {
+                    alert.informativeText = NSLocalizedString("downloads.media.invalidDuration", value: "Enter a positive duration of up to 525600 minutes, or leave it empty for manual stop.", comment: "Invalid live recording duration error")
+                    continue
+                }
+            } else {
+                guard let range = MediaTimeRangePolicy.section(start: first, end: last) else {
+                    alert.informativeText = NSLocalizedString("downloads.media.invalidRange", value: "Enter a valid start time and an end time greater than the start, or leave the end empty.", comment: "Invalid HLS time range error")
+                    continue
+                }
+                item.mediaTimeRange = range == "*0.0-inf" ? nil : range
+                item.mediaPartitionCount = Int(partitions.titleOfSelectedItem ?? "4") ?? 4
+            }
+            item.mediaOptionsConfirmed = true
+            return true
+        }
+        return false
+    }
+
+    @MainActor
     private func chooseMediaCandidate(
         from candidates: [MediaDownloadCandidate]
     ) async -> MediaDownloadCandidate? {
@@ -1385,16 +1906,23 @@ class DownloadsManager: ObservableObject {
         )
         alert.informativeText = NSLocalizedString(
             "downloads.media.selectionDialog.message",
-            value: "This page contains multiple media items. Choose which one to save.",
-            comment: "Media download dialog - Explanation shown before choosing one of several detected media items"
+            value: "Review the detected media source and choose which one to save.",
+            comment: "Media download dialog - Explanation before reviewing a detected media source"
         )
 
-        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 440, height: 28))
-        for (index, candidate) in candidates.enumerated() {
-            popup.addItem(withTitle: Self.mediaCandidateMenuTitle(candidate, index: index))
+        let titles = candidates.enumerated().map { index, candidate in
+            Self.mediaCandidateMenuTitle(candidate, index: index)
         }
-        popup.selectItem(at: 0)
-        alert.accessoryView = popup
+        let picker = MediaCandidatePicker(candidates: candidates, titles: titles)
+        picker.onDownload = { [weak alert] in
+            guard let alert else { return }
+            if let parent = alert.window.sheetParent {
+                parent.endSheet(alert.window, returnCode: .alertFirstButtonReturn)
+            } else {
+                NSApp.stopModal(withCode: .alertFirstButtonReturn)
+            }
+        }
+        alert.accessoryView = picker
         alert.addButton(withTitle: NSLocalizedString(
             "downloads.media.selectionDialog.confirmButton",
             value: "Download",
@@ -1413,8 +1941,8 @@ class DownloadsManager: ObservableObject {
             response = alert.runModal()
         }
         guard response == .alertFirstButtonReturn,
-              candidates.indices.contains(popup.indexOfSelectedItem) else { return nil }
-        return candidates[popup.indexOfSelectedItem]
+              candidates.indices.contains(picker.selectedIndex) else { return nil }
+        return candidates[picker.selectedIndex]
     }
 
     private static func mediaCandidateMenuTitle(
@@ -1462,6 +1990,9 @@ class DownloadsManager: ObservableObject {
         _ item: DownloadItem,
         eventType: DownloadEventType
     ) {
+        if item.state == .complete, let state = browserState, !state.isIncognito {
+            MediaDownloadHistory.update(item, profile: state.profileId)
+        }
         updateTotalProgress()
         downloadEventPublisher.send(DownloadEvent(eventType: eventType, downloadItem: item))
     }
@@ -1585,6 +2116,7 @@ class DownloadsManager: ObservableObject {
     
     /// Refresh download list from Chromium
     func refreshDownloads() {
+        restoreMediaHistory()
         guard let bridge = ChromiumLauncher.sharedInstance().bridge else {
             AppLogWarn("📥 [Downloads] Bridge not available")
             return
@@ -1752,10 +2284,13 @@ class DownloadsManager: ObservableObject {
             cancelDownload(item)
         }
         if item.isAppManagedDownload {
-            if item.isMediaDownload, item.state == .inProgress {
+            if item.isMediaDownload {
                 MainActor.assumeIsolated {
-                    mediaDownloadCoordinator.cancel(item)
+                    mediaDownloadCoordinator.discard(item)
                 }
+            }
+            if let state = browserState, !state.isIncognito {
+                MediaDownloadHistory.update(item, profile: state.profileId, removing: true)
             }
             downloads.removeAll { $0.id == item.id }
             cefProgressSamples.removeValue(forKey: item.id)

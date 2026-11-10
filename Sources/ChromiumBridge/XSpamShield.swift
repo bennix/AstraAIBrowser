@@ -480,6 +480,20 @@ actor XSpamShieldStore {
 
 enum XSpamShieldWebPolicy {
     static let messageHandlerName = "astraXSpamShield"
+    static let routeVisibilityJavaScript = #"""
+    const shouldShowGuard = () => {
+      // X adds new workspaces under /i/; a content-route allowlist keeps their controls clear.
+      const path = location.pathname.replace(/\/+$/, '') || '/';
+      if (/^\/(?:home|explore|search)(?:\/|$)/i.test(path)) return true;
+      if (/^\/i\/(?:bookmarks|lists|communities|topics)(?:\/|$)/i.test(path)) return true;
+      const segments = path.split('/').filter(Boolean);
+      const handle = segments[0] || '';
+      const reserved = new Set(['i', 'grok', 'login', 'signup', 'settings', 'compose', 'messages', 'premium']);
+      return /^[a-z0-9_]{1,15}$/i.test(handle)
+        && !reserved.has(handle.toLowerCase())
+        && (segments.length === 1 || ['status', 'with_replies', 'media', 'likes', 'articles'].includes(segments[1]));
+    };
+    """#
 
     static func javaScript(
         guardLabel: String,
@@ -507,6 +521,7 @@ enum XSpamShieldWebPolicy {
 
           const handler = window.webkit?.messageHandlers?.\(messageHandlerName);
           if (!handler) return;
+          \(routeVisibilityJavaScript)
           const guardLabel = \(guardText);
           const matched = new Map();
           const articleHandles = new WeakMap();
@@ -589,6 +604,11 @@ enum XSpamShieldWebPolicy {
           };
 
           const updateStatus = (progress) => {
+            // Chat and Grok own this corner of the viewport; keep Guard on post surfaces only.
+            if (!shouldShowGuard()) {
+              document.getElementById('astra-x-spam-shield-status')?.remove();
+              return;
+            }
             const root = ensureStatus();
             const text = root?.querySelector('.text');
             const shield = root?.querySelector('.shield');
@@ -803,6 +823,10 @@ enum XSpamShieldWebPolicy {
 
           const scan = () => {
             scanTimer = null;
+            if (!shouldShowGuard()) {
+              updateStatus();
+              return;
+            }
             const handles = [];
             const posts = [];
             const seen = new Set();

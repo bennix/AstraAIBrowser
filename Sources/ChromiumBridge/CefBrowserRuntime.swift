@@ -5,6 +5,137 @@
 
 import AppKit
 import CefKit
+import Darwin
+import SystemConfiguration
+
+enum BrowserProxyPolicy {
+    static let privacyRequiredKey = "browserPrivacyProxyRequired"
+    static let privacyEndpoint = "127.0.0.1:7891"
+    static let enabledKey = "browserAutoProxyEnabled"
+    static let localEndpointKey = "browserAutoProxyLocalEndpoint"
+    static let localEndpoint = "127.0.0.1:7890"
+    private static let startupProxyHealthy = probe(proxy: true)
+
+    enum Detection: Equatable {
+        case system
+        case direct
+        case local
+        case unavailable
+    }
+
+    static func route(directReachable: Bool, proxyReachable: Bool) -> Detection {
+        if proxyReachable { return .local }
+        return directReachable ? .direct : .unavailable
+    }
+
+    static func cefProxyServer(for endpoint: String) -> String {
+        endpoint == privacyEndpoint ? "http://\(endpoint)" : "http://\(endpoint),direct://"
+    }
+
+    static func systemProxyIsEnabled(_ proxies: [String: Any]) -> Bool {
+        [
+            kSCPropNetProxiesHTTPEnable,
+            kSCPropNetProxiesHTTPSEnable,
+            kSCPropNetProxiesSOCKSEnable,
+            kSCPropNetProxiesProxyAutoConfigEnable,
+            kSCPropNetProxiesProxyAutoDiscoveryEnable
+        ].contains { (proxies[$0 as String] as? NSNumber)?.boolValue == true }
+    }
+
+    static func systemProxyIsEnabled() -> Bool {
+        guard let proxies = SCDynamicStoreCopyProxies(nil) as? [String: Any] else { return false }
+        return systemProxyIsEnabled(proxies)
+    }
+
+    static func effectiveLocalEndpoint(defaults: UserDefaults = .standard) -> String? {
+        // A required proxy must stay selected when unavailable, so requests fail
+        // instead of silently disclosing the direct network address.
+        if defaults.bool(forKey: privacyRequiredKey) { return privacyEndpoint }
+        guard defaults.bool(forKey: enabledKey), !systemProxyIsEnabled(),
+              defaults.string(forKey: localEndpointKey) == localEndpoint else { return nil }
+        let endpoint = resolvedLocalEndpoint(
+            enabled: true,
+            systemProxyEnabled: false,
+            savedEndpoint: localEndpoint,
+            localReachable: localPortIsOpen(),
+            proxyHealthy: startupProxyHealthy
+        )
+        if endpoint == nil { defaults.removeObject(forKey: localEndpointKey) }
+        return endpoint
+    }
+
+    static func resolvedLocalEndpoint(
+        enabled: Bool,
+        systemProxyEnabled: Bool,
+        savedEndpoint: String?,
+        localReachable: Bool,
+        proxyHealthy: Bool = true
+    ) -> String? {
+        guard enabled, !systemProxyEnabled,
+              savedEndpoint == localEndpoint, localReachable, proxyHealthy else { return nil }
+        return localEndpoint
+    }
+
+    private static func probe(proxy: Bool) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+        // An open listener may fail CONNECT or TLS for the destination.
+        process.arguments = ["--silent", "--show-error", "--output", "/dev/null"]
+            + (proxy
+                ? ["--noproxy", "", "--proxy", "http://\(localEndpoint)"]
+                : ["--noproxy", "*"])
+            + ["--connect-timeout", "2", "--max-time", "5", "--head", "https://x.com/"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+
+    private static func localPortIsOpen() -> Bool {
+        let descriptor = socket(AF_INET, SOCK_STREAM, 0)
+        guard descriptor >= 0 else { return false }
+        defer { Darwin.close(descriptor) }
+        var address = sockaddr_in()
+        address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_port = UInt16(7890).bigEndian
+        address.sin_addr = in_addr(s_addr: inet_addr("127.0.0.1"))
+        return withUnsafePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Darwin.connect(descriptor, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) == 0
+            }
+        }
+    }
+
+    static func refresh(defaults: UserDefaults = .standard) async -> Detection {
+        guard defaults.bool(forKey: enabledKey) else {
+            defaults.removeObject(forKey: localEndpointKey)
+            return .unavailable
+        }
+        if systemProxyIsEnabled() {
+            defaults.removeObject(forKey: localEndpointKey)
+            return .system
+        }
+        let detection = await Task.detached(priority: .utility) {
+            let directReachable = probe(proxy: false)
+            return route(
+                directReachable: directReachable,
+                proxyReachable: localPortIsOpen() && probe(proxy: true)
+            )
+        }.value
+        if detection == .local {
+            defaults.set(localEndpoint, forKey: localEndpointKey)
+        } else {
+            defaults.removeObject(forKey: localEndpointKey)
+        }
+        return detection
+    }
+}
 
 struct BrowserAutomationAction: Equatable {
     enum Kind: String {
@@ -75,6 +206,8 @@ enum CefSecurityChallengeCompatibilityPolicy {
     /// a challenge opened after navigation sees the same fingerprint values.
     private static let inlineChallengeHosts = Set([
         "developer.amd.com.cn",
+        "claude.ai",
+        "www.claude.ai",
         // Authentication can be reached through client-side navigation after
         // document-start scripts have already run on the landing page.
         "zenmux.ai",
@@ -113,6 +246,15 @@ enum CefSecurityChallengeCompatibilityPolicy {
 
     static func shouldUseNativeBrowserSurfaces(host: String, path: String) -> Bool {
         let normalizedHost = host.lowercased()
+        let normalizedPath = path.lowercased()
+        if normalizedPath == "/cdn-cgi/challenge-platform"
+            || normalizedPath.hasPrefix("/cdn-cgi/challenge-platform/") {
+            return true
+        }
+        if normalizedHost == "accounts.youtube.com"
+            || normalizedHost.hasPrefix("accounts.google.") {
+            return true
+        }
         if inlineChallengeHosts.contains(normalizedHost) {
             return true
         }
@@ -135,6 +277,8 @@ enum CefSecurityChallengeCompatibilityPolicy {
     (() => {
       const inlineChallengeHosts = new Set([
         "developer.amd.com.cn",
+        "claude.ai",
+        "www.claude.ai",
         "zenmux.ai",
         "www.zenmux.ai"
       ]);
@@ -153,6 +297,13 @@ enum CefSecurityChallengeCompatibilityPolicy {
           return false;
         }
         const normalizedHost = String(locationValue.hostname || "").toLowerCase();
+        const normalizedPath = String(locationValue.pathname || "").toLowerCase();
+        if (normalizedPath === "/cdn-cgi/challenge-platform"
+            || normalizedPath.startsWith("/cdn-cgi/challenge-platform/")) return true;
+        if (normalizedHost === "accounts.youtube.com"
+            || normalizedHost.startsWith("accounts.google.")) {
+          return true;
+        }
         if (inlineChallengeHosts.has(normalizedHost)) {
           return true;
         }
@@ -274,7 +425,45 @@ enum CefBrowserAccountPrivacyPolicy {
     }
 }
 
+enum BrowserSecureDNSPolicy {
+    static let enabledKey = "browserSecureDNSEnabled"
+    static let template = "https://cloudflare-dns.com/dns-query"
+
+    static func prepareLocalState(at rootURL: URL, enabled: Bool) throws {
+        let url = rootURL.appendingPathComponent("Local State")
+        var state: [String: Any] = [:]
+        if FileManager.default.fileExists(atPath: url.path) {
+            let data = try Data(contentsOf: url)
+            guard let existing = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            state = existing
+        }
+        var dns = state["dns_over_https"] as? [String: Any] ?? [:]
+        dns["mode"] = enabled ? "secure" : "off"
+        dns["templates"] = enabled ? template : ""
+        state["dns_over_https"] = dns
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: state).write(to: url, options: .atomic)
+    }
+}
+
 enum BrowserNetworkLanguagePolicy {
+    static func preferredLanguages(forCountryCode countryCode: String?) -> String {
+        var languages = ["en-US", "en", "zh-CN", "zh"]
+        if let countryCode,
+           let locale = BrowserNetworkLanguagePolicy.locale(forCountryCode: countryCode) {
+            let language = locale.split(separator: "-").first.map(String.init) ?? locale
+            if !["en", "zh"].contains(language) {
+                for value in [locale, language] where !languages.contains(value) {
+                    languages.append(value)
+                }
+            }
+        }
+        return languages.joined(separator: ",")
+    }
+
+
     private static let cachedCountryCodeKey = "BrowserNetworkLanguageCountryCode"
     private static let cachedCountryCodeDateKey = "BrowserNetworkLanguageCountryCodeDate"
     private static let maximumCachedCountryCodeAge: TimeInterval = 60 * 60
@@ -385,6 +574,27 @@ enum BrowserNetworkLanguagePolicy {
     }
 }
 
+enum BrowserNetworkTimeZonePolicy {
+    static func identifier(forCountryCode rawCountryCode: String) -> String? {
+        // A country code cannot choose a city in a multi-zone country.
+        switch rawCountryCode.uppercased() {
+        case "JP": return "Asia/Tokyo"
+        case "KR": return "Asia/Seoul"
+        case "CN": return "Asia/Shanghai"
+        case "TW": return "Asia/Taipei"
+        case "HK": return "Asia/Hong_Kong"
+        case "MO": return "Asia/Macau"
+        case "SG": return "Asia/Singapore"
+        case "MY": return "Asia/Kuala_Lumpur"
+        case "DE": return "Europe/Berlin"
+        case "FR": return "Europe/Paris"
+        case "GB": return "Europe/London"
+        case "ZA": return "Africa/Johannesburg"
+        default: return nil
+        }
+    }
+}
+
 enum BrowserOutwardRequestPolicy {
     static let preferenceDidChangeNotification = Notification.Name(
         "BrowserDoNotTrackPreferenceDidChange"
@@ -401,9 +611,8 @@ enum BrowserOutwardRequestPolicy {
         }
         var result = request
         result.setValue(
-            CefNativeSiteLanguagePolicy.prefersChinese(request.url)
-                ? CefNativeSiteLanguagePolicy.acceptLanguage
-                : FingerprintPrivacyPolicy.acceptLanguageList(for: locale),
+            CefNativeSiteLanguagePolicy.languageOverride(for: request.url)
+                ?? FingerprintPrivacyPolicy.acceptLanguageList(for: locale),
             forHTTPHeaderField: "Accept-Language"
         )
         if doNotTrackEnabled {
@@ -443,6 +652,10 @@ enum BrowserOutwardRequestPolicy {
             if (!target) return;
             try {
               const descriptor = Object.getOwnPropertyDescriptor(target, name);
+              const receiver = target === globalThis.Navigator?.prototype
+                ? globalThis.navigator : globalThis;
+              // CEF already applies the preference natively. Preserve matching getters.
+              if (descriptor?.get && descriptor.get.call(receiver) === value) return;
               if (descriptor && descriptor.configurable !== true) return;
               Object.defineProperty(target, name, {
                 get: () => value,
@@ -456,6 +669,33 @@ enum BrowserOutwardRequestPolicy {
         })();
         """
     }
+}
+
+enum MediaResourceDiscoveryPolicy {
+    static let javaScript = #"""
+    (() => {
+      if (globalThis.__astraMediaResources) return;
+      const resources = [];
+      const seen = new Set();
+      const record = entry => {
+        if (!/\.(m3u8|mpd|mp4|m4v|mov|webm|mp3|m4a|aac|ogg|opus)(?:$|[?#])/i.test(entry.name)) return;
+        try {
+          const url = new URL(entry.name, location.href);
+          if (!['http:', 'https:'].includes(url.protocol)) return;
+          url.hash = '';
+          if (seen.has(url.href)) return;
+          seen.add(url.href);
+          resources.push(url.href);
+        } catch (_) {}
+      };
+      Object.defineProperty(globalThis, '__astraMediaResources', {value: resources});
+      try {
+        performance.getEntriesByType('resource').forEach(record);
+        const observer = new PerformanceObserver(list => list.getEntries().forEach(record));
+        observer.observe({type: 'resource', buffered: true});
+      } catch (_) {}
+    })();
+    """#
 }
 
 enum CanvasSessionLanguagePolicy {
@@ -736,6 +976,89 @@ enum AudioFingerprintPrivacyPolicy {
 
 enum FingerprintPrivacyPolicy {
     private static var configuredOutwardLocale: String?
+    private static var configuredEgressCountryCode: String?
+    private static let strictHostsKey = "privacy.strictFingerprintHosts"
+    static let activeStrictHosts: Set<String> = {
+        if CommandLine.arguments.contains("--cef-smoke-test"),
+           CommandLine.arguments.contains("--astra-strict-test-disabled") { return [] }
+        var hosts = savedStrictHosts()
+        if CommandLine.arguments.contains("--cef-smoke-test"),
+           let argument = CommandLine.arguments.first(where: { $0.hasPrefix("--astra-strict-test-host=") }),
+           let host = siteHost("https://" + String(argument.dropFirst("--astra-strict-test-host=".count))) {
+            hosts.insert(host)
+        }
+        return hosts
+    }()
+
+    static func savedStrictHosts(defaults: UserDefaults = .standard) -> Set<String> {
+        Set(defaults.stringArray(forKey: strictHostsKey) ?? ["claude.ai"])
+    }
+
+    static func siteHost(_ rawURL: String) -> String? {
+        guard let url = URL(string: rawURL),
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              let host = url.host?.lowercased(), !host.isEmpty else { return nil }
+        return host.trimmingCharacters(in: CharacterSet(charactersIn: "."))
+    }
+
+    static func setStrictProtection(_ enabled: Bool, host: String, defaults: UserDefaults = .standard) {
+        guard let normalized = siteHost("https://\(host)") else { return }
+        var hosts = savedStrictHosts(defaults: defaults)
+        if enabled { hosts.insert(normalized) } else { hosts.remove(normalized) }
+        defaults.set(hosts.sorted(), forKey: strictHostsKey)
+    }
+
+    static func strictJavaScript(hosts: Set<String>) -> String {
+        let hostJSON = String(data: try! JSONEncoder().encode(hosts.sorted()), encoding: .utf8)!
+        return """
+        (() => {
+          if (globalThis.__astraUsesNativeSecurityChallengeSurfaces) return;
+          const hosts = new Set(\(hostJSON));
+          const matches = value => {
+            try { return hosts.has(new URL(value).hostname.toLowerCase().replace(/\\.$/, '')); }
+            catch (_) { return false; }
+          };
+          const origins = Array.from(location.ancestorOrigins || []);
+          if (!matches(location.href) && !origins.some(matches)) return;
+          const deny = () => { throw new DOMException('Blocked by strict site privacy.', 'SecurityError'); };
+          const replace = (target, name, value) => {
+            if (!target || !(name in target)) return;
+            try { Object.defineProperty(target, name, {value, configurable: false, writable: false}); }
+            catch (_) {}
+          };
+          for (const name of ['CanvasRenderingContext2D', 'OffscreenCanvasRenderingContext2D']) {
+            replace(globalThis[name]?.prototype, 'getImageData', deny);
+          }
+          replace(globalThis.HTMLCanvasElement?.prototype, 'toDataURL', deny);
+          replace(globalThis.HTMLCanvasElement?.prototype, 'toBlob', deny);
+          replace(globalThis.OffscreenCanvas?.prototype, 'convertToBlob', () => Promise.reject(new DOMException('Blocked by strict site privacy.', 'SecurityError')));
+          for (const name of ['WebGLRenderingContext', 'WebGL2RenderingContext']) {
+            const proto = globalThis[name]?.prototype;
+            if (!proto) continue;
+            const parameter = proto.getParameter, extension = proto.getExtension;
+            replace(proto, 'readPixels', deny);
+            replace(proto, 'getParameter', function(value) {
+              return value === 37445 || value === 37446 ? null : parameter.call(this, value);
+            });
+            replace(proto, 'getExtension', function(value) {
+              return String(value).toLowerCase() === 'webgl_debug_renderer_info' ? null : extension.call(this, value);
+            });
+          }
+          for (const name of ['OfflineAudioContext', 'webkitOfflineAudioContext']) {
+            replace(globalThis[name]?.prototype, 'startRendering', () => Promise.reject(new DOMException('Blocked by strict site privacy.', 'SecurityError')));
+          }
+          replace(globalThis.AudioBuffer?.prototype, 'getChannelData', deny);
+          replace(globalThis.AudioBuffer?.prototype, 'copyFromChannel', deny);
+          for (const name of ['getFloatFrequencyData', 'getByteFrequencyData', 'getFloatTimeDomainData', 'getByteTimeDomainData']) {
+            replace(globalThis.AnalyserNode?.prototype, name, deny);
+          }
+          replace(globalThis, 'queryLocalFonts', () => Promise.resolve([]));
+          // A WebGPU adapter exposes GPU identity and limits without a permission prompt.
+          // Returning null is the API's normal unavailable-adapter result.
+          replace(globalThis.GPU?.prototype, 'requestAdapter', () => Promise.resolve(null));
+        })();
+        """
+    }
 
     static var interfaceLocale: String {
         interfaceLocale(
@@ -747,8 +1070,9 @@ enum FingerprintPrivacyPolicy {
         configuredOutwardLocale ?? interfaceLocale
     }
 
-    static func configureOutwardLocale(_ locale: String) {
+    static func configureOutwardLocale(_ locale: String, countryCode: String? = nil) {
         configuredOutwardLocale = locale
+        configuredEgressCountryCode = countryCode
     }
 
     static var acceptLanguageList: String {
@@ -779,6 +1103,9 @@ enum FingerprintPrivacyPolicy {
     }
 
     static func acceptLanguageList(for locale: String) -> String {
+        if locale == "en-US" {
+            return BrowserNetworkLanguagePolicy.preferredLanguages(forCountryCode: configuredEgressCountryCode)
+        }
         let primaryLanguage = locale.split(separator: "-").first.map(String.init) ?? locale
         var languages: [String] = []
         for language in [locale, primaryLanguage, "en-US", "en"]
@@ -791,7 +1118,23 @@ enum FingerprintPrivacyPolicy {
     private static let processSeed = UUID().uuidString
 
     static var javaScript: String {
-        javaScript(for: outwardLocale)
+        siteScopedJavaScript(for: outwardLocale, hosts: activeStrictHosts)
+    }
+
+    static func siteScopedJavaScript(for locale: String, hosts: Set<String>) -> String {
+        let hostsJSON = String(data: try! JSONEncoder().encode(hosts.sorted()), encoding: .utf8)!
+        return """
+        (() => {
+          const hosts = new Set(\(hostsJSON));
+          const host = String(location.hostname || '').toLowerCase().replace(/\\.$/, '');
+          const parentSelected = Array.from(location.ancestorOrigins || []).some(origin => {
+            try { return hosts.has(new URL(origin).hostname.toLowerCase().replace(/\\.$/, '')); }
+            catch (_) { return false; }
+          });
+          if (!hosts.has(host) && !parentSelected) return;
+          \(javaScript(for: locale))
+        })();
+        """
     }
 
     static func javaScript(for outwardLocale: String) -> String {
@@ -849,6 +1192,14 @@ enum FingerprintPrivacyPolicy {
             }
             try {
               const descriptor = Object.getOwnPropertyDescriptor(prototype, name);
+              const receiver = prototype === globalThis.Navigator?.prototype
+                ? globalThis.navigator : globalThis.screen;
+              const current = descriptor?.get?.call(receiver);
+              const alreadyMatches = current === value ||
+                (Array.isArray(current) && Array.isArray(value) &&
+                 current.length === value.length && current.every((entry, index) => entry === value[index]));
+              // Preserve native getters when their values already meet the policy.
+              if (alreadyMatches) return;
               if (!descriptor || descriptor.configurable !== true) {
                 return;
               }
@@ -1151,6 +1502,13 @@ enum FingerprintPrivacyPolicy {
             }
           }
 
+          // Battery state remains protected. Client Hints are reduced natively;
+          // wrapping their Promise API adds detectable changes and breaks callers.
+          const denyHighEntropyProbe = () => {
+            throw new DOMException('Device fingerprint probe blocked.', 'NotAllowedError');
+          };
+          replaceMethod(globalThis.Navigator?.prototype, "getBattery", () => denyHighEntropyProbe);
+
           replaceGetter(globalThis.Navigator?.prototype, "hardwareConcurrency", 8);
           if ("deviceMemory" in (globalThis.Navigator?.prototype || {})) {
             replaceGetter(globalThis.Navigator.prototype, "deviceMemory", 8);
@@ -1158,11 +1516,15 @@ enum FingerprintPrivacyPolicy {
           const mainlandDomains = "\#(CefNativeSiteLanguagePolicy.mainlandDomains.joined(separator: ","))".split(",");
           const host = location.hostname.toLowerCase().replace(/\.$/, "");
           const nativeChinese = mainlandDomains.some(domain => host === domain || host.endsWith("." + domain));
-          replaceGetter(globalThis.Navigator?.prototype, "language", nativeChinese ? "zh-CN" : "\#(outwardLocaleValue)");
+          const englishDomains = "\#(CefNativeSiteLanguagePolicy.englishDomains.joined(separator: ","))".split(",");
+          const nativeEnglish = englishDomains.some(domain => host === domain || host.endsWith("." + domain));
+          const siteLanguage = nativeEnglish ? "en-US" : nativeChinese ? "zh-CN" : "\#(outwardLocaleValue)";
+          const siteLanguages = nativeEnglish ? ["en-US", "en"] : nativeChinese ? ["zh-CN", "zh", "en"] : "\#(outwardLanguages)".split(",");
+          replaceGetter(globalThis.Navigator?.prototype, "language", siteLanguage);
           replaceGetter(
             globalThis.Navigator?.prototype,
             "languages",
-            Object.freeze(nativeChinese ? ["zh-CN", "zh", "en"] : "\#(outwardLanguages)".split(","))
+            Object.freeze(siteLanguages)
           );
           replaceGetter(globalThis.Screen?.prototype, "colorDepth", 24);
           replaceGetter(globalThis.Screen?.prototype, "pixelDepth", 24);
@@ -1173,6 +1535,8 @@ enum FingerprintPrivacyPolicy {
             + AudioFingerprintPrivacyPolicy.javaScript
             + "\n"
             + surfacePolicy
+            + "\n"
+            + strictJavaScript(hosts: activeStrictHosts)
     }
 }
 
@@ -1740,24 +2104,38 @@ private final class CefBrowserWindow: NSWindow {
             // CefSwift's periodic external-pump driver.
             configuration.externalMessagePump = false
             let interfaceLocale = FingerprintPrivacyPolicy.interfaceLocale
+            let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+            let overrideCountryCode = CommandLine.arguments
+                .first(where: { $0.hasPrefix("--astra-egress-country=") })
+                .map { String($0.dropFirst("--astra-egress-country=".count)) }
+            let proxyEndpoint = BrowserProxyPolicy.effectiveLocalEndpoint()
+            let egressLocation = isRunningTests || overrideCountryCode != nil
+                ? nil : APIClient.resolvePublicIPv4Location(
+                    proxyEndpoint: proxyEndpoint,
+                    allowProxyFailover: false
+                )
+            let egressCountryCode = overrideCountryCode ?? egressLocation?.countryCode
             let outwardLocale: String
-            if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+            if isRunningTests {
                 outwardLocale = interfaceLocale
-            } else if let overrideCountryCode = CommandLine.arguments
-                .first(where: { $0.hasPrefix("--astra-egress-country=") })?
-                .dropFirst("--astra-egress-country=".count),
-                let overriddenLocale = BrowserNetworkLanguagePolicy.locale(
-                    forCountryCode: String(overrideCountryCode)
-                ) {
-                outwardLocale = overriddenLocale
             } else {
-                outwardLocale = BrowserNetworkLanguagePolicy.resolvedLocale(
-                    fallbackLocale: interfaceLocale
-                ) {
-                    APIClient.resolvePublicIPv4Location()
-                }
+                // VPN geography must not silently change the user's web language.
+                // Set the native preference too: Chromium can regenerate navigation headers.
+                outwardLocale = "en-US"
             }
-            FingerprintPrivacyPolicy.configureOutwardLocale(outwardLocale)
+            if !isRunningTests,
+               let egressCountryCode,
+               let browserTimeZone = BrowserNetworkTimeZonePolicy.identifier(
+                   forCountryCode: egressCountryCode
+               ) {
+                setenv("TZ", browserTimeZone, 1)
+                NSTimeZone.resetSystemTimeZone()
+                AppLogInfo("[CEF] Browser egress time zone=\(browserTimeZone)")
+            } else if !isRunningTests {
+                // A proxy lookup timeout previously silently exposed the host time zone.
+                AppLogWarn("[CEF] Egress time zone unresolved; retaining system time zone")
+            }
+            FingerprintPrivacyPolicy.configureOutwardLocale(outwardLocale, countryCode: egressCountryCode)
             AppLogInfo(
                 "[CEF] Browser language fingerprint locale=\(outwardLocale); " +
                 "interface locale=\(interfaceLocale)"
@@ -1781,18 +2159,31 @@ private final class CefBrowserWindow: NSWindow {
             configuration.cachePath = root
             configuration.persistSessionCookies = true
             configuration.defaultRuntimeStyle = .chrome
-            configuration.locale = interfaceLocale
+            // Chromium's locale also controls Intl defaults in pages and workers.
+            // Keep it aligned with native language negotiation, not AppKit UI language.
+            configuration.locale = outwardLocale
             configuration.acceptLanguageList = FingerprintPrivacyPolicy.acceptLanguageList
             configuration.userAgentProduct = SupportedBrowserUserAgent.chromiumProduct
+            // Let Chromium keep request, page and worker platform identity consistent.
+            // Keep HTTPS on the same TCP route as CONNECT proxies. UDP/QUIC
+            // can take a different VPN path and produce inconsistent site access.
+            configuration.extraCommandLineSwitches.updateValue(nil, forKey: "disable-quic")
             let doNotTrackEnabled = PhiPreferences.GeneralSettings.doNotTrack.loadValue()
             configuration.documentStartJavaScript = [
                 FingerprintPrivacyPolicy.javaScript,
+                MediaResourceDiscoveryPolicy.javaScript,
                 BrowserOutwardRequestPolicy.doNotTrackJavaScript(enabled: doNotTrackEnabled)
             ].joined(separator: "\n")
             configuration.doNotTrackEnabled = doNotTrackEnabled
             configuration.customSchemes.append(AstraMemorySchemeHandler.customScheme)
+            if let endpoint = proxyEndpoint {
+                configuration.extraCommandLineSwitches["proxy-server"] =
+                    BrowserProxyPolicy.cefProxyServer(for: endpoint)
+            }
             CefBrowserAccountPrivacyPolicy.apply(to: &configuration)
             try CefBrowserAccountPrivacyPolicy.prepareProfile(at: root)
+            let secureDNSEnabled = UserDefaults.standard.object(forKey: BrowserSecureDNSPolicy.enabledKey) as? Bool ?? true
+            try BrowserSecureDNSPolicy.prepareLocalState(at: root, enabled: secureDNSEnabled)
             // Gmail rejects unbranded Chromium Client Hints. Prefer the UA
             // string, which reports a current Chrome product token. Preserve
             // CEF's compatibility exclusions when adding this feature.
@@ -1840,6 +2231,12 @@ private final class CefBrowserWindow: NSWindow {
     }
 
     func applicationDidFinishLaunching() {
+        if CommandLine.arguments.contains("--cef-time-zone-smoke") || CommandLine.arguments.contains("--cef-linux-identity-smoke") {
+            // Run after restored tabs settle so this probe targets a neutral site.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                self.openExternalURLs([URL(string: "https://example.com")!])
+            }
+        }
         guard MainBrowserWindowControllersManager.shared.activeWindowController == nil else { return }
         let initialURL = CommandLine.arguments
             .first(where: { $0.hasPrefix("--astra-initial-url=") })?

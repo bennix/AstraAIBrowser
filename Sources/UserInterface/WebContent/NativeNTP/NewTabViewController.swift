@@ -10,7 +10,7 @@ import SnapKit
 final class NewTabViewController: NSViewController {
     private enum InputMode: Int {
         case ai
-        case google
+        case search
         case url
     }
 
@@ -77,9 +77,9 @@ final class NewTabViewController: NSViewController {
                     comment: "New tab page - Unified input mode that sends the text to ZenMux"
                 ),
                 NSLocalizedString(
-                    "browser.newTabPage.inputMode.google",
-                    value: "Google",
-                    comment: "New tab page - Unified input mode that searches with Google"
+                    "browser.newTabPage.inputMode.search",
+                    value: "Search",
+                    comment: "New tab page - Unified input mode that searches with the selected provider"
                 ),
                 NSLocalizedString(
                     "browser.newTabPage.inputMode.url",
@@ -92,7 +92,7 @@ final class NewTabViewController: NSViewController {
             action: #selector(inputModeDidChange(_:))
         )
         control.controlSize = .small
-        control.selectedSegment = InputMode.google.rawValue
+        control.selectedSegment = InputMode.search.rawValue
         control.setEnabled(!browserState.isIncognito, forSegment: InputMode.ai.rawValue)
         return control
     }()
@@ -214,11 +214,11 @@ final class NewTabViewController: NSViewController {
                 value: "Ask ZenMux",
                 comment: "New tab page - Placeholder shown when the unified input sends a question to ZenMux"
             )
-        case .google:
+        case .search:
             placeholder = NSLocalizedString(
-                "browser.newTabPage.inputPlaceholder.google",
-                value: "Search Google",
-                comment: "New tab page - Placeholder shown when the unified input searches with Google"
+                "browser.newTabPage.inputPlaceholder.search",
+                value: "Search",
+                comment: "New tab page - Placeholder shown when the unified input searches with the selected provider"
             )
         case .url:
             placeholder = NSLocalizedString(
@@ -242,10 +242,12 @@ final class NewTabViewController: NSViewController {
         case .ai:
             submitToZenMux(input)
             return true
-        case .google:
-            if !omniBoxController.submitGoogleSearch(commandKeyPressed: commandKeyPressed) {
-                NSSound.beep()
-            }
+        case .search:
+            // Pasted URLs should remain navigations even when Search mode is selected.
+            let submitted = URLProcessor.isURL(input)
+                ? omniBoxController.submitURL(commandKeyPressed: commandKeyPressed)
+                : omniBoxController.submitSearch(commandKeyPressed: commandKeyPressed)
+            if !submitted { NSSound.beep() }
             return true
         case .url:
             if !omniBoxController.submitURL(commandKeyPressed: commandKeyPressed) {

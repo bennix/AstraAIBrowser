@@ -1,0 +1,25 @@
+--- a/Sources/CefKit/CefBrowser.swift
++++ b/Sources/CefKit/CefBrowser.swift
+@@ -38,6 +38,14 @@
+     public weak var delegate: CefBrowserDelegate?
+ 
+     /// Current main-frame URL.
++    public private(set) var detectedMedia: [(url: URL, mimeType: String, headers: [String: String])] = []
++
++    func recordMedia(url: URL, mimeType: String, pageURL: URL?, headers: [String: String]) {
++        guard self.url == pageURL else { return }
++        detectedMedia.removeAll { $0.url == url }
++        detectedMedia.append((url, mimeType, headers))
++    }
++
+     public private(set) var url: URL?
+     /// Current page title.
+     public private(set) var title: String = ""
+@@ -351,6 +359,7 @@
+ 
+     func applyURL(_ urlString: String) {
+         let url = URL(string: urlString)
++        if self.url != url { detectedMedia.removeAll() }
+         self.url = url
+         delegate?.browser(self, didChangeURL: url)
+     }

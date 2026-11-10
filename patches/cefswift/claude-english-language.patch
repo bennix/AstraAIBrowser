@@ -1,0 +1,35 @@
+--- a/Sources/CefKit/BrowserClient.swift
++++ b/Sources/CefKit/BrowserClient.swift
+@@ -16,6 +16,20 @@
+               let host = url.host?.lowercased() else { return false }
+         let normalized = host.trimmingCharacters(in: CharacterSet(charactersIn: "."))
+         return mainlandDomains.contains { normalized == $0 || normalized.hasSuffix("." + $0) }
++    }
++
++    public static let englishDomains = ["claude.ai", "claude.com"]
++
++    public static func prefersEnglish(_ url: URL?) -> Bool {
++        guard let url, ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
++              let host = url.host?.lowercased() else { return false }
++        let normalized = host.trimmingCharacters(in: CharacterSet(charactersIn: "."))
++        return englishDomains.contains { normalized == $0 || normalized.hasSuffix("." + $0) }
++    }
++
++    public static func languageOverride(for url: URL?) -> String? {
++        if prefersEnglish(url) { return "en-US,en;q=0.9" }
++        return prefersChinese(url) ? acceptLanguage : nil
+     }
+ 
+     public static let acceptLanguage = "zh-CN,zh;q=0.9,en;q=0.8"
+@@ -711,9 +725,9 @@
+             defer { cefRelease(UnsafeMutableRawPointer(request)) }
+ 
+             let urlString = CefStringUtil.takingUserFree(request.pointee.get_url?(request)) ?? ""
+-            if CefNativeSiteLanguagePolicy.prefersChinese(URL(string: urlString)) {
++            if let language = CefNativeSiteLanguagePolicy.languageOverride(for: URL(string: urlString)) {
+                 CefStringUtil.withCefString("Accept-Language") { name in
+-                    CefStringUtil.withCefString(CefNativeSiteLanguagePolicy.acceptLanguage) { value in
++                    CefStringUtil.withCefString(language) { value in
+                         request.pointee.set_header_by_name?(request, name, value, 1)
+                     }
+                 }

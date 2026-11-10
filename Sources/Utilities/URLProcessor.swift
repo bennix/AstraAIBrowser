@@ -5,6 +5,52 @@
 
 import Foundation
 
+enum BrowserSearchProvider: String, CaseIterable, Identifiable {
+    case google
+    case baidu
+    case bing
+    case duckDuckGo
+
+    static let preferenceKey = "browserSearchProvider"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .google: return "Google"
+        case .baidu: return "Baidu"
+        case .bing: return "Bing"
+        case .duckDuckGo: return "DuckDuckGo"
+        }
+    }
+
+    static var selected: Self {
+        Self(rawValue: UserDefaults.standard.string(forKey: preferenceKey) ?? "") ?? .google
+    }
+
+    func searchURL(for query: String) -> String {
+        let base: String
+        let queryName: String
+        switch self {
+        case .google:
+            base = "https://www.google.com/search"
+            queryName = "q"
+        case .baidu:
+            base = "https://www.baidu.com/s"
+            queryName = "wd"
+        case .bing:
+            base = "https://www.bing.com/search"
+            queryName = "q"
+        case .duckDuckGo:
+            base = "https://duckduckgo.com/"
+            queryName = "q"
+        }
+        var components = URLComponents(string: base)!
+        components.queryItems = [URLQueryItem(name: queryName, value: query)]
+        return components.url?.absoluteString ?? base
+    }
+}
+
 /// Converts user-entered text into a browser URL string.
 public struct URLProcessor {
 
@@ -35,16 +81,18 @@ public struct URLProcessor {
         } else if isURL(trimmedText) {
             return "https://\(trimmedText)"
         } else {
-            return "https://www.google.com/search?q=\(trimmedText)"
+            return defaultSearchURL(for: trimmedText)
         }
     }
 
     /// Builds an explicit Google search URL without applying URL detection.
     /// Used when the user selects Google mode in the new-tab unified input.
     public static func googleSearchURL(for query: String) -> String {
-        var components = URLComponents(string: "https://www.google.com/search")!
-        components.queryItems = [URLQueryItem(name: "q", value: query)]
-        return components.url?.absoluteString ?? "https://www.google.com/search"
+        BrowserSearchProvider.google.searchURL(for: query)
+    }
+
+    static func defaultSearchURL(for query: String) -> String {
+        BrowserSearchProvider.selected.searchURL(for: query)
     }
 
     /// Compares URLs for bookmark and pinned-tab origin navigation.

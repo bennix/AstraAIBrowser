@@ -191,11 +191,11 @@ class OmniBoxViewModel: ObservableObject {
     }
 
     @discardableResult
-    func handleGoogleSearchSubmission(commandKeyPressed: Bool = false) -> Bool {
+    func handleSearchSubmission(commandKeyPressed: Bool = false) -> Bool {
         let query = state.inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return false }
         openURL(
-            URLProcessor.googleSearchURL(for: query),
+            URLProcessor.defaultSearchURL(for: query),
             commandKeyPressed: commandKeyPressed
         )
         return true
@@ -218,6 +218,11 @@ class OmniBoxViewModel: ObservableObject {
     
     private func handleNavigationAction(for suggeston: OmniBoxSuggestion, commandKeyPressed: Bool = false) {
         AppLogDebug("omni: handleNavigationAction suggeston: \(suggeston)")
+        if suggeston.type == .search || suggeston.type == .searchSuggest {
+            let query = suggeston.fillIntoEdit.isEmpty ? state.inputText : suggeston.fillIntoEdit
+            openURL(URLProcessor.defaultSearchURL(for: query), commandKeyPressed: commandKeyPressed)
+            return
+        }
         if shouldCreateInGroupOverview {
             let url = suggeston.url.isEmpty ? URLProcessor.processUserInput(state.inputText) : suggeston.url
             openURL(url, commandKeyPressed: commandKeyPressed)

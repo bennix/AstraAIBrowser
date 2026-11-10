@@ -57,7 +57,7 @@ done
 
 [[ -n "$app_path" && -d "$app_path" && "$app_path" == *.app ]] || usage
 
-for command_name in codesign hdiutil security spctl xcrun; do
+for command_name in codesign hdiutil security spctl uvx xcrun; do
   command -v "$command_name" >/dev/null || {
     >&2 echo "Required command is unavailable: $command_name"
     exit 69
@@ -160,15 +160,13 @@ trap cleanup EXIT INT TERM
 
 staging_dir="$release_temp_dir/dmg-root"
 mkdir -p "$staging_dir"
-ditto "$app_path" "$staging_dir/${app_path:t}"
-ln -s /Applications "$staging_dir/Applications"
+ditto "$app_path" "$staging_dir/Astra Browser.app"
 
-hdiutil create \
-  -volname "Astra Browser" \
-  -fs HFS+ \
-  -srcfolder "$staging_dir" \
-  -format UDZO \
-  "$output_path"
+uvx --from dmgbuild dmgbuild \
+  -s "$project_root/scripts/astra_dmg_settings.py" \
+  -Dapp="$staging_dir/Astra Browser.app" \
+  -Dbackground="$project_root/Resources/Release/AstraDMGBackground.png" \
+  "Astra Browser" "$output_path"
 
 codesign --force --timestamp --sign "$signing_identity" "$output_path"
 codesign --verify --verbose=2 "$output_path"

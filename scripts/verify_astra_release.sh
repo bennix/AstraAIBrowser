@@ -114,6 +114,10 @@ if ! media_tool_version="$("$resources_path/MediaTools/yt-dlp" --version 2>&1)";
   exit 65
 fi
 
+for media_helper in ffmpeg ffprobe; do
+  "$resources_path/MediaTools/$media_helper" -version >/dev/null || exit 65
+done
+
 legacy_icon="$(find "$resources_path" -iname 'PhiIcon*' -print -quit)"
 [[ -z "$legacy_icon" ]] || {
   >&2 echo "Legacy Phi app icon remains in the release bundle: $legacy_icon"

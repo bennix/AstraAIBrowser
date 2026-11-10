@@ -51,6 +51,25 @@ markers=(
   "Restore our asynchronous quit route after that setup"
 )
 
+patches+=("$repository_root/patches/cefswift/claude-english-language.patch")
+targets+=("$cef_swift_root/Sources/CefKit/BrowserClient.swift")
+markers+=("public static func languageOverride")
+
+patches+=("$repository_root/patches/cefswift/collect-media-responses.patch")
+targets+=("$cef_swift_root/Sources/CefKit/CefBrowser.swift")
+markers+=("public private(set) var detectedMedia")
+patches+=("$repository_root/patches/cefswift/observe-media-responses.patch")
+targets+=("$cef_swift_root/Sources/CefKit/BrowserClient.swift")
+markers+=("resourceHandler.pointee.on_resource_response")
+
+patches+=("$repository_root/patches/cefswift/native-linux-identity.patch")
+targets+=("$cef_swift_root/Sources/CefKit/CefConfiguration.swift")
+markers+=("public var nativeUserAgentParameters")
+
+patches+=("$repository_root/patches/cefswift/media-session-fetch.patch")
+targets+=("$cef_swift_root/Sources/CefKit/CefBrowser.swift")
+markers+=("public func fetchMediaResource")
+
 applied_any=false
 for index in "${!patches[@]}"; do
   patch_file="${patches[$index]}"

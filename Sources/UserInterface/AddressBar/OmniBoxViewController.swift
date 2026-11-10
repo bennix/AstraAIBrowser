@@ -267,8 +267,8 @@ class OmniBoxViewController: NSViewController {
     }
 
     @discardableResult
-    func submitGoogleSearch(commandKeyPressed: Bool = false) -> Bool {
-        viewModel.handleGoogleSearchSubmission(commandKeyPressed: commandKeyPressed)
+    func submitSearch(commandKeyPressed: Bool = false) -> Bool {
+        viewModel.handleSearchSubmission(commandKeyPressed: commandKeyPressed)
     }
 
     @discardableResult
