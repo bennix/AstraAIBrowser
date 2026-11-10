@@ -8,15 +8,19 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 111)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.111/Astra-Browser-build111.dmg)
+[Download Astra 1.0 (build 112)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.112/Astra-Browser-build112.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.111)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.112)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
-and accepted by Apple's notarization service. Build 111 is a manual download;
+and accepted by Apple's notarization service. Build 112 is a manual download;
 the signed automatic-update feed currently remains at Build 106.
 
 ## Highlights
+
+- Browse every discovered media URL in a scrollable list with a compact summary, selectable full address, Copy URL and Download actions.
+- Download HLS with quality and time-range selection, concurrent fragment requests, retry of missing fragments and ordered merging. Live streams support manual and timed stopping.
+- View download progress and speed, expand or collapse the downloads panel, and revisit completed downloads after restarting. Media tools are bundled with the app.
 
 - Runs CEF's native macOS event loop as the single owner of browser and AppKit events, keeping address entry and tab switching responsive while retaining saved-login selection. The application-menu Quit command and Command-Q both close through the orderly asynchronous CEF shutdown path. Keeps Chromium's built-in password store separate from Astra's Touch ID Keychain store.
 - Adds indexed page actions through a configurable ZenMux policy model. The policy selects visible controls for clicks, typing targets, selections, and scrolling, while the default chat model supplies field text without exposing passwords or verification data.
@@ -29,7 +33,7 @@ the signed automatic-update feed currently remains at Build 106.
 - Local AI memory uses an account-scoped SQLite vector index, renders Markdown tables and LaTeX locally, exports one or several selected entries as Markdown files, remembers completed user/AI turns, and summarizes expired conversation memory before removing its source records.
 - Browsing history stays in each persistent Chromium profile; the native History menu, Command-Y, and General settings provide direct access to viewing or clearing it.
 - Account settings show whether Astra owns both HTTP and HTTPS and can request complete macOS default-browser ownership.
-- Links opened by other macOS apps enter Astra's embedded Chromium tabs. Astra's interface defaults to the macOS language on a fresh installation. Users can select their preferred language in Settings, and web-exposed language signals follow that selection regardless of the proxy exit country.
+- Links opened by other macOS apps enter Astra tabs. The interface follows the selected app language. Web language priority is English, Chinese, then the exit region’s language; the browser time zone is resolved at startup.
 - Do Not Track is enabled by default, applies to Chromium and WebKit request paths and JavaScript surfaces, and can be changed from General settings.
 - Explicit HTTP pages use Astra's existing in-app compatibility engine when the embedded Chromium network stack cannot reach a legacy server, while HTTPS browsing keeps its normal Chromium path.
 - Integrated AI workspace for browsing and task assistance.
@@ -46,7 +50,7 @@ the signed automatic-update feed currently remains at Build 106.
 - Opening About Astra Browser checks the signed GitHub Releases channel for updates; downloads remain protected by Sparkle Ed25519 verification and Apple code signing.
 - Website links for installed macOS applications, including Tencent Meeting SSO links, are intercepted before Chromium error handling and opened through Launch Services after explicit confirmation.
 - Public web pages expose native bilingual immersive translation with progressive inline writeback, redraw recovery, selected-text translation, a target-language picker, and the configured ZenMux engine.
-- Automatic webpage display defaults to Simplified Chinese with English fallback while outward language signals continue to follow the public egress region.
+- Webpage display language preferences are configurable independently of the browser’s outward language priority.
 - Repeated tab selections reconcile the visible content surface after rapid switches, loading transitions, or security-page focus handoffs.
 - General language settings provide an ordered webpage display language list with add, remove, and priority controls.
 - WebKit pages preserve source context for temporary Blob URLs and route Blob-backed card downloads into Astra's native download list.
@@ -55,9 +59,7 @@ the signed automatic-update feed currently remains at Build 106.
 - Mainland and H.264/AAC-first video sites use an in-app system media engine when the bundled Chromium codec set is insufficient, while YouTube keeps its Chromium VP9/AV1 path. X uses a persistent system WebKit session for reliable macOS media playback.
 - Window close preserves tabs and live page state for the next Dock activation, while a fully closed final window now has a native fallback so Astra cannot remain running without a reopenable interface.
 - WebRTC exposes no direct candidates, while camera and microphone access requires one-time approval.
-- Silent WebAudio fingerprinting is disrupted at document start: fingerprint readbacks are randomized per page context and zero-gain processing graphs cannot claim the system audio output. Deferred legitimate audio connections are bounded, deduplicated, and restored asynchronously so privacy protection cannot block page navigation. Standard HTML media playback is left unchanged.
-- Canvas and WebGL readbacks are farbled per site and session, precise Apple GPU models are masked, protected local and Chinese fonts resist direct and text-metric enumeration, and exposed hardware and language signals are normalized to a coherent profile.
-- Authentication and security-challenge routes use Chromium-native Canvas, WebGL, WebAudio, and font surfaces so slider CAPTCHA widgets can load and validate consistently; ordinary pages retain Astra's fingerprint privacy protections.
+- Ordinary pages use native browser interfaces. Strict fingerprint protection can be enabled per site for Canvas, WebGL, audio and device signals. Authentication compatibility remains site-dependent.
 - Grok stays in its persistent Chromium session after sign-in, and X OAuth popups retain their originating page relationship.
 - Chrome Web Store installs remain inside Astra and installed extension actions stay visible on Chromium-rendered pages.
 - Newly opened YouTube and other Chromium-heavy tabs stay attached to Astra, and close promptly even if the underlying Chromium window has already disappeared.
