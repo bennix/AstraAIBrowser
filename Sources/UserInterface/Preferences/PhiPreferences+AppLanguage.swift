@@ -71,7 +71,7 @@ enum AppLanguagePreference: Hashable, Identifiable {
 
     init(storageValue: String?) {
         guard let storageValue else {
-            self = .language(.simplifiedChinese)
+            self = .system
             return
         }
         guard storageValue != Self.systemStorageValue,
