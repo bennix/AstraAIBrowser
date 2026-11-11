@@ -11,12 +11,14 @@
     "features.summary": "Astra 在应用内统一日常 Chromium 兼容性、扩展程序、视觉 AI 上下文和隐私控制。",
     "features.extensions.title": "扩展程序始终留在 Astra 内",
     "features.extensions.body": "可直接从 Chrome 应用商店安装扩展，并在 Chromium 渲染的页面中保持扩展操作图标可见，全程不跳出另一个浏览器窗口。",
+    "features.youtubeSession.title": "Chromium 156 与 YouTube 会话保持",
+    "features.youtubeSession.body": "YouTube 与 Google 账号流程保持在 Chromium 中；网页语言在重启后遵循设置顺序。播放优先使用可识别的原声，并保留后续手动音轨选择。",
     "features.media.title": "完整媒体 URL 列表",
     "features.media.body": "以可滚动列表展示嗅探到的媒体，提供 URL 摘要和完整地址，每项都可直接复制或下载。",
     "features.hls.title": "HLS 分片下载与直播录制",
     "features.hls.body": "支持画质和时间范围选择、并发分片下载、缺失分片重试与顺序合并。直播可手动或定时停止，下载显示进度和速度，完成记录在重启后保留。",
     "features.privacy.title": "语言与追踪隐私保持一致",
-    "features.privacy.body": "原生界面语言可在设置中选择；网页语言依次为英语、中文和出口地区语言，浏览器时区在启动时解析。勿追踪默认开启，并阻止 WebRTC 暴露直连候选地址。",
+    "features.privacy.body": "原生界面语言可在设置中选择；网页语言在重启后遵循通用设置中的顺序，浏览器时区在启动时解析。勿追踪默认开启，并阻止 WebRTC 暴露直连候选地址。",
     "features.fingerprintPrivacy.title": "兼顾安全验证的指纹隐私防护",
     "features.fingerprintPrivacy.body": "普通页面使用浏览器原生接口，可按站点启用 Canvas、WebGL、音频和设备信息严格保护。登录验证的兼容性取决于网站和网络。",
     "features.visualContext.title": "视觉 AI 上下文",
@@ -46,14 +48,14 @@
     "features.xBookmarkArchive.title": "可控制的 X 书签全文归档",
     "features.xBookmarkArchive.body": "Astra 直接在当前已登录的 X 标签页中归档书签，不打开后台标签页。采集可随时暂停、继续或停止，并保留详细正文、引用、图片资源与视频贴文链接；结果可直接留存为本地 Markdown，也可在明确确认后交给 ZenMux 分类整理。",
     "features.signedUpdates.title": "GitHub 签名在线更新",
-    "features.signedUpdates.body": "Build 112 已通过 Developer ID 签名和 Apple 公证，需手动下载。由于配套更新签名密钥暂不可用，已验证的 Sparkle 更新源维持在 Build 106。",
+    "features.signedUpdates.body": "Build 113 已通过 Developer ID 签名和 Apple 公证，需手动下载。由于配套更新签名密钥暂不可用，已验证的 Sparkle 更新源维持在 Build 106。",
     "features.promptLibrary.title": "本地提示词管理器",
     "features.promptLibrary.body": "可将网页划词内容保存为提示词，并自动收藏已发送的提示词。所有内容仅保存在本机，支持按任务分类、搜索、复用、编辑、批量删除及 JSON 导入导出。",
     "features.searchProvider.title": "自由选择搜索引擎",
     "features.searchProvider.body": "地址栏查询与新标签页搜索可选 Google、百度、Bing 或 DuckDuckGo；网址和 AI 提示词仍按各自方式处理。",
     "features.proxy.title": "可选的代理自动检测",
     "features.proxy.body": "启用后优先采用 macOS 系统代理；未配置系统代理时可检测可用的本机代理。重启 Astra 后，设置会应用于两种浏览引擎。",
-    "download.summary": "Build 112 提供完整媒体 URL 列表、HLS 分片下载与合并、直播录制、进度与速度显示，以及持久下载历史。DMG 已通过 Apple 公证，可手动下载安装；自动更新暂时停留在 Build 106。"
+    "download.summary": "Build 113 升级 Chromium 156，保持 YouTube 账号流程使用同一浏览引擎，重启后应用网页语言顺序，并优先使用可识别的视频原声。DMG 已通过 Apple 公证，可手动下载安装；自动更新暂时停留在 Build 106。"
   };
 
   const applyTranslations = () => {

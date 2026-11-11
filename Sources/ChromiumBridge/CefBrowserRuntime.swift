@@ -394,7 +394,8 @@ enum CefBrowserAccountPrivacyPolicy {
 
     static func prepareProfile(
         at rootURL: URL,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        acceptLanguageList: String? = nil
     ) throws {
         // Chromium browser sign-in is separate from website authentication.
         // Seed the request-context preference before CEF reads the profile so
@@ -419,6 +420,13 @@ enum CefBrowserAccountPrivacyPolicy {
         var signin = preferences["signin"] as? [String: Any] ?? [:]
         signin["allowed"] = false
         preferences["signin"] = signin
+        if let acceptLanguageList {
+            // Existing profiles retain their old language preference unless migrated before CEF starts.
+            var international = preferences["intl"] as? [String: Any] ?? [:]
+            international["accept_languages"] = acceptLanguageList
+            international["selected_languages"] = acceptLanguageList
+            preferences["intl"] = international
+        }
 
         let data = try JSONSerialization.data(withJSONObject: preferences)
         try data.write(to: preferencesURL, options: .atomic)
@@ -449,6 +457,22 @@ enum BrowserSecureDNSPolicy {
 }
 
 enum BrowserNetworkLanguagePolicy {
+    static func webpageLanguages(_ languages: [ImmersiveTranslationLanguage]) -> [String] {
+        var result: [String] = []
+        for language in languages {
+            let locale: String
+            switch language {
+            case .simplifiedChinese: locale = "zh-CN"
+            case .traditionalChinese: locale = "zh-TW"
+            case .english: locale = "en-US"
+            default: locale = language.rawValue
+            }
+            let base = String(locale.split(separator: "-")[0])
+            for value in [locale, base] where !result.contains(value) { result.append(value) }
+        }
+        return result.isEmpty ? ["zh-CN", "zh", "en-US", "en"] : result
+    }
+
     static func preferredLanguages(forCountryCode countryCode: String?) -> String {
         var languages = ["en-US", "en", "zh-CN", "zh"]
         if let countryCode,
@@ -1076,7 +1100,9 @@ enum FingerprintPrivacyPolicy {
     }
 
     static var acceptLanguageList: String {
-        acceptLanguageList(for: outwardLocale)
+        BrowserNetworkLanguagePolicy.webpageLanguages(
+            ImmersiveTranslationPreferences.loadDisplayLanguages()
+        ).joined(separator: ",")
     }
 
     static func interfaceLocale(for appLanguage: SupportedAppLanguage) -> String {
@@ -2115,14 +2141,9 @@ private final class CefBrowserWindow: NSWindow {
                     allowProxyFailover: false
                 )
             let egressCountryCode = overrideCountryCode ?? egressLocation?.countryCode
-            let outwardLocale: String
-            if isRunningTests {
-                outwardLocale = interfaceLocale
-            } else {
-                // VPN geography must not silently change the user's web language.
-                // Set the native preference too: Chromium can regenerate navigation headers.
-                outwardLocale = "en-US"
-            }
+            let outwardLocale = BrowserNetworkLanguagePolicy.webpageLanguages(
+                ImmersiveTranslationPreferences.loadDisplayLanguages()
+            )[0]
             if !isRunningTests,
                let egressCountryCode,
                let browserTimeZone = BrowserNetworkTimeZonePolicy.identifier(
@@ -2181,7 +2202,9 @@ private final class CefBrowserWindow: NSWindow {
                     BrowserProxyPolicy.cefProxyServer(for: endpoint)
             }
             CefBrowserAccountPrivacyPolicy.apply(to: &configuration)
-            try CefBrowserAccountPrivacyPolicy.prepareProfile(at: root)
+            try CefBrowserAccountPrivacyPolicy.prepareProfile(
+                at: root, acceptLanguageList: configuration.acceptLanguageList
+            )
             let secureDNSEnabled = UserDefaults.standard.object(forKey: BrowserSecureDNSPolicy.enabledKey) as? Bool ?? true
             try BrowserSecureDNSPolicy.prepareLocalState(at: root, enabled: secureDNSEnabled)
             // Gmail rejects unbranded Chromium Client Hints. Prefer the UA
@@ -2580,6 +2603,16 @@ private final class CefBrowserWindow: NSWindow {
             return profile
         }
         if let profile = profiles[profileId] { return profile }
+        if let root = CefRuntime.shared.configuration?.rootCachePath {
+            do {
+                try CefBrowserAccountPrivacyPolicy.prepareProfile(
+                    at: root.appendingPathComponent("Profiles").appendingPathComponent(profileId),
+                    acceptLanguageList: FingerprintPrivacyPolicy.acceptLanguageList
+                )
+            } catch {
+                AppLogWarn("[CEF] Could not prepare persistent profile language preferences")
+            }
+        }
         let profile = CefProfile.persistent(name: profileId)
         profiles[profileId] = profile
         return profile

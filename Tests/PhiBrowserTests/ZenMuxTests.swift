@@ -3365,3 +3365,37 @@ final class MediaDownloadCandidateListTests: XCTestCase {
         XCTAssertEqual(rows[1].kind, .audio)
     }
 }
+
+@MainActor
+final class YouTubeSessionLanguageTests: XCTestCase {
+    func testMediaFallbackKeepsGoogleAndYouTubeInChromium() {
+        for address in ["https://www.youtube.com/watch?v=test", "https://accounts.youtube.com/accounts/SetSID", "https://accounts.google.com/ServiceLogin"] {
+            let url = URL(string: address)!
+            SystemMediaCompatibilityPolicy.rememberDetectedMediaIncompatibility(for: url)
+            XCTAssertFalse(SystemMediaCompatibilityPolicy.allowsAutomaticFallback(for: url))
+            XCTAssertFalse(SystemMediaCompatibilityPolicy.requiresSystemMediaEngine(for: url))
+        }
+        XCTAssertTrue(SystemMediaCompatibilityPolicy.allowsAutomaticFallback(for: URL(string: "https://example.com/movie")!))
+    }
+
+    func testWebLanguagesFollowSettingsOrder() {
+        XCTAssertEqual(BrowserNetworkLanguagePolicy.webpageLanguages([.simplifiedChinese, .english]), ["zh-CN", "zh", "en-US", "en"])
+        XCTAssertEqual(BrowserNetworkLanguagePolicy.webpageLanguages([.english, .japanese]), ["en-US", "en", "ja"])
+        XCTAssertEqual(BrowserNetworkLanguagePolicy.webpageLanguages([.traditionalChinese, .simplifiedChinese]), ["zh-TW", "zh", "zh-CN"])
+    }
+
+    func testExistingProfileLanguageIsMigratedWithoutRemovingOtherPreferences() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let profile = root.appendingPathComponent("Default")
+        try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
+        let file = profile.appendingPathComponent("Preferences")
+        try Data(#"{"intl":{"accept_languages":"en-US,en","other":"preserved"},"unrelated":42}"#.utf8).write(to: file)
+        try CefBrowserAccountPrivacyPolicy.prepareProfile(at: root, acceptLanguageList: "zh-CN,zh,en-US,en")
+        let value = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
+        let international = try XCTUnwrap(value["intl"] as? [String: Any])
+        XCTAssertEqual(international["accept_languages"] as? String, "zh-CN,zh,en-US,en")
+        XCTAssertEqual(international["other"] as? String, "preserved")
+        XCTAssertEqual(value["unrelated"] as? Int, 42)
+    }
+}

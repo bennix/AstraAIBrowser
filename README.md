@@ -8,15 +8,18 @@
 **A native AI browser for macOS.** Astra combines an AppKit-based Mac interface,
 a Chromium browsing engine, and an integrated AI workspace.
 
-[Download Astra 1.0 (build 112)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.112/Astra-Browser-build112.dmg)
+[Download Astra 1.0 (build 113)](https://github.com/bennix/AstraAIBrowser/releases/download/v1.0.113/Astra-Browser-build113.dmg)
 · [Product page](https://bennix.github.io/AstraAIBrowser/)
-· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.112)
+· [Release notes](https://github.com/bennix/AstraAIBrowser/releases/tag/v1.0.113)
 
 The current release is built for Apple Silicon, signed with an Apple Developer ID,
-and accepted by Apple's notarization service. Build 112 is a manual download;
+and accepted by Apple's notarization service. Build 113 is a manual download;
 the signed automatic-update feed currently remains at Build 106.
 
 ## Highlights
+
+- Chromium 156.0.8078.48 with matching CEF headers and helper processes.
+- YouTube and Google account pages stay in Chromium during media failures, preserving their browser session. Web language order follows General settings after restart. YouTube prefers explicitly identifiable original audio and retains subsequent manual track choices.
 
 - Browse every discovered media URL in a scrollable list with a compact summary, selectable full address, Copy URL and Download actions.
 - Download HLS with quality and time-range selection, concurrent fragment requests, retry of missing fragments and ordered merging. Live streams support manual and timed stopping.
@@ -28,12 +31,12 @@ the signed automatic-update feed currently remains at Build 106.
 - Restores selection translation, word lookup, and vocabulary-book actions in WebKit compatibility pages such as BBC.
 - Fixes ZenMux HTTP 400 errors in immersive translation and vocabulary lookup by omitting tool configuration from text-only requests.
 - Native macOS interface with tabs, spaces, profiles, downloads, and keyboard-first navigation.
-- Chromium 151 compatibility through the embedded CEF runtime.
+- Chromium 156 compatibility through the embedded CEF runtime.
 - Legacy `chrome://memory` and `phi://memory` links open Astra's local AI memory instead of Chromium's removed WebUI.
 - Local AI memory uses an account-scoped SQLite vector index, renders Markdown tables and LaTeX locally, exports one or several selected entries as Markdown files, remembers completed user/AI turns, and summarizes expired conversation memory before removing its source records.
 - Browsing history stays in each persistent Chromium profile; the native History menu, Command-Y, and General settings provide direct access to viewing or clearing it.
 - Account settings show whether Astra owns both HTTP and HTTPS and can request complete macOS default-browser ownership.
-- Links opened by other macOS apps enter Astra tabs. The interface follows the selected app language. Web language priority is English, Chinese, then the exit region’s language; the browser time zone is resolved at startup.
+- Links opened by other macOS apps enter Astra tabs. The interface follows the selected app language. Web language priority follows the ordered webpage languages in General settings after restart; the browser time zone is resolved at startup.
 - Do Not Track is enabled by default, applies to Chromium and WebKit request paths and JavaScript surfaces, and can be changed from General settings.
 - Explicit HTTP pages use Astra's existing in-app compatibility engine when the embedded Chromium network stack cannot reach a legacy server, while HTTPS browsing keeps its normal Chromium path.
 - Integrated AI workspace for browsing and task assistance.
@@ -83,7 +86,8 @@ Requirements: Apple Silicon Mac running macOS 14 or later.
 ## Build from source
 
 The CEF distribution is intentionally not stored in Git. Prepare the compatible
-CEF runtime under `Vendor/CefSwift`, run
+CEF runtime from `https://github.com/Rajaniraiyn/CefSwift` at the commit recorded
+in `patches/cefswift/UPSTREAM_REVISION` under `Vendor/CefSwift`, run
 `scripts/apply_cef_swift_patches.sh Vendor/CefSwift`, open `Phi.xcodeproj`, and
 build the `PhiBrowser-release` scheme with Xcode 26 or later.
 

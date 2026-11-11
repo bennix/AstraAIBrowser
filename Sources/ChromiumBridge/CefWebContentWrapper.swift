@@ -296,6 +296,47 @@ enum WebResourceCompatibilityPolicy {
     }
 }
 
+enum YouTubeOriginalAudioPolicy {
+    static let javaScript = #"""
+    (() => {
+      if (window.__astraOriginalAudioInstalled) return;
+      window.__astraOriginalAudioInstalled = true;
+      let selectedVideo = null;
+      const preferOriginal = () => {
+        try {
+          const player = document.getElementById('movie_player');
+          const videoID = player?.getVideoData?.()?.video_id;
+          if (!videoID || selectedVideo === videoID) return;
+          const tracks = player.getAvailableAudioTracks?.();
+          if (!Array.isArray(tracks) || tracks.length === 0) return;
+          const isOriginal = info => {
+            if (info.isOriginal === true || info.audioIsOriginal === true || info.kind === 'original') return true;
+            const name = info.displayName || info.name || '';
+            return /\(original\)|（原声）|\(原声\)|（原始）|\(原始\)/i.test(name);
+          };
+          const formats = player.getPlayerResponse?.()?.streamingData?.adaptiveFormats || [];
+          const originalIDs = new Set(formats.map(format => format.audioTrack)
+            .filter(track => track && isOriginal(track)).map(track => track.id));
+          const original = tracks.find(track => {
+            const info = track.getLanguageInfo?.() || track.languageInfo || track;
+            return isOriginal(info) || originalIDs.has(info.id);
+          });
+          if (!original || typeof player.setAudioTrack !== 'function') return;
+          // Only a positively identified original track may replace the site's default.
+          // Mark before changing tracks so synchronous player events cannot repeat the action.
+          selectedVideo = videoID;
+          try { player.setAudioTrack(original); }
+          catch (_) { selectedVideo = null; }
+        } catch (_) {}
+      };
+      for (const event of ['yt-navigate-finish', 'yt-player-updated', 'loadedmetadata', 'canplay']) {
+        document.addEventListener(event, preferOriginal, true);
+      }
+      preferOriginal();
+    })();
+    """#
+}
+
 enum YouTubeAdPlaybackPolicy {
     static let adPlaybackRate = 8.0
 
@@ -999,7 +1040,7 @@ enum XImageZoomWebPolicy {
 }
 
 enum SupportedBrowserUserAgent {
-    static let chromiumProduct = "Chrome/151.0.0.0"
+    static let chromiumProduct = "Chrome/156.0.0.0"
     static let chromiumUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) \(chromiumProduct) Safari/537.36"
 
     static var safariApplicationName: String {
@@ -1108,6 +1149,10 @@ enum SystemMediaCompatibilityPolicy {
     private static var detectedDomains = Set<String>()
 
     private static let chromiumOnlyDomains = [
+        // Media fallback would move Google account cookies into a different engine store.
+        "youtube.com",
+        "youtube-nocookie.com",
+        "google.com",
         "grok.com",
         // Switching engines during Claude verification loses the Chromium
         // challenge/session cookies and restarts login in a different context.
@@ -2302,6 +2347,7 @@ final class CefWebContentWrapper: NSObject, @preconcurrency WebContentWrapper, C
               let pageURL = URL(string: urlString ?? pendingURL.absoluteString),
               YouTubeAdPlaybackPolicy.supports(host: pageURL.host) else { return }
         browser.executeJavaScript(YouTubeAdPlaybackPolicy.javaScript)
+        browser.executeJavaScript(YouTubeOriginalAudioPolicy.javaScript)
     }
 
     private func installAutomaticMediaCompatibilityDetection() {

@@ -909,8 +909,8 @@ private struct WebpageDisplayLanguagesView: View {
                 comment: "General language settings - Ordered language preferences"
             ))
             Text(NSLocalizedString(
-                "settings.general.webLanguages.manualOnlyExplanation",
-                value: "Saving language preferences does not translate pages. Use Translate Page to request translation. Websites may use their own account language settings.",
+                "settings.general.webLanguages.restartExplanation",
+                value: "Restart Astra to apply this order to website language requests. Use Translate Page for translation. Website account settings and video audio choices may override language preferences.",
                 comment: "General language settings - Distinguish language preferences from explicit translation"
             ))
             .font(.system(size: 11))
